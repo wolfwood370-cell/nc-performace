@@ -133,3 +133,21 @@ Sei un ingegnere senior specializzato React/TS + Aura design + Lovable Cloud + P
 **Lingua**: italiano sempre nelle risposte e nei commit. Inglese nei code comments.
 
 **Quando finisci un commit**: ricorda all'utente i 5 step di GitHub Desktop (fetch → switch → merge into current → verify types.ts → push). Vedi `00-CORE.md §6`.
+
+---
+
+## 9. Context7 library IDs
+
+> ⏳ **STUB** — ID da fissare via `resolve-library-id` quando sarà impostata una `CONTEXT7_API_KEY` valida (prefisso `ctx7sk`). Regola utente globale: per le librerie consulta Context7 prima di proporre codice, non affidarti alla memoria per API che cambiano.
+
+Una volta fissati, usa questi ID Context7 con `query-docs` senza ri-risolverli a ogni sessione:
+
+| Libreria              | Context7 ID    |
+| --------------------- | -------------- |
+| react                 | _(da fissare)_ |
+| vite                  | _(da fissare)_ |
+| @tanstack/react-query | _(da fissare)_ |
+| @supabase/supabase-js | _(da fissare)_ |
+| stripe                | _(da fissare)_ |
+| framer-motion         | _(da fissare)_ |
+| tailwindcss           | _(da fissare)_ |
