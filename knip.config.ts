@@ -28,6 +28,32 @@ const config: KnipConfig = {
     // shadcn/ui primitives — kept available even if currently unused (future Stitch
     // implementations may pull in a Drawer, Menubar, etc.)
     "src/components/ui/**",
+    // WIP feature modules — in PRODUCT_SPEC ma non ancora collegati a route/UI.
+    // Tenuti di proposito (non sono dead code); ignorati perché gli audit non li
+    // segnalino come orfani. ⚠️ RIVEDERE PRIMA DI OGNI RELEASE: vedi
+    // docs/WIP_MODULES.md. Quando un modulo viene collegato, rimuovilo da qui; se
+    // viene abbandonato, allora è dead code e va rimosso dal codebase.
+    "src/hooks/useAcwrData.ts",
+    "src/hooks/usePeriodization.ts",
+    "src/hooks/useCyclePhasing.ts",
+    "src/hooks/useCoachTrainingBlocks.ts",
+    "src/hooks/useCoachNutritionAnalytics.ts",
+    "src/hooks/useAthleteHealthProfile.ts",
+    "src/hooks/useFmsAlerts.ts",
+    "src/hooks/useOfflineSync.ts",
+    "src/hooks/useAiQuota.ts",
+    "src/hooks/useFeatureAccess.ts",
+    "src/lib/math/readinessMath.ts",
+    "src/lib/math/adaptiveTDEE.ts",
+    "src/lib/math/biometrics.ts",
+    "src/lib/math/nutritionMath.ts",
+    "src/lib/offlineStorage.ts",
+    "src/lib/media.ts",
+    "src/lib/mediaSession.ts",
+    "src/lib/imageCompression.ts",
+    "src/services/foodApi.ts",
+    "src/types/progression.ts",
+    "src/types/database.ts",
   ],
   ignoreDependencies: [
     // Used implicitly via lint-staged config in package.json
