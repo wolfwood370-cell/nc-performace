@@ -6,12 +6,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Hard cap on inbound payload. Gemini vision can technically handle large
+// Hard cap on inbound payload. The vision model can technically handle large
 // images, but a 10MB base64 blob already covers a 7.5MB raw photo (more than
 // enough for meal photography) and forecloses naive DoS via gigabyte uploads.
 const MAX_IMAGE_BASE64_BYTES = 10 * 1024 * 1024;
@@ -92,11 +91,7 @@ function validateAnalysis(data: unknown): MealAnalysis {
   if (!Number.isFinite(fats) || fats < 0) {
     throw new Error("Invalid fats value");
   }
-  if (
-    !Number.isFinite(confidenceScore) ||
-    confidenceScore < 1 ||
-    confidenceScore > 100
-  ) {
+  if (!Number.isFinite(confidenceScore) || confidenceScore < 1 || confidenceScore > 100) {
     throw new Error("Invalid confidenceScore (must be 1-100)");
   }
 
@@ -131,13 +126,10 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      {
-        status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -149,13 +141,10 @@ serve(async (req: Request) => {
     // -------------------------------------------------------------------------
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Non autenticato" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Non autenticato" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -163,13 +152,10 @@ serve(async (req: Request) => {
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       console.error("[analyze-meal-photo] Missing Supabase env vars");
-      return new Response(
-        JSON.stringify({ error: "Configurazione server mancante" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Configurazione server mancante" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -179,67 +165,50 @@ serve(async (req: Request) => {
     const { data: userData, error: authError } = await supabaseUser.auth.getUser();
     const user = userData?.user;
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Sessione non valida" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Sessione non valida" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Optional: log who called for audit / cost attribution. (Cheap; one
     // log line per AI invocation is well within Supabase log quota.)
     console.log("[analyze-meal-photo] invocation", { userId: user.id });
 
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    const baseURL = Deno.env.get("LOVABLE_AI_GATEWAY_URL") ??
-      "https://ai.gateway.lovable.dev/v1";
+    const apiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!apiKey) {
-      console.error("[analyze-meal-photo] LOVABLE_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ error: "AI service is not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      console.error("[analyze-meal-photo] OPENAI_API_KEY is not configured");
+      return new Response(JSON.stringify({ error: "AI service is not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     let body: AnalyzeRequest;
     try {
       body = await req.json();
     } catch {
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const { imageBase64, mimeType = "image/jpeg" } = body;
 
     if (!imageBase64 || typeof imageBase64 !== "string") {
-      return new Response(
-        JSON.stringify({ error: "imageBase64 is required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "imageBase64 is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (imageBase64.length > MAX_IMAGE_BASE64_BYTES) {
-      return new Response(
-        JSON.stringify({ error: "Image too large (max 10MB base64)" }),
-        {
-          status: 413,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Image too large (max 10MB base64)" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Normalize: accept both raw base64 and full data URLs
@@ -247,11 +216,10 @@ serve(async (req: Request) => {
       ? imageBase64
       : `data:${mimeType};base64,${imageBase64}`;
 
-    const client = new OpenAI({ apiKey, baseURL });
+    const client = new OpenAI({ apiKey });
 
     const completion = await client.chat.completions.create({
-      model: "google/gemini-3-flash-preview",
-      temperature: 0.2,
+      model: "gpt-5.4-mini",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -260,8 +228,7 @@ serve(async (req: Request) => {
           content: [
             {
               type: "text",
-              text:
-                "Analyze this meal. Return ONLY the JSON object matching the required schema.",
+              text: "Analyze this meal. Return ONLY the JSON object matching the required schema.",
             },
             {
               type: "image_url",
@@ -299,15 +266,12 @@ serve(async (req: Request) => {
     const status = /rate.?limit|quota|429/i.test(message)
       ? 429
       : /timeout|timed out/i.test(message)
-      ? 504
-      : 500;
+        ? 504
+        : 500;
 
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

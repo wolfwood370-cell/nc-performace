@@ -36,7 +36,9 @@ serve(async (req) => {
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user } } = await userClient.auth.getUser();
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
     if (!user) {
       return new Response(JSON.stringify({ error: "Non autenticato" }), {
         status: 401,
@@ -74,12 +76,14 @@ serve(async (req) => {
     const [workoutResult, cycleResult, readinessResult] = await Promise.all([
       supabase
         .from("workout_logs")
-        .select(`
+        .select(
+          `
           id, completed_at, rpe_global, srpe, duration_minutes, status,
           workout_exercises (
             exercise_name, mean_velocity_ms, peak_velocity_ms, rom_cm, calc_power_watts, sets_data
           )
-        `)
+        `,
+        )
         .eq("athlete_id", athlete_id)
         .gte("completed_at", weekAgo.toISOString())
         .order("completed_at", { ascending: true }),
@@ -114,7 +118,10 @@ serve(async (req) => {
     let totalVelocityPoints = 0;
     let sumVelocity = 0;
     let totalVolume = 0;
-    const exerciseSummaries: Record<string, { count: number; avgVelocity: number; velocitySum: number }> = {};
+    const exerciseSummaries: Record<
+      string,
+      { count: number; avgVelocity: number; velocitySum: number }
+    > = {};
 
     completedWorkouts.forEach((log) => {
       const exercises = log.workout_exercises as Array<{
@@ -147,30 +154,46 @@ serve(async (req) => {
       s.avgVelocity = Math.round((s.velocitySum / s.count) * 1000) / 1000;
     });
 
-    const avgVelocity = totalVelocityPoints > 0 ? Math.round((sumVelocity / totalVelocityPoints) * 1000) / 1000 : null;
-    const avgRpe = completedWorkouts.length > 0
-      ? Math.round(completedWorkouts.reduce((s, w) => s + (w.rpe_global || 0), 0) / completedWorkouts.length * 10) / 10
-      : null;
+    const avgVelocity =
+      totalVelocityPoints > 0
+        ? Math.round((sumVelocity / totalVelocityPoints) * 1000) / 1000
+        : null;
+    const avgRpe =
+      completedWorkouts.length > 0
+        ? Math.round(
+            (completedWorkouts.reduce((s, w) => s + (w.rpe_global || 0), 0) /
+              completedWorkouts.length) *
+              10,
+          ) / 10
+        : null;
 
     const vbtDetail = Object.entries(exerciseSummaries)
       .map(([name, s]) => `${name}: ${s.avgVelocity} m/s media (${s.count} set)`)
       .join("; ");
 
     // Readiness summary
-    const avgReadiness = readinessData && readinessData.length > 0
-      ? Math.round(readinessData.reduce((s, r) => s + (r.score || 0), 0) / readinessData.length)
-      : null;
-    const avgSleep = readinessData && readinessData.length > 0
-      ? Math.round(readinessData.reduce((s, r) => s + (r.sleep_hours || 0), 0) / readinessData.length * 10) / 10
-      : null;
+    const avgReadiness =
+      readinessData && readinessData.length > 0
+        ? Math.round(readinessData.reduce((s, r) => s + (r.score || 0), 0) / readinessData.length)
+        : null;
+    const avgSleep =
+      readinessData && readinessData.length > 0
+        ? Math.round(
+            (readinessData.reduce((s, r) => s + (r.sleep_hours || 0), 0) / readinessData.length) *
+              10,
+          ) / 10
+        : null;
 
     // Cycle data (only for female)
     let cycleSection = "";
     if (athleteGender === "female" && cycleLogs && cycleLogs.length > 0) {
       const cyclePhases = cycleLogs.map((c) => c.current_phase);
-      const predominantPhase = cyclePhases.sort(
-        (a, b) => cyclePhases.filter((v) => v === a).length - cyclePhases.filter((v) => v === b).length
-      ).pop();
+      const predominantPhase = cyclePhases
+        .sort(
+          (a, b) =>
+            cyclePhases.filter((v) => v === a).length - cyclePhases.filter((v) => v === b).length,
+        )
+        .pop();
       const symptoms = cycleLogs.flatMap((c) => c.symptom_tags || []);
       cycleSection = `
 CICLO MESTRUALE:
@@ -199,9 +222,10 @@ ${cycleSection}
 `.trim();
 
     // Gender guardrail
-    const genderGuardrail = athleteGender === "male"
-      ? `REGOLA CRITICA: L'atleta è MASCHIO. NON menzionare MAI ciclo mestruale, fasi ormonali, ormoni femminili, o sintomi legati al ciclo. Parole PROIBITE: Luteal, Follicolare, Mestruale, Ovulatoria, Ciclo mestruale, Periodo. La sezione "Stato Fisiologico" deve analizzare SOLO sonno, stress, energia e recupero.`
-      : `L'atleta è FEMMINA. Nella sezione "Stato Fisiologico & Readiness" puoi includere l'analisi della fase del ciclo mestruale se i dati sono disponibili.`;
+    const genderGuardrail =
+      athleteGender === "male"
+        ? `REGOLA CRITICA: L'atleta è MASCHIO. NON menzionare MAI ciclo mestruale, fasi ormonali, ormoni femminili, o sintomi legati al ciclo. Parole PROIBITE: Luteal, Follicolare, Mestruale, Ovulatoria, Ciclo mestruale, Periodo. La sezione "Stato Fisiologico" deve analizzare SOLO sonno, stress, energia e recupero.`
+        : `L'atleta è FEMMINA. Nella sezione "Stato Fisiologico & Readiness" puoi includere l'analisi della fase del ciclo mestruale se i dati sono disponibili.`;
 
     const systemPrompt = `Sei un Direttore delle Prestazioni d'élite (Sports Scientist) per un servizio di coaching high-ticket.
 Analizzi i dati settimanali degli atleti e produci report strutturati, scientifici e azionabili.
@@ -229,22 +253,25 @@ Assegna anche un punteggio sentiment da 0.0 (critico) a 1.0 (eccellente).
 
 ${dataContext}`;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI non configurata (LOVABLE_API_KEY mancante)" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "AI non configurata (OPENAI_API_KEY mancante)" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5-mini",
+        model: "gpt-5.4-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -260,7 +287,8 @@ ${dataContext}`;
                 properties: {
                   insight_text: {
                     type: "string",
-                    description: "Full markdown report with 3 sections: Diagnosi del Carico & VBT, Stato Fisiologico & Readiness, Strategia Operativa",
+                    description:
+                      "Full markdown report with 3 sections: Diagnosi del Carico & VBT, Stato Fisiologico & Readiness, Strategia Operativa",
                   },
                   sentiment_score: {
                     type: "number",
@@ -280,19 +308,28 @@ ${dataContext}`;
     if (!aiResponse.ok) {
       const status = aiResponse.status;
       if (status === 429) {
-        return new Response(JSON.stringify({ error: "Limite richieste AI raggiunto. Riprova tra qualche minuto." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Limite richieste AI raggiunto. Riprova tra qualche minuto." }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       if (status === 402) {
-        return new Response(JSON.stringify({ error: "Crediti AI esauriti. Contatta il supporto." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Crediti AI esauriti. Contatta il supporto." }),
+          {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       const errText = await aiResponse.text();
-      console.error("AI Gateway error:", status, errText);
+      console.error("OpenAI error:", status, errText);
       return new Response(JSON.stringify({ error: "Errore gateway AI" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -305,7 +342,8 @@ ${dataContext}`;
     } else {
       const content = aiData.choices?.[0]?.message?.content || "";
       analysis = {
-        insight_text: content || "Analisi non disponibile. Dati insufficienti per questa settimana.",
+        insight_text:
+          content || "Analisi non disponibile. Dati insufficienti per questa settimana.",
         sentiment_score: 0.5,
       };
     }
@@ -329,7 +367,8 @@ ${dataContext}`;
     if (insertError) {
       console.error("Insert error:", insertError);
       return new Response(JSON.stringify({ error: "Errore salvataggio analisi" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -340,7 +379,7 @@ ${dataContext}`;
     console.error("analyze-athlete-week error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Errore sconosciuto" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

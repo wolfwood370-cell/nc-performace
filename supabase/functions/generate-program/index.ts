@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     // -------------------------------------------------------------------------
-    // SECURITY GATE — must run before any expensive work (DB reads, LOVABLE_API
+    // SECURITY GATE — must run before any expensive work (DB reads, OpenAI API
     // calls). Order: header → JWT → role → ownership. Each step is a hard 401/403
     // because `verify_jwt = false` at the gateway means this code is the only
     // line of defense for paid AI invocations.
@@ -65,10 +65,13 @@ serve(async (req) => {
 
     if (callerProfileError || !callerProfile) {
       console.error("[generate-program] Caller profile lookup failed", callerProfileError);
-      return new Response(JSON.stringify({ error: "Impossibile verificare il ruolo del chiamante" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Impossibile verificare il ruolo del chiamante" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (callerProfile.role !== "coach") {
@@ -111,17 +114,19 @@ serve(async (req) => {
     // Ownership gate: confirm the target athlete is in the caller's roster
     // via the SECURITY DEFINER helper (avoids RLS recursion and is the same
     // function used by every other coach RLS policy).
-    const { data: ownsAthlete, error: ownsError } = await userClient.rpc(
-      "is_coach_of_athlete",
-      { p_athlete_id: athlete_id },
-    );
+    const { data: ownsAthlete, error: ownsError } = await userClient.rpc("is_coach_of_athlete", {
+      p_athlete_id: athlete_id,
+    });
 
     if (ownsError) {
       console.error("[generate-program] is_coach_of_athlete failed", ownsError);
-      return new Response(JSON.stringify({ error: "Impossibile verificare la relazione coach-atleta" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Impossibile verificare la relazione coach-atleta" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (ownsAthlete !== true) {
@@ -168,7 +173,9 @@ serve(async (req) => {
     let oneRmSection = "Nessun dato 1RM disponibile.";
     if (oneRmData && typeof oneRmData === "object") {
       const entries = Object.entries(oneRmData)
-        .filter(([_, v]) => v && typeof v === "object" && (v as Record<string, unknown>).estimated_1rm)
+        .filter(
+          ([_, v]) => v && typeof v === "object" && (v as Record<string, unknown>).estimated_1rm,
+        )
         .map(([name, v]) => `${name}: ${(v as Record<string, unknown>).estimated_1rm} kg`)
         .join(", ");
       if (entries) oneRmSection = entries;
@@ -182,10 +189,12 @@ serve(async (req) => {
 
       const { data: recentLogs } = await supabase
         .from("workout_logs")
-        .select(`
+        .select(
+          `
           completed_at, rpe_global, srpe, duration_minutes, status,
           workout_exercises (exercise_name, mean_velocity_ms, sets_data)
-        `)
+        `,
+        )
         .eq("athlete_id", athlete_id)
         .eq("status", "completed")
         .gte("completed_at", fourWeeksAgo.toISOString())
@@ -200,7 +209,10 @@ serve(async (req) => {
         const exerciseVelocities: Record<string, { sum: number; count: number }> = {};
 
         recentLogs.forEach((log) => {
-          if (log.rpe_global) { rpeSum += log.rpe_global; rpeCount++; }
+          if (log.rpe_global) {
+            rpeSum += log.rpe_global;
+            rpeCount++;
+          }
           const exercises = log.workout_exercises as Array<{
             exercise_name: string;
             mean_velocity_ms: number | null;
@@ -215,7 +227,8 @@ serve(async (req) => {
               });
             }
             if (ex.mean_velocity_ms && Number(ex.mean_velocity_ms) > 0) {
-              if (!exerciseVelocities[ex.exercise_name]) exerciseVelocities[ex.exercise_name] = { sum: 0, count: 0 };
+              if (!exerciseVelocities[ex.exercise_name])
+                exerciseVelocities[ex.exercise_name] = { sum: 0, count: 0 };
               exerciseVelocities[ex.exercise_name].sum += Number(ex.mean_velocity_ms);
               exerciseVelocities[ex.exercise_name].count++;
             }
@@ -244,13 +257,15 @@ ISTRUZIONE: Identifica alzate stagnanti dalla velocità e dal volume e suggerisc
       }
     }
 
-    const injurySection = injuries && injuries.length > 0
-      ? `INFORTUNI ATTIVI:\n${injuries.map((i) => `- ${i.body_zone}: ${i.description || "Non specificato"}`).join("\n")}\nIMPORTANTE: Evita esercizi che stressano direttamente queste zone.`
-      : "Nessun infortunio attivo.";
+    const injurySection =
+      injuries && injuries.length > 0
+        ? `INFORTUNI ATTIVI:\n${injuries.map((i) => `- ${i.body_zone}: ${i.description || "Non specificato"}`).join("\n")}\nIMPORTANTE: Evita esercizi che stressano direttamente queste zone.`
+        : "Nessun infortunio attivo.";
 
-    const modeInstruction = mode === "new"
-      ? "Modalità NUOVA SCHEDA: L'atleta è nuovo o riprende da zero. Concentrati su assessment, baseline, e progressione graduale. NON prescrivere test 1RM per principianti — usa RPE per auto-regolazione."
-      : "Modalità PROGRESSIONE: L'atleta ha uno storico. Analizza i dati forniti, identifica punti deboli e alzate stagnanti, e proponi variazioni intelligenti per rompere i plateau.";
+    const modeInstruction =
+      mode === "new"
+        ? "Modalità NUOVA SCHEDA: L'atleta è nuovo o riprende da zero. Concentrati su assessment, baseline, e progressione graduale. NON prescrivere test 1RM per principianti — usa RPE per auto-regolazione."
+        : "Modalità PROGRESSIONE: L'atleta ha uno storico. Analizza i dati forniti, identifica punti deboli e alzate stagnanti, e proponi variazioni intelligenti per rompere i plateau.";
 
     const systemPrompt = `Sei un Coach di Forza & Condizionamento d'élite. Genera programmi di allenamento settimanali strutturati.
 
@@ -280,22 +295,25 @@ REGOLE DI OUTPUT:
 
     const userPrompt = `Genera il programma settimanale. Rispondi SOLO con la funzione tool call.`;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI non configurata (LOVABLE_API_KEY mancante)" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "AI non configurata (OPENAI_API_KEY mancante)" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.2",
+        model: "gpt-5.2",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -317,7 +335,10 @@ REGOLE DI OUTPUT:
                       properties: {
                         day_index: { type: "number", description: "Day of week 0=Mon to 6=Sun" },
                         day_name: { type: "string", description: "Italian day name" },
-                        focus: { type: "string", description: "Day focus in Italian (es: 'Forza Lower Body')" },
+                        focus: {
+                          type: "string",
+                          description: "Day focus in Italian (es: 'Forza Lower Body')",
+                        },
                         exercises: {
                           type: "array",
                           items: {
@@ -325,10 +346,22 @@ REGOLE DI OUTPUT:
                             properties: {
                               name: { type: "string", description: "Exercise name in English" },
                               sets: { type: "number" },
-                              reps: { type: "string", description: "Rep scheme (e.g. '8', '8-12', '5x5')" },
-                              load: { type: "string", description: "Load prescription (e.g. '70%', 'RPE 7', 'BW')" },
-                              rpe: { type: "number", description: "Target RPE 1-10, null if not applicable" },
-                              rest_seconds: { type: "number", description: "Rest between sets in seconds" },
+                              reps: {
+                                type: "string",
+                                description: "Rep scheme (e.g. '8', '8-12', '5x5')",
+                              },
+                              load: {
+                                type: "string",
+                                description: "Load prescription (e.g. '70%', 'RPE 7', 'BW')",
+                              },
+                              rpe: {
+                                type: "number",
+                                description: "Target RPE 1-10, null if not applicable",
+                              },
+                              rest_seconds: {
+                                type: "number",
+                                description: "Rest between sets in seconds",
+                              },
                               notes: { type: "string", description: "Coaching notes in Italian" },
                             },
                             required: ["name", "sets", "reps", "load", "rest_seconds", "notes"],
@@ -342,7 +375,8 @@ REGOLE DI OUTPUT:
                   },
                   rationale: {
                     type: "string",
-                    description: "Brief rationale for the program design in Italian (2-3 sentences)",
+                    description:
+                      "Brief rationale for the program design in Italian (2-3 sentences)",
                   },
                 },
                 required: ["days", "rationale"],
@@ -358,19 +392,25 @@ REGOLE DI OUTPUT:
     if (!aiResponse.ok) {
       const status = aiResponse.status;
       if (status === 429) {
-        return new Response(JSON.stringify({ error: "Limite richieste AI raggiunto. Riprova tra qualche minuto." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Limite richieste AI raggiunto. Riprova tra qualche minuto." }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       }
       if (status === 402) {
         return new Response(JSON.stringify({ error: "Crediti AI esauriti." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errText = await aiResponse.text();
-      console.error("AI Gateway error:", status, errText);
+      console.error("OpenAI error:", status, errText);
       return new Response(JSON.stringify({ error: "Errore gateway AI" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -379,7 +419,8 @@ REGOLE DI OUTPUT:
 
     if (!toolCall?.function?.arguments) {
       return new Response(JSON.stringify({ error: "AI non ha generato un programma valido" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -392,7 +433,7 @@ REGOLE DI OUTPUT:
     console.error("generate-program error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Errore sconosciuto" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

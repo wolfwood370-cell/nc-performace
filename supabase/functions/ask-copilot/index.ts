@@ -7,8 +7,7 @@
 //   1. Authenticate the caller (user-scoped Supabase client → RLS + auth.uid()
 //      power the match_knowledge_chunks RPC's coach resolution).
 //   2. Embed the incoming `message` via OpenAI text-embedding-3-small
-//      (1536 dims). Embeddings stay on OpenAI direct — the Lovable AI Gateway
-//      is chat-completions only.
+//      (1536 dims) via OpenAI's embeddings endpoint.
 //   3. Call the `match_knowledge_chunks` RPC with cosine threshold 0.75 and
 //      LIMIT 5. The RPC internally resolves coach_id from auth.uid() (coach
 //      sees own chunks; athlete sees their coach's chunks), so we never trust
@@ -17,7 +16,7 @@
 //      context block.
 //   5. Build a strict system prompt that *forbids* answering outside of the
 //      retrieved context, prepend it to the chat history + the new user
-//      message, and call the Lovable AI Gateway (model: openai/gpt-5-mini).
+//      message, and call OpenAI chat completions (model: gpt-5.4-mini).
 //   6. Return { answer, sources } JSON.
 //
 // All outbound network calls are wrapped in AbortController timeouts so a
@@ -67,7 +66,7 @@ interface MatchedChunk {
 
 // =============================================================================
 // fetchWithTimeout — wraps fetch with an AbortController so a stalled upstream
-// (OpenAI / Lovable Gateway) cannot hold the function open indefinitely.
+// (OpenAI) cannot hold the function open indefinitely.
 // =============================================================================
 async function fetchWithTimeout(
   url: string,
@@ -170,7 +169,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error("[ask-copilot] Missing Supabase env vars");
@@ -181,13 +179,6 @@ serve(async (req) => {
     }
     if (!openaiKey) {
       console.error("[ask-copilot] OPENAI_API_KEY is not configured");
-      return new Response(JSON.stringify({ error: "Servizio AI non configurato" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!lovableKey) {
-      console.error("[ask-copilot] LOVABLE_API_KEY is not configured");
       return new Response(JSON.stringify({ error: "Servizio AI non configurato" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -239,7 +230,7 @@ serve(async (req) => {
 
     // -------------------------------------------------------------------------
     // 1b. STRUCTURED MODES — meal_suggestion / session_adaptation bypass RAG
-    //     and return strict JSON. Lovable AI Gateway, no embeddings needed.
+    //     and return strict JSON. OpenAI chat completions, no embeddings needed.
     // -------------------------------------------------------------------------
     const mode = typeof body.mode === "string" ? body.mode : null;
     if (mode === "meal_suggestion" || mode === "session_adaptation") {
@@ -268,15 +259,15 @@ Keep adaptations <= 5. safePlan should be the new full workout structure.`;
       let aiResp: Response;
       try {
         aiResp = await fetchWithTimeout(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          "https://api.openai.com/v1/chat/completions",
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${lovableKey}`,
+              Authorization: `Bearer ${openaiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: "gpt-5.4-mini",
               messages: [
                 { role: "system", content: sysPrompt },
                 { role: "user", content: JSON.stringify(userPayload) },
@@ -431,22 +422,22 @@ ${contextBlock}`
     ];
 
     // -------------------------------------------------------------------------
-    // 6. LLM — Lovable AI Gateway, OpenAI-compatible chat completions.
+    // 6. LLM — OpenAI chat completions.
     //    Non-streaming: the hook awaits a complete answer, which keeps the
     //    client contract trivial. Switch to SSE later if the UX needs it.
     // -------------------------------------------------------------------------
     let aiResponse: Response;
     try {
       aiResponse = await fetchWithTimeout(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        "https://api.openai.com/v1/chat/completions",
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${lovableKey}`,
+            Authorization: `Bearer ${openaiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "openai/gpt-5-mini",
+            model: "gpt-5.4-mini",
             messages,
             stream: false,
           }),
@@ -480,7 +471,7 @@ ${contextBlock}`
         );
       }
       const errText = await aiResponse.text();
-      console.error("[ask-copilot] AI Gateway error:", aiResponse.status, errText);
+      console.error("[ask-copilot] OpenAI error:", aiResponse.status, errText);
       return new Response(JSON.stringify({ error: "Errore gateway AI" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

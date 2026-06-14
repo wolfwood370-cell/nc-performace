@@ -77,7 +77,10 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -107,21 +110,23 @@ Deno.serve(async (req) => {
       .eq("role", "athlete");
 
     if (!athletes?.length) {
-      return new Response(
-        JSON.stringify({ message: "No athletes found", count: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ message: "No athletes found", count: 0 }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Use Italian timezone for week boundaries
-    const { weekStartStr, weekEndStr, todayStr, dayName, timeStr, localDay } = getItalianWeekBounds();
+    const { weekStartStr, weekEndStr, todayStr, dayName, timeStr, localDay } =
+      getItalianWeekBounds();
 
     const athleteIds = athletes.map((a) => a.id);
 
     const [logsRes, nutritionRes] = await Promise.all([
       supabase
         .from("workout_logs")
-        .select("athlete_id, completed_at, rpe_global, duration_minutes, total_load_au, status, scheduled_date, srpe")
+        .select(
+          "athlete_id, completed_at, rpe_global, duration_minutes, total_load_au, status, scheduled_date, srpe",
+        )
         .in("athlete_id", athleteIds)
         .gte("scheduled_date", weekStartStr)
         .lte("scheduled_date", weekEndStr),
@@ -136,8 +141,8 @@ Deno.serve(async (req) => {
     const allLogs = logsRes.data || [];
     const nutritionLogs = nutritionRes.data || [];
 
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) {
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiKey) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -161,28 +166,36 @@ Deno.serve(async (req) => {
 
             const completed = athleteLogs.filter((l) => l.status === "completed");
             const missed = athleteLogs.filter(
-              (l) => l.status === "missed" || (l.status === "scheduled" && l.scheduled_date && l.scheduled_date < todayStr)
+              (l) =>
+                l.status === "missed" ||
+                (l.status === "scheduled" && l.scheduled_date && l.scheduled_date < todayStr),
             );
             const remaining = athleteLogs.filter(
-              (l) => l.status === "scheduled" && l.scheduled_date && l.scheduled_date >= todayStr
+              (l) => l.status === "scheduled" && l.scheduled_date && l.scheduled_date >= todayStr,
             );
 
             const completedCount = completed.length;
             const missedCount = missed.length;
             const remainingCount = remaining.length;
             const totalScheduled = completedCount + missedCount + remainingCount;
-            const compliance = totalScheduled > 0
-              ? Math.round((completedCount / totalScheduled) * 100)
-              : 0;
+            const compliance =
+              totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
 
             const totalVolume = completed.reduce((sum, l) => sum + (l.total_load_au || 0), 0);
-            const avgRpe = completed.length > 0
-              ? (completed.reduce((sum, l) => sum + (l.rpe_global || 0), 0) / completed.length).toFixed(1)
-              : "N/A";
+            const avgRpe =
+              completed.length > 0
+                ? (
+                    completed.reduce((sum, l) => sum + (l.rpe_global || 0), 0) / completed.length
+                  ).toFixed(1)
+                : "N/A";
 
-            const avgCalories = athleteNutrition.length > 0
-              ? Math.round(athleteNutrition.reduce((sum, n) => sum + (n.calories || 0), 0) / athleteNutrition.length)
-              : null;
+            const avgCalories =
+              athleteNutrition.length > 0
+                ? Math.round(
+                    athleteNutrition.reduce((sum, n) => sum + (n.calories || 0), 0) /
+                      athleteNutrition.length,
+                  )
+                : null;
 
             const metricsSnapshot = {
               compliance_pct: compliance,
@@ -198,9 +211,11 @@ Deno.serve(async (req) => {
             // Time-aware context for the AI
             let weekDoneContext: string;
             if (isSundayOrMonday && remainingCount === 0) {
-              weekDoneContext = "La settimana di allenamento è conclusa. Fornisci un riepilogo completo della settimana appena terminata.";
+              weekDoneContext =
+                "La settimana di allenamento è conclusa. Fornisci un riepilogo completo della settimana appena terminata.";
             } else if (remainingCount === 0) {
-              weekDoneContext = "Tutti gli allenamenti programmati sono stati completati o saltati. Fornisci un riepilogo.";
+              weekDoneContext =
+                "Tutti gli allenamenti programmati sono stati completati o saltati. Fornisci un riepilogo.";
             } else {
               weekDoneContext = `Ci sono ancora ${remainingCount} allenament${remainingCount === 1 ? "o" : "i"} in programma. Motiva l'atleta a dare il massimo nelle sessioni rimanenti.`;
             }
@@ -224,17 +239,16 @@ ${weekDoneContext}
 
 Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggiante. Non usare emoji.`;
 
-            const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${lovableApiKey}`,
+                Authorization: `Bearer ${openaiKey}`,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "google/gemini-2.5-flash",
+                model: "gpt-5.4-nano",
                 messages: [{ role: "user", content: prompt }],
-                max_tokens: 200,
-                temperature: 0.7,
+                max_completion_tokens: 200,
               }),
             });
 
@@ -247,19 +261,17 @@ Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggi
               aiSummary = `Compliance: ${compliance}%. Completati: ${completedCount}/${totalScheduled}. Volume: ${totalVolume} UA. RPE medio: ${avgRpe}.`;
             }
 
-            const { error: upsertError } = await supabase
-              .from("weekly_checkins")
-              .upsert(
-                {
-                  coach_id: coachId,
-                  athlete_id: athlete.id,
-                  week_start: weekStartStr,
-                  status: "pending",
-                  ai_summary: aiSummary,
-                  metrics_snapshot: metricsSnapshot,
-                },
-                { onConflict: "coach_id,athlete_id,week_start" }
-              );
+            const { error: upsertError } = await supabase.from("weekly_checkins").upsert(
+              {
+                coach_id: coachId,
+                athlete_id: athlete.id,
+                week_start: weekStartStr,
+                status: "pending",
+                ai_summary: aiSummary,
+                metrics_snapshot: metricsSnapshot,
+              },
+              { onConflict: "coach_id,athlete_id,week_start" },
+            );
 
             if (upsertError) throw upsertError;
 
@@ -268,7 +280,7 @@ Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggi
             console.error(`Error processing athlete ${athlete.id}:`, err);
             return { athlete_id: athlete.id, status: "error" };
           }
-        })
+        }),
       );
 
       results.push(...batchResults);
@@ -282,16 +294,13 @@ Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggi
         count: successCount,
         results,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("Batch checkins error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Internal error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message || "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

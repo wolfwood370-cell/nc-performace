@@ -71,8 +71,6 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) throw new Error("OPENAI_API_KEY is not configured");
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) throw new Error("LOVABLE_API_KEY is not configured");
 
     // User-scoped client — used for reads that benefit from RLS and for
     // verifying the caller identity via auth.getUser().
@@ -224,17 +222,18 @@ REGOLE:
       { role: "user", content: query },
     ];
 
-    // Call Lovable AI Gateway with streaming
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call OpenAI Chat Completions with streaming
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableKey}`,
+        Authorization: `Bearer ${openaiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5-mini",
+        model: "gpt-5.4-mini",
         messages,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -252,7 +251,7 @@ REGOLE:
         });
       }
       const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
+      console.error("OpenAI error:", aiResponse.status, errorText);
       throw new Error("Errore nel servizio AI");
     }
 
