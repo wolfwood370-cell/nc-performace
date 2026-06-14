@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { Dumbbell, Users } from "lucide-react";
 import { mapSupabaseError } from "@/lib/errorMapping";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { MetaHead } from "@/components/MetaHead";
 import { Footer } from "@/components/layout/Footer";
 
@@ -88,22 +87,23 @@ export default function Auth() {
   const handleGoogle = async () => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        // Bring the user back to /auth so the `useEffect` above can route
-        // them to the role-appropriate home. Going to `/` would trigger
-        // the bare-root redirect back to /auth, causing a loop.
-        redirect_uri: `${window.location.origin}/auth`,
-        // Forza la scelta dell'account anche se l'utente è già loggato in Google
-        extraParams: { prompt: "select_account" },
+      // OAuth nativo Supabase: il browser viene rediretto a Google e torna su
+      // /auth, dove l'`useEffect` su `user` instrada al ruolo corretto. Andare
+      // su `/` farebbe scattare il redirect bare-root verso /auth (loop).
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth`,
+          // Forza la scelta dell'account anche se l'utente è già loggato in Google
+          queryParams: { prompt: "select_account" },
+        },
       });
-      if (result.error) {
-        toast.error(mapSupabaseError(result.error));
+      if (error) {
+        toast.error(mapSupabaseError(error));
         setLoading(false);
-        return;
       }
-      if (result.redirected) return; // Browser is redirecting to Google
-      const path = await resolveHomePath();
-      navigate(path, { replace: true });
+      // In caso di successo il browser sta già redirezionando a Google: il
+      // ritorno su /auth è gestito dall'useEffect sopra.
     } catch (error: unknown) {
       toast.error(mapSupabaseError(error));
       setLoading(false);
