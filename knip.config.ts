@@ -47,6 +47,8 @@ const config: KnipConfig = {
     "src/lib/math/adaptiveTDEE.ts",
     "src/lib/math/biometrics.ts",
     "src/lib/math/nutritionMath.ts",
+    "src/lib/math/constants.ts",
+    "src/lib/math/trainingMetrics.ts",
     "src/lib/offlineStorage.ts",
     "src/lib/media.ts",
     "src/lib/mediaSession.ts",
