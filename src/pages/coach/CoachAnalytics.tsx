@@ -1,6 +1,4 @@
 import { CoachLayout } from "@/components/coach/CoachLayout";
-import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useCoachAthletes } from "@/hooks/useCoachData";
 import {
@@ -20,19 +18,11 @@ import { Users } from "lucide-react";
 import { useRealtimeAnalytics } from "@/hooks/useRealtimeAnalytics";
 
 export default function CoachAnalytics() {
-  const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
   const { data: athletes, isLoading: athletesLoading } = useCoachAthletes();
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | undefined>();
 
   // Live realtime subscription — charts auto-refresh when athlete logs data
   useRealtimeAnalytics(selectedAthleteId);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [authLoading, user, navigate]);
 
   // Auto-select first athlete when loaded
   useEffect(() => {

@@ -23,7 +23,7 @@
  *   - useCoachAlerts → smartAlerts
  *   - useAuth → user, profile, auth loading
  */
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CoachLayout } from "@/components/coach/CoachLayout";
@@ -139,16 +139,11 @@ const FEED_ICONS = [Dumbbell, Timer, Activity];
 // ===========================================================================
 export default function CoachHome() {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const { urgentAlerts, feedbackItems, todaySchedule, businessMetrics, isLoading } =
     useCoachDashboardMetrics();
   const { alerts: _smartAlerts } = useCoachAlerts();
   void _smartAlerts; // kept hot for cache warm-up; widget consumes urgentAlerts.
-
-  // Auth guard
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/auth");
-  }, [authLoading, user, navigate]);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Coach";
   const hasAthletes = businessMetrics.activeClients > 0;

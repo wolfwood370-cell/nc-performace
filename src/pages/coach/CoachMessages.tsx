@@ -1,20 +1,17 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { CoachLayout } from "@/components/coach/CoachLayout";
 import { RoomList } from "@/components/coach/messages/RoomList";
 import { ChatPane } from "@/components/coach/messages/ChatPane";
 import { AthleteContextPane } from "@/components/coach/messages/AthleteContextPane";
 import { NewChatDialog } from "@/components/coach/messages/NewChatDialog";
-import { useAuth } from "@/hooks/useAuth";
 import { useChatRooms, ChatRoom } from "@/hooks/useChatRooms";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export default function CoachMessages() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading: authLoading } = useAuth();
   const { rooms, isLoading, getOrCreateDirectRoom, markRoomAsRead } = useChatRooms();
   const isMobile = useIsMobile();
 
@@ -54,12 +51,6 @@ export default function CoachMessages() {
       }
     }
   }, [roomIdParam, rooms, selectedRoom, markRoomAsRead, isMobile]);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [authLoading, user, navigate]);
 
   // Update selected room when rooms change (to get fresh data)
   useEffect(() => {

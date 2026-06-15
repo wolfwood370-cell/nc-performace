@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -95,9 +94,8 @@ const MOCK_GOOGLE_BUSY_SLOTS: GoogleBusySlot[] = [
 // `MOCK_APPOINTMENTS` removed — see `useCoachAppointments` (audit M3).
 
 export default function CoachCalendar() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile } = useAuth();
 
   // State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -134,13 +132,6 @@ export default function CoachCalendar() {
     startDate: Date;
     planId: string;
   } | null>(null);
-
-  // Auth redirect
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [authLoading, user, navigate]);
 
   // DnD Sensors
   const sensors = useSensors(

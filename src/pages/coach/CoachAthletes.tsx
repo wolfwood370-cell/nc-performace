@@ -35,7 +35,6 @@
  *   - missingOnboardingSteps: array vuoto per "onboarding" filter → AthleteCard renderizza Pending
  */
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CoachLayout } from "@/components/coach/CoachLayout";
@@ -85,17 +84,11 @@ function isOlderThanDays(date: string | null, days: number): boolean {
 // Page
 // ---------------------------------------------------------------------------
 export default function CoachAthletes() {
-  const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { allAthletes, isLoading } = useAthletesRiskOverview();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
-
-  // Auth guard
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/auth");
-  }, [authLoading, user, navigate]);
 
   // ── Live-session subscription (preserved) ───────────────────────────────
   const queryClient = useQueryClient();
