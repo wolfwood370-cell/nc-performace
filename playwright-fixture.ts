@@ -1,3 +1,2 @@
-// Re-export the base fixture from the package
-// Override or extend test/expect here if needed
-export { test, expect } from "lovable-agent-playwright-config/fixture";
+// Fixture nativo @playwright/test: nessun wrapper Lovable. I test usano solo `page`.
+export { test, expect } from "@playwright/test";
