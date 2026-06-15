@@ -55,8 +55,8 @@ function Confetti({ trigger, duration = 3000, onComplete }: ConfettiProps) {
   return null;
 }
 
-// Standalone — premium confetti burst
-export function triggerConfetti() {
+// Standalone — premium confetti burst (usato internamente da CelebrationOverlay)
+function triggerConfetti() {
   const colors = ["hsl(263, 70%, 60%)", "hsl(160, 84%, 50%)", "hsl(38, 92%, 55%)"];
 
   confetti({
