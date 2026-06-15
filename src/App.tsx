@@ -10,10 +10,10 @@ import { InstallPrompt } from "@/components/mobile/InstallPrompt";
 import { NetworkBadge } from "@/components/ui/NetworkBadge";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
+import { ProtectedCoachRoute } from "@/components/auth/ProtectedCoachRoute";
 import { ProtectedAthleteRoute } from "@/components/auth/ProtectedAthleteRoute";
 import { SwUpdatePrompt } from "@/components/pwa/SwUpdatePrompt";
 import { CelebrationOverlay } from "@/components/celebration/Confetti";
-
 
 // Lazy-loaded pages
 const Auth = lazy(() => import("./pages/Auth"));
@@ -74,24 +74,159 @@ const App = () => (
               <Route path="/" element={<Navigate to="/auth" replace />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              
+
               {/* Coach Routes — wrapped in SubscriptionGuard */}
-              <Route path="/coach" element={<SubscriptionGuard><CoachHome /></SubscriptionGuard>} />
-              <Route path="/coach/athletes" element={<SubscriptionGuard><CoachAthletes /></SubscriptionGuard>} />
-              <Route path="/coach/athlete/:id" element={<SubscriptionGuard><AthleteDetail /></SubscriptionGuard>} />
-              <Route path="/coach/programs" element={<SubscriptionGuard><ProgramBuilder /></SubscriptionGuard>} />
-              <Route path="/coach/calendar" element={<SubscriptionGuard><CoachCalendar /></SubscriptionGuard>} />
-              <Route path="/coach/messages" element={<SubscriptionGuard><CoachMessages /></SubscriptionGuard>} />
-              <Route path="/coach/library" element={<SubscriptionGuard><CoachLibrary /></SubscriptionGuard>} />
-              <Route path="/coach/exercises" element={<SubscriptionGuard><ExerciseDatabase /></SubscriptionGuard>} />
-              <Route path="/coach/analytics" element={<SubscriptionGuard><CoachAnalytics /></SubscriptionGuard>} />
-              <Route path="/coach/business" element={<SubscriptionGuard><CoachBusiness /></SubscriptionGuard>} />
-              <Route path="/coach/inbox" element={<SubscriptionGuard><CoachCheckinInbox /></SubscriptionGuard>} />
-              <Route path="/coach/fms" element={<SubscriptionGuard><FmsScreening /></SubscriptionGuard>} />
-              <Route path="/coach/knowledge" element={<SubscriptionGuard><KnowledgeBase /></SubscriptionGuard>} />
-              <Route path="/coach/copilot" element={<SubscriptionGuard><MasterCopilot /></SubscriptionGuard>} />
-              <Route path="/coach/settings" element={<SubscriptionGuard><CoachSettings /></SubscriptionGuard>} />
-              
+              <Route
+                path="/coach"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachHome />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/athletes"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachAthletes />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/athlete/:id"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <AthleteDetail />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/programs"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <ProgramBuilder />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/calendar"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachCalendar />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/messages"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachMessages />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/library"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachLibrary />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/exercises"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <ExerciseDatabase />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/analytics"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachAnalytics />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/business"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachBusiness />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/inbox"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachCheckinInbox />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/fms"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <FmsScreening />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/knowledge"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <KnowledgeBase />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/copilot"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <MasterCopilot />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+              <Route
+                path="/coach/settings"
+                element={
+                  <ProtectedCoachRoute>
+                    <SubscriptionGuard>
+                      <CoachSettings />
+                    </SubscriptionGuard>
+                  </ProtectedCoachRoute>
+                }
+              />
+
               {/* Athlete App — guarded shell + three pages.
                   ProtectedAthleteRoute handles: auth required, role===athlete,
                   onboarding_completed. Unauthenticated users → /auth; coaches
@@ -217,11 +352,11 @@ const App = () => (
 
               {/* Onboarding */}
               <Route path="/onboarding" element={<OnboardingWizard />} />
-              
+
               {/* Legal */}
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
-              
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
