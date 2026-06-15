@@ -174,14 +174,17 @@ export default function Auth() {
 
   return (
     <>
-      <MetaHead title="Accedi" description="Accedi o registrati alla piattaforma CoachHub." />
+      <MetaHead
+        title="Accedi"
+        description="Accedi o registrati alla piattaforma NC Performance Hub."
+      />
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <Card className="w-full max-w-md border-0 shadow-lg">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
               <Dumbbell className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">CoachHub</CardTitle>
+            <CardTitle className="text-2xl font-bold">NC Performance Hub</CardTitle>
             <CardDescription>Piattaforma per coaching ibrido</CardDescription>
           </CardHeader>
           <CardContent>

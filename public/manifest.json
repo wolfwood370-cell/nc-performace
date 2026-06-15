@@ -1,6 +1,6 @@
 {
-  "name": "Coach Hub",
-  "short_name": "Coach",
+  "name": "NC Performance Hub",
+  "short_name": "NC Perf Hub",
   "description": "Piattaforma coaching fitness. Dati, Scienza e AI al servizio della tua performance.",
   "start_url": "/",
   "display": "standalone",

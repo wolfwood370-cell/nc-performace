@@ -4,7 +4,7 @@ test.describe("Core Auth & Navigation", () => {
   // 1. Public Landing Load
   test("Public landing page loads with correct title and login button", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/FitCoach/i);
+    await expect(page).toHaveTitle(/NC Performance Hub/i);
     const loginLink = page.getByRole("link", { name: /accedi/i });
     await expect(loginLink).toBeVisible();
   });
@@ -22,11 +22,18 @@ test.describe("Core Auth & Navigation", () => {
   test("Protected route /coach redirects unauthenticated users", async ({ page }) => {
     await page.context().clearCookies();
     await page.goto("/coach");
-    await page.waitForURL((url) => url.pathname.includes("/auth") || url.pathname === "/coach", { timeout: 5000 }).catch(() => {});
+    await page
+      .waitForURL((url) => url.pathname.includes("/auth") || url.pathname === "/coach", {
+        timeout: 5000,
+      })
+      .catch(() => {});
     await page.waitForTimeout(2000);
     const url = page.url();
     const isOnAuth = url.includes("/auth");
-    const hasLoginForm = await page.getByPlaceholder(/email/i).isVisible().catch(() => false);
+    const hasLoginForm = await page
+      .getByPlaceholder(/email/i)
+      .isVisible()
+      .catch(() => false);
     expect(isOnAuth || hasLoginForm).toBeTruthy();
   });
 
@@ -37,7 +44,10 @@ test.describe("Core Auth & Navigation", () => {
     await page.waitForTimeout(2000);
     const url = page.url();
     const isOnAuth = url.includes("/auth");
-    const hasLoginForm = await page.getByPlaceholder(/email/i).isVisible().catch(() => false);
+    const hasLoginForm = await page
+      .getByPlaceholder(/email/i)
+      .isVisible()
+      .catch(() => false);
     expect(isOnAuth || hasLoginForm).toBeTruthy();
   });
 
@@ -48,7 +58,10 @@ test.describe("Core Auth & Navigation", () => {
     await page.waitForTimeout(2000);
     const url = page.url();
     const isOnAuth = url.includes("/auth");
-    const hasLoginForm = await page.getByPlaceholder(/email/i).isVisible().catch(() => false);
+    const hasLoginForm = await page
+      .getByPlaceholder(/email/i)
+      .isVisible()
+      .catch(() => false);
     expect(isOnAuth || hasLoginForm).toBeTruthy();
   });
 

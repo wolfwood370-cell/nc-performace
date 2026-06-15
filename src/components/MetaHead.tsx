@@ -7,7 +7,7 @@ interface MetaHeadProps {
   image?: string;
 }
 
-const BASE_TITLE = "CoachHub";
+const BASE_TITLE = "NC Performance Hub";
 const DEFAULT_DESCRIPTION =
   "Piattaforma completa per coaching fitness ibrido. Dashboard coach e app atleti.";
 const DEFAULT_IMAGE = "https://lovable.dev/opengraph-image-p98pqg.png";
