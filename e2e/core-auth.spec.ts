@@ -1,21 +1,18 @@
 import { test, expect } from "../playwright-fixture";
 
 test.describe("Core Auth & Navigation", () => {
-  // 1. Public Landing Load
-  test("Public landing page loads with correct title and login button", async ({ page }) => {
+  // 1. Root redirects unauthenticated users to /auth (nessuna landing pubblica — App.tsx)
+  test("Root redirects unauthenticated users to /auth", async ({ page }) => {
     await page.goto("/");
+    await expect(page).toHaveURL(/\/auth/);
     await expect(page).toHaveTitle(/NC Performance Hub/i);
-    const loginLink = page.getByRole("link", { name: /accedi/i });
-    await expect(loginLink).toBeVisible();
   });
 
-  // 2. Auth page renders login form
+  // 2. Auth page renders login form (label "Email"/"Password"; i placeholder sono esempi)
   test("Auth page renders email and password fields", async ({ page }) => {
     await page.goto("/auth");
-    const emailInput = page.getByPlaceholder(/email/i);
-    const passwordInput = page.getByPlaceholder(/password/i);
-    await expect(emailInput).toBeVisible();
-    await expect(passwordInput).toBeVisible();
+    await expect(page.getByLabel(/email/i)).toBeVisible();
+    await expect(page.getByLabel(/password/i)).toBeVisible();
   });
 
   // 3. Protected route /coach redirects unauthenticated users
@@ -65,11 +62,9 @@ test.describe("Core Auth & Navigation", () => {
     expect(isOnAuth || hasLoginForm).toBeTruthy();
   });
 
-  // 6. 404 page renders for unknown routes
+  // 6. 404 page renders for unknown routes (la NotFound mostra "404" + "Pagina non trovata")
   test("404 page renders for unknown routes", async ({ page }) => {
     await page.goto("/nonexistent-route-xyz");
-    await page.waitForTimeout(1000);
-    const notFoundText = page.getByText(/404|non trovata|not found/i);
-    await expect(notFoundText).toBeVisible();
+    await expect(page.getByText(/pagina non trovata/i)).toBeVisible();
   });
 });
