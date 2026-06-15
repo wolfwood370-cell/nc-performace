@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 
 export type RiskLevel = "high" | "moderate" | "low" | "optimal";
 type RiskType = "high_injury_risk" | "detraining_risk" | "low_recovery" | "overload_warning";
@@ -150,6 +151,7 @@ export function useAthletesRiskOverview() {
 
   const athletesQuery = useQuery({
     queryKey: ["risk-overview-athletes", user?.id],
+    ...COACH_ROSTER_QUERY_OPTS,
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase

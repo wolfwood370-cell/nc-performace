@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import {
   DndContext,
   DragEndEvent,
@@ -143,6 +144,7 @@ export default function CoachCalendar() {
   // Fetch coach's athletes
   const { data: athletes = [] } = useQuery({
     queryKey: ["coach-athletes", user?.id],
+    ...COACH_ROSTER_QUERY_OPTS,
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase

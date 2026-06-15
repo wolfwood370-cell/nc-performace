@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "./useAuth";
+import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 
 interface Athlete {
   id: string;
@@ -88,6 +89,7 @@ export function useCoachAthletes() {
 
   return useQuery({
     queryKey: ["coach-athletes", user?.id],
+    ...COACH_ROSTER_QUERY_OPTS,
     queryFn: async () => {
       if (!user) return [];
 
@@ -111,6 +113,7 @@ function useCoachDashboardData() {
   // Fetch athletes
   const athletesQuery = useQuery({
     queryKey: ["coach-athletes", user?.id],
+    ...COACH_ROSTER_QUERY_OPTS,
     queryFn: async () => {
       if (!user) return [];
 

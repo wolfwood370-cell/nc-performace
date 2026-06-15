@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import { format } from "date-fns";
 
 // ===== TYPE DEFINITIONS =====
@@ -142,6 +143,7 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
     error: athletesError,
   } = useQuery({
     queryKey: ["dashboard-athletes", user?.id],
+    ...COACH_ROSTER_QUERY_OPTS,
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase

@@ -66,6 +66,7 @@ import { ProgrammedExerciseCard } from "@/components/coach/program/ProgrammedExe
 import { ProgressionInspector } from "@/components/coach/program/ProgressionInspector";
 import { useSaveProgramBlock, SaveProgramBlockError } from "@/hooks/useSaveProgramBlock";
 import { useAuth } from "@/hooks/useAuth";
+import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import { useAthleteRiskAnalysis } from "@/hooks/useAthleteRiskAnalysis";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseInfo, ExerciseRiskAssessment } from "@/lib/math/fmsRiskEngine";
@@ -116,7 +117,7 @@ function useCoachAthletes() {
       return (data ?? []) as Array<{ id: string; full_name: string | null }>;
     },
     enabled: !!user && profile?.role === "coach",
-    staleTime: 5 * 60 * 1000,
+    ...COACH_ROSTER_QUERY_OPTS,
   });
 }
 
