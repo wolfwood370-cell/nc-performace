@@ -62,6 +62,7 @@ import { toast } from "sonner";
 
 import { useAdvancedProgramStore } from "@/stores/useAdvancedProgramStore";
 import { ExerciseLibraryDrawer } from "@/components/coach/program/ExerciseLibraryDrawer";
+import { GenerateAiWeekDialog } from "@/components/coach/program/GenerateAiWeekDialog";
 import { ProgrammedExerciseCard } from "@/components/coach/program/ProgrammedExerciseCard";
 import { ProgressionInspector } from "@/components/coach/program/ProgressionInspector";
 import { useSaveProgramBlock, SaveProgramBlockError } from "@/hooks/useSaveProgramBlock";
@@ -645,6 +646,15 @@ export default function ProgramBuilder() {
                   <Copy className="h-4 w-4" />
                   Clona Settimana
                 </Button>
+
+                {/* Genera Settimana IA — invoca generate-program e rimpiazza la
+                    settimana selezionata col risultato mappato. */}
+                <GenerateAiWeekDialog
+                  athleteId={block.athlete_id || undefined}
+                  weekId={selectedWeekId}
+                  weekOrder={selectedWeek?.order}
+                  daysPerWeek={selectedWeek?.sessions.length ?? 0}
+                />
 
                 {/* Salva nei Template — pill outline, placeholder until template lib lands */}
                 <Button
