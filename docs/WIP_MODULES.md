@@ -10,16 +10,16 @@
 
 Origine: audit **D8** (`docs/D8_AUDIT_CODICE_MORTO.md`, 2026-06-14).
 
-| Feature                                    | File                                                                                                                                                      | Punto di aggancio previsto                                     |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Readiness / ACWR / Periodizzazione / Ciclo | `src/hooks/useAcwrData.ts`, `usePeriodization.ts`, `useCyclePhasing.ts`, `useCoachTrainingBlocks.ts`                                                      | route + dashboard coach che consuma gli hook                   |
-| Math readiness / TDEE / biometria          | `src/lib/math/readinessMath.ts`, `adaptiveTDEE.ts`, `biometrics.ts`, `nutritionMath.ts`, `constants.ts`, `trainingMetrics.ts`, `src/types/progression.ts` | lib pure → consumate dagli hook qui sopra                      |
-| Nutrizione                                 | `src/hooks/useCoachNutritionAnalytics.ts`, `src/services/foodApi.ts`                                                                                      | pagina nutrizione coach                                        |
-| FMS / Salute                               | `src/hooks/useAthleteHealthProfile.ts`, `src/hooks/useFmsAlerts.ts`                                                                                       | onboarding/profilo atleta + alert coach                        |
-| Offline / PWA                              | `src/hooks/useOfflineSync.ts`, `src/lib/offlineStorage.ts`                                                                                                | ⚠️ richiede re-introdurre la PWA (rimossa da `vite.config.ts`) |
-| Media / immagini                           | `src/lib/media.ts`, `src/lib/mediaSession.ts`, `src/lib/imageCompression.ts`                                                                              | upload foto/video                                              |
-| Quota AI                                   | `src/hooks/useAiQuota.ts`                                                                                                                                 | UI quota nelle pagine AI                                       |
-| Gating abbonamento                         | `src/hooks/useFeatureAccess.ts`, `src/types/database.ts`                                                                                                  | gating Stripe                                                  |
+| Feature                                    | File                                                                                                                                | Punto di aggancio previsto                                     |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Readiness / ACWR / Periodizzazione / Ciclo | `usePeriodization.ts`, `useCyclePhasing.ts`, `useCoachTrainingBlocks.ts`                                                            | route + dashboard coach che consuma gli hook                   |
+| Math readiness / TDEE / biometria          | `src/lib/math/readinessMath.ts`, `adaptiveTDEE.ts`, `biometrics.ts`, `nutritionMath.ts`, `constants.ts`, `src/types/progression.ts` | lib pure → consumate dagli hook qui sopra                      |
+| Nutrizione                                 | `src/hooks/useCoachNutritionAnalytics.ts`, `src/services/foodApi.ts`                                                                | pagina nutrizione coach                                        |
+| FMS / Salute                               | `src/hooks/useAthleteHealthProfile.ts`, `src/hooks/useFmsAlerts.ts`                                                                 | onboarding/profilo atleta + alert coach                        |
+| Offline / PWA                              | `src/hooks/useOfflineSync.ts`, `src/lib/offlineStorage.ts`                                                                          | ⚠️ richiede re-introdurre la PWA (rimossa da `vite.config.ts`) |
+| Media / immagini                           | `src/lib/media.ts`, `src/lib/mediaSession.ts`, `src/lib/imageCompression.ts`                                                        | upload foto/video                                              |
+| Quota AI                                   | `src/hooks/useAiQuota.ts`                                                                                                           | UI quota nelle pagine AI                                       |
+| Gating abbonamento                         | `src/hooks/useFeatureAccess.ts`, `src/types/database.ts`                                                                            | gating Stripe                                                  |
 
 ## Note
 

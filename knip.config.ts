@@ -33,7 +33,6 @@ const config: KnipConfig = {
     // segnalino come orfani. ⚠️ RIVEDERE PRIMA DI OGNI RELEASE: vedi
     // docs/WIP_MODULES.md. Quando un modulo viene collegato, rimuovilo da qui; se
     // viene abbandonato, allora è dead code e va rimosso dal codebase.
-    "src/hooks/useAcwrData.ts",
     "src/hooks/usePeriodization.ts",
     "src/hooks/useCyclePhasing.ts",
     "src/hooks/useCoachTrainingBlocks.ts",
@@ -48,7 +47,6 @@ const config: KnipConfig = {
     "src/lib/math/biometrics.ts",
     "src/lib/math/nutritionMath.ts",
     "src/lib/math/constants.ts",
-    "src/lib/math/trainingMetrics.ts",
     "src/lib/offlineStorage.ts",
     "src/lib/media.ts",
     "src/lib/mediaSession.ts",

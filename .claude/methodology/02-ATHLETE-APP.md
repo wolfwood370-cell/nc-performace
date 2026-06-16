@@ -391,11 +391,11 @@ App boot → AthleteDashboard
 
 ### 8.2 Hook chiave
 
-| Hook                                 | Purpose                          |
-| ------------------------------------ | -------------------------------- |
-| `useAthleteHealthProfile`            | Profile + biometrics + neurotype |
-| `useAcwrData` / `useAthleteAcwrData` | ACWR calc                        |
-| `useAthleteRiskAnalysis`             | FMS-based risk per exercise      |
+| Hook                      | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `useAthleteHealthProfile` | Profile + biometrics + neurotype |
+| `useAthleteAcwrData`      | ACWR calc                        |
+| `useAthleteRiskAnalysis`  | FMS-based risk per exercise      |
 
 ### 8.3 Readiness score
 
