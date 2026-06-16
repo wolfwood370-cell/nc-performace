@@ -30,7 +30,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CoachLayout } from "@/components/coach/CoachLayout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -71,7 +70,7 @@ import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import { useAthleteRiskAnalysis } from "@/hooks/useAthleteRiskAnalysis";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseInfo, ExerciseRiskAssessment } from "@/lib/math/fmsRiskEngine";
-import type { Microcycle, Session, ProgrammedExercise, UUID } from "@/types/training";
+import type { Microcycle, Session, UUID } from "@/types/training";
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -203,98 +202,6 @@ function WeekTimelineCard({ week, isActive, onSelect }: WeekTimelineCardProps) {
         <span className="tabular-nums">{week.sessions.length}d</span>
       </div>
     </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Subcomponent: ExerciseCard (minimalist, inside a Session column)
-// ---------------------------------------------------------------------------
-
-/**
- * One programmed exercise rendered as a compact card. Surfaces the four
- * coaching-critical fields: name, sets × reps, intensity (RPE/RIR/%1RM),
- * and rest. Anything more granular (per-set editing, tempo, notes) is left
- * for the dedicated editor in a later slice.
- *
- * Intensity precedence is RPE > RIR > %1RM, matching how most coaches
- * write programs ("RPE 8" beats "75% 1RM" when both are present because
- * autoregulation is the more actionable target on the day).
- */
-interface ExerciseCardProps {
-  exercise: ProgrammedExercise;
-}
-
-function ExerciseCard({ exercise }: ExerciseCardProps) {
-  const totalSets = exercise.sets.length;
-
-  // Use the first working set as the representative target. Coaches
-  // typically prescribe homogeneous sets (5×5 @ RPE 8); divergent sets are
-  // surfaced in the detailed editor, not here.
-  const firstSet = exercise.sets[0];
-
-  // Pick the strongest available intensity signal and color-code it. The
-  // distinct hues let a coach pattern-match a week's intensity profile at
-  // a glance — RPE-heavy weeks read amber, %1RM-heavy weeks read indigo.
-  const intensityBadge = useMemo(() => {
-    if (!firstSet) return null;
-    if (firstSet.rpe_target != null) {
-      return {
-        label: `RPE ${firstSet.rpe_target}`,
-        // Amber: signals subjective autoregulation.
-        className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-      };
-    }
-    if (firstSet.rir_target != null) {
-      return {
-        label: `RIR ${firstSet.rir_target}`,
-        // Emerald: RIR is essentially RPE inverted; using a sibling hue
-        // keeps the autoregulation family visually grouped.
-        className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-      };
-    }
-    if (firstSet.percent_1rm_target != null) {
-      return {
-        label: `${firstSet.percent_1rm_target}% 1RM`,
-        // Indigo: signals objective load prescription.
-        className: "border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
-      };
-    }
-    return null;
-  }, [firstSet]);
-
-  return (
-    <Card className="border-border/60 transition-colors hover:border-border">
-      <CardContent className="space-y-1.5 p-2.5">
-        {/* Title row */}
-        <p className="truncate text-xs font-semibold leading-tight" title={exercise.exercise_name}>
-          {exercise.exercise_name}
-        </p>
-
-        {/* Volume row: sets × reps */}
-        <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-          <span className="tabular-nums font-medium text-foreground">{totalSets}</span>
-          <span>×</span>
-          <span className="tabular-nums">{firstSet?.reps_target ?? "—"}</span>
-          {firstSet?.rest_seconds != null && (
-            <>
-              <span className="text-muted-foreground/50">·</span>
-              <span className="tabular-nums">{firstSet.rest_seconds}s</span>
-            </>
-          )}
-        </div>
-
-        {/* Intensity badge — only rendered when the coach actually
-            prescribed a target. Avoids visual noise on placeholder rows. */}
-        {intensityBadge && (
-          <Badge
-            variant="outline"
-            className={cn("h-4 px-1.5 text-3xs font-medium", intensityBadge.className)}
-          >
-            {intensityBadge.label}
-          </Badge>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
