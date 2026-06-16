@@ -139,6 +139,14 @@ interface ProgramBuilderState {
    *   3. Bump RPE/load on each subsequent week for progressive overload.
    */
   duplicateWeek: (sourceWeekId: UUID, targetWeekId: UUID) => void;
+
+  // ---- AI week replacement ----
+  /**
+   * Rimpiazza in blocco le `sessions` della settimana `weekId` con quelle
+   * generate dall'IA (già mappate da `aiProgramMapper`). Appende `rationale`
+   * a `block.description` con etichetta, senza sovrascriverla.
+   */
+  replaceWeekWithAiProgram: (weekId: UUID, sessions: Session[], rationale?: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +376,33 @@ export const useProgramBuilderStore = create<ProgramBuilderState>()(
           ...targetWeek,
           sessions: clonedSessions,
         };
+
+        state.isDirty = true;
+      }),
+
+    // -----------------------------------------------------------------------
+    // AI week replacement
+    // -----------------------------------------------------------------------
+
+    replaceWeekWithAiProgram: (weekId, sessions, rationale) =>
+      set((state) => {
+        if (!state.block) return;
+        const idx = state.block.weeks.findIndex((w) => w.id === weekId);
+        if (idx === -1) return;
+
+        const week = state.block.weeks[idx];
+        // The mapper already produced fully-formed Session objects with their
+        // own ids; we just swap them in, preserving the week identity.
+        state.block.weeks[idx] = { ...week, sessions };
+
+        // Append the AI rationale to the block description (never overwrite).
+        const trimmed = rationale?.trim();
+        if (trimmed) {
+          const label = `IA — settimana ${week.order}: ${trimmed}`;
+          state.block.description = state.block.description
+            ? `${state.block.description}\n\n${label}`
+            : label;
+        }
 
         state.isDirty = true;
       }),
