@@ -5,6 +5,14 @@
 
 ---
 
+## 0. Dual-agent — sei Code o Cowork?
+
+Questo file è il manuale operativo di **Claude Code** (codice / branch / commit).
+Se operi in **Cowork** (infra / connettore / planning / doc), leggi PRIMA **`COWORK.md`**:
+corsia diversa — git read-only, niente scritture nel repo, handoff a Code.
+
+---
+
 ## 1. Stack canonico (sintesi)
 
 **Frontend**: React 18 · Vite 5 · TypeScript strict · Tailwind + shadcn/ui · TanStack Query v5 (IndexedDB persist) · Zustand+immer · React Router v6 · Framer Motion.
