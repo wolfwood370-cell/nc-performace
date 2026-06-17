@@ -1,0 +1,104 @@
+# HANDOFF — nc-performance-hub (trasferimento sessione)
+
+> **Aggiornato:** 2026-06-16 (Cowork). Migrazione Lovable→Supabase di proprietà avanzata: smoke AI 6/6, flusso invito→atleta verificato, fix cache roster, **`generate-program` cablata nella UI (D11)**. Codice su `origin/main` (tip `afb9e1e`). Piano **D12** pulizia dead-code ACWR pronto (Set A approvato, da eseguire in CC).
+> **Priorità aperta:** la **libreria esercizi è vuota** sul backend nuovo (buco di migrazione) → blocca il program-building reale (vedi §4 r.8).
+> Scopo: riprendere da una chat nuova (Cowork **o** Claude Code) senza perdere contesto. Prompt pronti in §8 (Claude Code) e §9 (Cowork).
+> ⚠️ **`docs/HANDOFF.md` è untracked → GitHub Desktop lo stasha ad ogni branch switch** (già successo 3×). **Raccomandazione: trackarlo** (commit) per fermare il problema — vedi §5.
+
+---
+
+## 1. In una riga
+
+Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web + Atleta PWA) da **Lovable Cloud** a **Supabase di proprietà** (ref `xgxtplqlewpqjzghvbke`). AI→OpenAI **validata 6/6**, login Google **attivo**, invito→atleta **verificato**, fix roster + **`generate-program` cablata**. Restano: **popolare la libreria esercizi** (§4 r.8), collegare i moduli WIP, e il cutover finale del `.env`.
+
+## 2. Stato attuale (fattuale)
+
+- **Supabase di proprietà.** Ref **`xgxtplqlewpqjzghvbke`**, region `eu-central-1`, org `umydelvpdzieopddfhpf`. URL `https://xgxtplqlewpqjzghvbke.supabase.co` · publishable key `sb_publishable_Hr-lQDDqFZZXZgfjLK999A_JkCfRg1f`. 54 tabelle, **RLS attiva ovunque**, advisor security 0 ERROR.
+- **6 funzioni AI su OpenAI, validate live:** ✅ `ask-copilot`, `analyze-meal-photo`, `chat-with-coach`, `generate-batch-checkins` (2026-06-14) · ✅ `generate-program` (gpt-5.2) e `analyze-athlete-week` (gpt-5.4-mini) (2026-06-15, atleta reale `wolfwood370` id `912d6214`). `OPENAI_API_KEY` con credito; secret OK (OpenAI/Resend/Stripe test).
+- **Login Google attivo.** Coach = `nctrainingsystems@gmail.com` (id `af93b1cd`). **Atleti = su invito.** Meccanismo verificato: la **UI invito scrive `invite_tokens`**; al **signup Google** il trigger `handle_new_user` collega via path `invite_tokens` (email) → `profiles.coach_id` + `used=true`. NB profilo prende il nome dall'account Google. (La edge fn `invite-athlete`/`generateLink` è un path alternativo non usato dalla UI.)
+- **Git: `origin/main` (tip `afb9e1e`).** Mergiati: migrazione, audit, E2E nativa, rebranding, guard coach, **fix cache roster** (`2a57af1`), **generate-program UI** (`8735e0d` feat + `afb9e1e` cleanup). Working tree pulito (docs/\*.md untracked → vedi warning §5).
+- **Libreria esercizi VUOTA** (`exercises` 0 righe). Nessun seed/INSERT nelle 125 migration, nessun `supabase/seed.sql` → i dati esistevano solo nel vecchio DB Lovable. Vedi §4 r.8.
+- **Qualità:** audit (solo `ai-error` rimosso, WIP tenuti in `docs/WIP_MODULES.md`) · E2E nativa 6/6 · rebranding "NC Performance Hub" · `ProtectedCoachRoute` su 15 route · fix roster `src/lib/coachQueries.ts` · `generate-program` cablata (`GenerateAiWeekDialog` + `useGenerateProgram` + `mapAiDaysToSessions` + store `replaceWeekWithAiProgram`).
+- **Lovable resta intatto** → rollback a costo ~zero fino al cutover.
+
+## 3. Decisioni
+
+**Chiuse:** D1 schema-only · D2 AI→OpenAI (validata 6/6) · D3 OAuth Google · audit · E2E · rebranding · guard coach · smoke AI + invito (2026-06-15) · fix cache roster (2026-06-15) · **generate-program UI (D11, 2026-06-16)**.
+**Aperte:** **D4** hosting FE (Cloudflare Pages vs Vercel) · **D5** security report-only (= Lovable) · **D6** timing cutover `.env` · **libreria esercizi** (come popolarla, §4 r.8) · **D12** cleanup ACWR (Set A pronto per CC; readinessMath/Set B tenuto).
+
+## 4. Prossimi passi
+
+| #   | Passo                                                                                                                                                                                                                                                                                                                                                                                                                  | Owner             |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 1   | ✅ **FATTO** Smoke AI 6/6 con atleta reale.                                                                                                                                                                                                                                                                                                                                                                            | 👤 + 🤝           |
+| 2   | ✅ **FATTO** Flusso invito→atleta verificato.                                                                                                                                                                                                                                                                                                                                                                          | 👤 + 🤝           |
+| 3   | **Collegare moduli WIP** (readiness/ACWR/nutrizione/TDEE/FMS/offline/media/quota/gating) — `docs/WIP_MODULES.md`                                                                                                                                                                                                                                                                                                       | Claude Code       |
+| 4   | **Cutover finale** `.env`/backend (D6/D4) + scollegare Lovable. (Ora override locale `.env.local` → backend nuovo.)                                                                                                                                                                                                                                                                                                    | 👤                |
+| 5   | Minori: hook husky, email/handle legacy, tidy RLS `{public}`→`{authenticated}`                                                                                                                                                                                                                                                                                                                                         | 👤 / CC / Lovable |
+| 6   | ✅ **FATTO+VALIDATO 2026-06-15** (`2a57af1`) Fix cache lista atleti: `coachQueries.ts` `COACH_ROSTER_QUERY_OPTS` su 7 letture roster. `/coach/athletes` mostra l'atleta.                                                                                                                                                                                                                                               | Claude Code       |
+| 7   | ✅ **FATTO 2026-06-16** (`8735e0d` feat + `afb9e1e` cleanup) `generate-program` cablata: `GenerateAiWeekDialog` (header ProgramBuilder) → hook → mapper → store. Fallback **SENTINEL** `UNLINKED_EXERCISE_ID` finché libreria vuota. Piano: `docs/D11_GENERATE_PROGRAM_PLAN.md`.                                                                                                                                       | Claude Code       |
+| 8   | **Popolare la libreria esercizi** — `exercises` vuota (0 righe); nessun seed nelle 125 migration né `seed.sql` → i dati erano solo nel vecchio DB Lovable. Blocca program-building reale (manuale **e** AI → tutto SENTINEL). **Deferito 2026-06-16: Nick aggiungerà gli esercizi in seguito.** Opzioni alla ripresa: (a) export da Lovable → import via connettore; (b) seed curato nel repo; (c) inserimento via UI. | 👤                |
+| 9   | **D12 — pulizia dead-code ACWR**: rimuovi `useAcwrData`+`trainingMetrics` (Set A, `tsc` resta verde). Piano: `docs/D12_DEADCODE_ACWR_CLEANUP_PLAN.md`. Set B (`readinessMath`/`constants`) tenuto.                                                                                                                                                                                                                     | Claude Code       |
+
+## 5. Tooling & workflow
+
+- **Si alternano** Cowork (infra/connettore/test Chrome/doc) e **Claude Code** (codice/branch/commit). Stesso checkout.
+- **Branch hygiene (CC):** non committare su `main`; usare `claude/<slug>`.
+- **Push/merge:** li fa **Nick via GitHub Desktop** (MAI Cowork/CC).
+- **⚠ GitHub Desktop + untracked:** ad ogni branch switch GHD **stasha** le modifiche non committate, **inclusi i file untracked** → `docs/HANDOFF.md` "sparisce" (già 3×; 5 stash `!!GitHub_Desktop<branch>` accumulati). Recupero: `git checkout stash@{0} -- docs/HANDOFF.md`. **FIX consigliato: trackare `docs/HANDOFF.md` (commit)** così sopravvive agli switch e va su origin.
+- **Cowork sandbox:** file montati con NUL padding → usa `Read`/`grep -a`; `git status` mostra tutto il tree modificato (CRLF, falso) e può lasciare `index.lock` → git read-only in Cowork; `knip`/`depcheck` in CC.
+- Anteprima/dev = `npm run dev` (`localhost:8080`).
+
+## 6. Guardrail (vincolanti)
+
+Risposte/commit **italiano** · **MAI push** (sincronizza Nick) · build gate `tsc --noEmit -p tsconfig.app.json` verde · commit atomici · secrets/credenziali/Stripe/Google = Nick · security D5 report-only (legge #11) · niente operazioni distruttive senza conferma · confermare costo prima di creare risorse Supabase.
+
+## 7. Documenti di riferimento
+
+`CLAUDE.md` + `.claude/methodology/*` · `docs/D2_OPENAI_MIGRATION_CONTRACT.md` · `docs/D3_TEST_200_RUNBOOK.md` · `docs/D7_GOOGLE_OAUTH_SETUP.md` · `docs/D8_AUDIT_CODICE_MORTO.md` · `docs/D9_E2E_PLAYWRIGHT_NATIVE.md` · `docs/D10_COACH_ROUTE_GUARD.md` · `docs/D11_GENERATE_PROGRAM_PLAN.md` · `docs/D12_DEADCODE_ACWR_CLEANUP_PLAN.md` · `docs/WIP_MODULES.md` · `docs/DB_MIGRATION_FASE1_REPORT.md` (anch'esso untracked) · `docs/PRODUCT_SPEC.md` · `docs/ROADMAP.md`.
+
+---
+
+## 8. PROMPT DI TRASFERIMENTO — Claude Code (lavoro su CODICE)
+
+```
+Prosecuzione nc-performance-hub (Lovable → Supabase mio). Leggi PRIMA docs/HANDOFF.md
++ CLAUDE.md + .claude/methodology/00-CORE.md.
+
+Stato (2026-06-16): smoke AI 6/6, invito→atleta ok, fix cache roster, generate-program CABLATA
+nella UI (commit 8735e0d). Tutto su origin/main (tip afb9e1e). Moduli WIP in docs/WIP_MODULES.md.
+NB: la libreria esercizi è VUOTA (task infra/Cowork, §4 r.8) → i programmi referenziano esercizi
+SENTINEL finché non viene popolata.
+
+GUARDRAIL: italiano; all'inizio VERIFICA il branch e crea claude/<slug> (NON su main); MAI push
+(sincronizzo io); build gate tsc --noEmit -p tsconfig.app.json verde; commit atomici; secrets le
+imposto io; security D5 report-only (legge #11). MONITORA il contesto: a ~85% fermati, dichiaralo e
+prepara handoff + prompt di ripartenza. Esplora→pianifica e proponi il piano PRIMA di modificare.
+
+OBIETTIVO (dimmi tu quale): collegare un modulo WIP da docs/WIP_MODULES.md, o un fix FE.
+Esplora→pianifica e proponi il piano PRIMA di modificare.
+```
+
+## 9. PROMPT DI TRASFERIMENTO — Cowork (lavoro su CONNETTORE/INFRA)
+
+```
+Prosecuzione nc-performance-hub su Cowork (connettore Supabase, ref xgxtplqlewpqjzghvbke).
+Leggi PRIMA docs/HANDOFF.md.
+
+Stato (2026-06-16): smoke AI 6/6, invito→atleta ok, fix roster, generate-program cablata.
+Codice su origin/main (tip afb9e1e). FE puntato al backend nuovo via .env.local (gitignored,
+TEMPORANEO — non è il cutover D6). Dati di test: atleta wolfwood370 + 1 athlete_ai_insights.
+LIBRERIA ESERCIZI VUOTA (§4 r.8): nessun seed nel repo, dati solo nel vecchio Lovable.
+
+GUARDRAIL: italiano; secrets/credenziali/Stripe/Google li gestisco io; security report-only (D5,
+legge #11); niente operazioni distruttive senza conferma; deploy/test via connettore + Claude-in-Chrome
+(avvisami prima di usare Chrome). MAI push (sincronizzo io).
+
+OBIETTIVO (dimmi tu): (a) popolare la libreria esercizi (§4 r.8 — export da Lovable o seed curato);
+(b) cutover .env/backend (D6/D4) + scollegare Lovable; (c) pulizia dati di test; (d) altri test infra.
+Proponimi il micro-piano e procedi.
+```
+
+---
+
+_Hand-off aggiornato 2026-06-16 (D11 generate-program cablata; libreria esercizi vuota = priorità). Aggiornare §2/§3/§4 man mano._
