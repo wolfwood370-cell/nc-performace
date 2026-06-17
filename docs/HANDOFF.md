@@ -1,6 +1,6 @@
 # HANDOFF — nc-performance-hub (trasferimento sessione)
 
-> **Aggiornato:** 2026-06-17 (Claude Code). Migrazione Lovable→Supabase di proprietà avanzata: smoke AI 6/6, flusso invito→atleta verificato, fix cache roster, **`generate-program` cablata nella UI (D11)**, **D12 Set A pulizia dead-code ACWR fatto**. Codice su `origin/main` (tip `ca1e039`).
+> **Aggiornato:** 2026-06-18 (Claude Code). Migrazione Lovable→Supabase di proprietà avanzata: smoke AI 6/6, flusso invito→atleta verificato, fix cache roster, **`generate-program` cablata nella UI (D11)**, **D12 Set A pulizia dead-code ACWR fatto**, **dual-agent Code/Cowork formalizzato (`COWORK.md`, `69e8a4a`)**. Codice su `origin/main` (tip `1696421`). Campagna autonoma **D13** in esecuzione (`docs/D13_AUTONOMOUS_CAMPAIGN.md`, Epic A fatto).
 > **Priorità aperta:** la **libreria esercizi è vuota** sul backend nuovo (buco di migrazione) → blocca il program-building reale (vedi §4 r.8).
 > Scopo: riprendere da una chat nuova (Cowork **o** Claude Code) senza perdere contesto. Prompt pronti in §8 (Claude Code) e §9 (Cowork).
 > ✅ **Stash-loop GitHub Desktop CHIUSO (2026-06-17):** `HANDOFF.md` + piani D11/D12 (`f6bd4b2`) e i doc di riferimento D2/D3/D7/D8/D9/D10/PRODUCT_SPEC/ROADMAP/… (recuperati dagli stash GHD, `1de3b7f`) sono ora **trackati**. Restano 3 stash GHD da droppare dopo che Nick mette al sicuro `.env` — vedi §5.
@@ -16,14 +16,14 @@ Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web 
 - **Supabase di proprietà.** Ref **`xgxtplqlewpqjzghvbke`**, region `eu-central-1`, org `umydelvpdzieopddfhpf`. URL `https://xgxtplqlewpqjzghvbke.supabase.co` · publishable key `sb_publishable_Hr-lQDDqFZZXZgfjLK999A_JkCfRg1f`. 54 tabelle, **RLS attiva ovunque**, advisor security 0 ERROR.
 - **6 funzioni AI su OpenAI, validate live:** ✅ `ask-copilot`, `analyze-meal-photo`, `chat-with-coach`, `generate-batch-checkins` (2026-06-14) · ✅ `generate-program` (gpt-5.2) e `analyze-athlete-week` (gpt-5.4-mini) (2026-06-15, atleta reale `wolfwood370` id `912d6214`). `OPENAI_API_KEY` con credito; secret OK (OpenAI/Resend/Stripe test).
 - **Login Google attivo.** Coach = `nctrainingsystems@gmail.com` (id `af93b1cd`). **Atleti = su invito.** Meccanismo verificato: la **UI invito scrive `invite_tokens`**; al **signup Google** il trigger `handle_new_user` collega via path `invite_tokens` (email) → `profiles.coach_id` + `used=true`. NB profilo prende il nome dall'account Google. (La edge fn `invite-athlete`/`generateLink` è un path alternativo non usato dalla UI.)
-- **Git: `origin/main` (tip `ca1e039`).** Mergiati: migrazione, audit, E2E nativa, rebranding, guard coach, **fix cache roster** (`2a57af1`), **generate-program UI** (`8735e0d` feat + `afb9e1e` cleanup), **D12 Set A** (`6dcd2fc` rimozione `useAcwrData`+`trainingMetrics`), **track doc handoff** (`f6bd4b2`). Working tree pulito; i doc di riferimento sono ora **trackati** (recuperati dagli stash GHD, `1de3b7f`).
+- **Git: `origin/main` (tip `1696421`).** Mergiati: migrazione, audit, E2E nativa, rebranding, guard coach, **fix cache roster** (`2a57af1`), **generate-program UI** (`8735e0d` feat + `afb9e1e` cleanup), **D12 Set A** (`6dcd2fc` rimozione `useAcwrData`+`trainingMetrics`), **track doc handoff** (`f6bd4b2`), **recupero doc dagli stash GHD** (`1de3b7f`), **dual-agent `COWORK.md`** (`69e8a4a`, via merge PR#2 `1696421`). Working tree pulito; i doc di riferimento sono ora **trackati** (recuperati dagli stash GHD, `1de3b7f`).
 - **Libreria esercizi VUOTA** (`exercises` 0 righe). Nessun seed/INSERT nelle 125 migration, nessun `supabase/seed.sql` → i dati esistevano solo nel vecchio DB Lovable. Vedi §4 r.8.
 - **Qualità:** audit (solo `ai-error` rimosso, WIP tenuti in `docs/WIP_MODULES.md`) · E2E nativa 6/6 · rebranding "NC Performance Hub" · `ProtectedCoachRoute` su 15 route · fix roster `src/lib/coachQueries.ts` · `generate-program` cablata (`GenerateAiWeekDialog` + `useGenerateProgram` + `mapAiDaysToSessions` + store `replaceWeekWithAiProgram`) · **D12 Set A** dead-code ACWR rimosso (`6dcd2fc`, `tsc` verde + audit pulito).
 - **Lovable resta intatto** → rollback a costo ~zero fino al cutover.
 
 ## 3. Decisioni
 
-**Chiuse:** D1 schema-only · D2 AI→OpenAI (validata 6/6) · D3 OAuth Google · audit · E2E · rebranding · guard coach · smoke AI + invito (2026-06-15) · fix cache roster (2026-06-15) · **generate-program UI (D11, 2026-06-16)** · **D12 Set A cleanup ACWR (2026-06-17, `6dcd2fc`)**.
+**Chiuse:** D1 schema-only · D2 AI→OpenAI (validata 6/6) · D3 OAuth Google · audit · E2E · rebranding · guard coach · smoke AI + invito (2026-06-15) · fix cache roster (2026-06-15) · **generate-program UI (D11, 2026-06-16)** · **D12 Set A cleanup ACWR (2026-06-17, `6dcd2fc`)** · **dual-agent Code/Cowork formalizzato (`COWORK.md`, 2026-06-18, `69e8a4a`)**.
 **Aperte:** **D4** hosting FE (Cloudflare Pages vs Vercel) · **D5** security report-only (= Lovable) · **D6** timing cutover `.env` · **libreria esercizi** (come popolarla, §4 r.8) · **D12 Set B** (`readinessMath`/`constants`) **tenuto** — rimuovere solo su conferma esplicita di abbandono della feature readiness.
 
 ## 4. Prossimi passi
@@ -56,7 +56,7 @@ Risposte/commit **italiano** · **MAI push** (sincronizza Nick) · build gate `t
 
 ## 7. Documenti di riferimento
 
-Tutti **trackati** (2026-06-17): `CLAUDE.md` + `.claude/methodology/*` · `docs/D2_OPENAI_MIGRATION_CONTRACT.md` · `docs/D3_TEST_200_RUNBOOK.md` · `docs/D7_GOOGLE_OAUTH_SETUP.md` · `docs/D8_AUDIT_CODICE_MORTO.md` · `docs/D9_E2E_PLAYWRIGHT_NATIVE.md` · `docs/D10_COACH_ROUTE_GUARD.md` · `docs/D11_GENERATE_PROGRAM_PLAN.md` · `docs/D12_DEADCODE_ACWR_CLEANUP_PLAN.md` · `docs/WIP_MODULES.md` · `docs/CLAUDE_CODE_SETUP.md` · `docs/DB_MIGRATION.md` · `docs/DB_MIGRATION_PREFLIGHT.md` · `docs/DB_MIGRATION_FASE1_REPORT.md` · `docs/SECRETS_SETUP.md` · `docs/PRODUCT_SPEC.md` · `docs/ROADMAP.md` · `docs/UX_UI_DESIGN_SYSTEM.md`.
+Tutti **trackati** (2026-06-18): `CLAUDE.md` · `COWORK.md` + `.claude/methodology/*` · `docs/D2_OPENAI_MIGRATION_CONTRACT.md` · `docs/D3_TEST_200_RUNBOOK.md` · `docs/D7_GOOGLE_OAUTH_SETUP.md` · `docs/D8_AUDIT_CODICE_MORTO.md` · `docs/D9_E2E_PLAYWRIGHT_NATIVE.md` · `docs/D10_COACH_ROUTE_GUARD.md` · `docs/D11_GENERATE_PROGRAM_PLAN.md` · `docs/D12_DEADCODE_ACWR_CLEANUP_PLAN.md` · `docs/WIP_MODULES.md` · `docs/CLAUDE_CODE_SETUP.md` · `docs/DB_MIGRATION.md` · `docs/DB_MIGRATION_PREFLIGHT.md` · `docs/DB_MIGRATION_FASE1_REPORT.md` · `docs/SECRETS_SETUP.md` · `docs/PRODUCT_SPEC.md` · `docs/ROADMAP.md` · `docs/UX_UI_DESIGN_SYSTEM.md` · `docs/D13_AUTONOMOUS_CAMPAIGN.md`.
 
 ---
 
@@ -68,7 +68,7 @@ Prosecuzione nc-performance-hub (Lovable → Supabase mio). Leggi PRIMA docs/HAN
 
 Stato (2026-06-17): smoke AI 6/6, invito→atleta ok, fix cache roster, generate-program CABLATA
 nella UI (commit 8735e0d), D12 Set A dead-code ACWR rimosso (6dcd2fc). Tutto su origin/main
-(tip ca1e039). Moduli WIP in docs/WIP_MODULES.md. NB: la libreria esercizi è VUOTA (task
+(tip 1696421). Moduli WIP in docs/WIP_MODULES.md. NB: la libreria esercizi è VUOTA (task
 infra/Cowork, §4 r.8) → i programmi referenziano esercizi SENTINEL finché non viene popolata.
 
 GUARDRAIL: italiano; all'inizio VERIFICA il branch e crea claude/<slug> (NON su main); MAI push
@@ -87,7 +87,7 @@ Prosecuzione nc-performance-hub su Cowork (connettore Supabase, ref xgxtplqlewpq
 Leggi PRIMA docs/HANDOFF.md.
 
 Stato (2026-06-17): smoke AI 6/6, invito→atleta ok, fix roster, generate-program cablata,
-D12 Set A dead-code rimosso. Codice su origin/main (tip ca1e039). FE puntato al backend nuovo
+D12 Set A dead-code rimosso. Codice su origin/main (tip 1696421). FE puntato al backend nuovo
 via .env.local (gitignored, TEMPORANEO — non è il cutover D6). Dati di test: atleta wolfwood370
 + 1 athlete_ai_insights. LIBRERIA ESERCIZI VUOTA (§4 r.8): nessun seed nel repo, dati solo nel
 vecchio Lovable.
@@ -103,4 +103,4 @@ Proponimi il micro-piano e procedi.
 
 ---
 
-_Hand-off aggiornato 2026-06-17 (D12 Set A fatto `6dcd2fc`; stash-loop GHD chiuso; doc di riferimento recuperati e trackati `1de3b7f`; libreria esercizi vuota = priorità aperta §4 r.8). Aggiornare §2/§3/§4 man mano._
+_Hand-off aggiornato 2026-06-18 (D12 Set A `6dcd2fc`; stash-loop GHD chiuso; doc recuperati/trackati `1de3b7f`; dual-agent `COWORK.md` `69e8a4a` via merge PR#2 `1696421`; campagna autonoma **D13** in esecuzione, Epic A fatto; libreria esercizi vuota = priorità aperta §4 r.8). Aggiornare §2/§3/§4 man mano._

@@ -63,7 +63,8 @@ dual-interface/Aura awareness se mai tocco design.
 
 - **Cowork → Code**: consegno un **piano azionabile** — `file:line`, breakdown in commit atomici,
   comando build-gate, edit knip/doc — + un **prompt di trasferimento** (`HANDOFF §8`). Non eseguo codice.
-- **Code → Cowork**: Code mi passa **hash commit + stato**; io aggiorno `HANDOFF` (§2/§3/§4) e i prompt.
+- **Code → Cowork**: Code mi passa **hash commit + stato**; io **preparo il delta `HANDOFF`** (§2/§3/§4 + prompt)
+  in chat/scratchpad e lo passo a **Code, che lo committa** — Cowork non scrive nel repo nemmeno per `HANDOFF` (vedi §2 legge 2).
 - **Nick**: GHD merge/push, secrets, operazioni distruttive.
 - I prompt **§8 (Code)** e **§9 (Cowork)** vivono in `docs/HANDOFF.md` → usali, **non duplicarli** qui.
 
