@@ -132,12 +132,16 @@ export function PeriodizationTab({ athleteId }: PeriodizationTabProps) {
 
   const handleSubmit = async () => {
     if (!isValid) return;
+    // Clamp base volume to a sane range, defaulting empty/zero to 100, so create
+    // and update persist the same value (the hook only defaults base_volume on create).
+    const base_volume = Math.min(300, Math.max(1, form.base_volume || 100));
+    const payload = { ...form, base_volume, notes: form.notes || undefined };
     try {
       if (editing) {
-        await updatePhase({ id: editing.id, ...form, notes: form.notes || undefined });
+        await updatePhase({ id: editing.id, ...payload });
       } else {
         if (!athleteId) return;
-        await createPhase({ athlete_id: athleteId, ...form, notes: form.notes || undefined });
+        await createPhase({ athlete_id: athleteId, ...payload });
       }
       setDialogOpen(false);
     } catch {
@@ -295,12 +299,12 @@ export function PeriodizationTab({ athleteId }: PeriodizationTabProps) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Focus</Label>
+                <Label id="phase-focus-label">Focus</Label>
                 <Select
                   value={form.focus_type}
                   onValueChange={(v) => setForm((f) => ({ ...f, focus_type: v as PhaseFocusType }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-labelledby="phase-focus-label">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
