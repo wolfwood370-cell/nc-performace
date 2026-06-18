@@ -10,14 +10,14 @@
 
 Origine: audit **D8** (`docs/D8_AUDIT_CODICE_MORTO.md`, 2026-06-14).
 
-| Feature                                    | File                                                                                                                                | Punto di aggancio previsto                                     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Readiness / ACWR / Periodizzazione / Ciclo | `usePeriodization.ts`, `useCyclePhasing.ts`, `useCoachTrainingBlocks.ts`                                                            | route + dashboard coach che consuma gli hook                   |
-| Math readiness / TDEE / biometria          | `src/lib/math/readinessMath.ts`, `adaptiveTDEE.ts`, `biometrics.ts`, `nutritionMath.ts`, `constants.ts`, `src/types/progression.ts` | lib pure → consumate dagli hook qui sopra                      |
-| Nutrizione (food search)                   | `src/services/foodApi.ts`                                                                                                           | dialog ricerca cibo (Open Food Facts) — host coach da definire |
-| Offline / PWA                              | `src/hooks/useOfflineSync.ts`, `src/lib/offlineStorage.ts`                                                                          | ⚠️ richiede re-introdurre la PWA (rimossa da `vite.config.ts`) |
-| Media / immagini                           | `src/lib/media.ts`, `src/lib/mediaSession.ts`, `src/lib/imageCompression.ts`                                                        | upload foto/video                                              |
-| Tipi DB JSONB (task separato)              | `src/types/database.ts`                                                                                                             | tipi JSONB generici (non gating/Stripe — vedi D13 §5 C2)       |
+| Feature                           | File                                                                                                                                | Punto di aggancio previsto                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Ciclo mestruale (athlete)         | `src/hooks/useCyclePhasing.ts`                                                                                                      | feature athlete-side, fuori scope coach (D13 §5 C5)            |
+| Math readiness / TDEE / biometria | `src/lib/math/readinessMath.ts`, `adaptiveTDEE.ts`, `biometrics.ts`, `nutritionMath.ts`, `constants.ts`, `src/types/progression.ts` | lib pure → consumate dagli hook qui sopra                      |
+| Nutrizione (food search)          | `src/services/foodApi.ts`                                                                                                           | dialog ricerca cibo (Open Food Facts) — host coach da definire |
+| Offline / PWA                     | `src/hooks/useOfflineSync.ts`, `src/lib/offlineStorage.ts`                                                                          | ⚠️ richiede re-introdurre la PWA (rimossa da `vite.config.ts`) |
+| Media / immagini                  | `src/lib/media.ts`, `src/lib/mediaSession.ts`, `src/lib/imageCompression.ts`                                                        | upload foto/video                                              |
+| Tipi DB JSONB (task separato)     | `src/types/database.ts`                                                                                                             | tipi JSONB generici (non gating/Stripe — vedi D13 §5 C2)       |
 
 ## Note
 
