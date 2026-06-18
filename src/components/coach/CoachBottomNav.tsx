@@ -57,7 +57,7 @@ export function CoachBottomNav() {
                 {isActive && (
                   <div
                     className="absolute -top-2.5 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full"
-                    style={{ backgroundColor: brandColor || "hsl(var(--primary))" }}
+                    style={{ backgroundColor: brandColor || "var(--primary)" }}
                   />
                 )}
                 <div
