@@ -10,7 +10,21 @@ export default defineConfig({
     baseURL: "http://localhost:8080",
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      // Unauthenticated specs only; the authenticated ones run in chromium-coach.
+      testIgnore: [/auth\.setup\.ts/, /coach-smoke\.spec\.ts/, /role-guard\.spec\.ts/],
+    },
+    {
+      name: "chromium-coach",
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/coach.json" },
+      dependencies: ["setup"],
+      testMatch: [/coach-smoke\.spec\.ts/, /role-guard\.spec\.ts/],
+    },
+  ],
   webServer: {
     command: "npm run dev",
     url: "http://localhost:8080",

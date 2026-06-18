@@ -46,3 +46,5 @@ LINT_BASELINE.txt
 # Playwright E2E — artefatti generati (report HTML, trace, screenshot dei test).
 test-results/
 playwright-report/
+# Storage-state autenticato per gli E2E (può contenere un token di sessione reale).
+e2e/.auth/
