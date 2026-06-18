@@ -28,6 +28,7 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { log } from "@/lib/logger";
 import { extractPdfText } from "@/lib/pdf";
+import { AiQuotaBadge } from "@/components/coach/ai/AiQuotaBadge";
 
 type DocStatus = "pending" | "processing" | "processed" | "failed";
 
@@ -330,6 +331,7 @@ export default function KnowledgeBase() {
                 {totalChunks.toLocaleString("it-IT")}
               </div>
             </div>
+            <AiQuotaBadge className="self-center" />
           </div>
         </div>
 

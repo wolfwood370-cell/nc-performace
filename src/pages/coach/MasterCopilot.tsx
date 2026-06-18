@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AiQuotaBadge } from "@/components/coach/ai/AiQuotaBadge";
 import { useCopilotChat, type CopilotMessage } from "@/hooks/useCopilotChat";
 import { cn } from "@/lib/utils";
 
@@ -75,12 +76,15 @@ export default function MasterCopilot() {
               </p>
             </div>
           </div>
-          {messages.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={reset} disabled={isLoading}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Nuova conversazione
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <AiQuotaBadge />
+            {messages.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={reset} disabled={isLoading}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Nuova conversazione
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Messages */}
