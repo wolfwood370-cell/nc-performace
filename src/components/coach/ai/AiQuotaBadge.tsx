@@ -14,18 +14,24 @@ interface AiQuotaBadgeProps {
  * remaining quota gets low and red once the daily limit is reached.
  */
 export function AiQuotaBadge({ className }: AiQuotaBadgeProps) {
-  const { data, isLoading } = useAiQuota();
+  const { data, isLoading, isError } = useAiQuota();
 
   if (isLoading) {
     return <Skeleton className={cn("h-7 w-[4.5rem] rounded-full", className)} />;
+  }
+
+  // On a failed quota read, hide the badge rather than show a misleading 0/20.
+  if (isError) {
+    return null;
   }
 
   const used = data?.message_count ?? 0;
   const limit = data?.daily_limit ?? 20;
   const remaining = Math.max(limit - used, 0);
   const atLimit = used >= limit;
-  // Warn when the last ~20% of the daily quota remains (at least the final message).
-  const nearLimit = !atLimit && remaining <= Math.max(1, Math.ceil(limit * 0.2));
+  // Warn when the last ~20% of the daily quota remains (at least the final message),
+  // but only once the coach has actually consumed part of the quota.
+  const nearLimit = !atLimit && used > 0 && remaining <= Math.max(1, Math.ceil(limit * 0.2));
 
   const tone = atLimit
     ? "border-destructive/30 bg-destructive/10 text-destructive"
