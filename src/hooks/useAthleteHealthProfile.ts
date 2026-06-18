@@ -16,7 +16,7 @@ const FMS_TEST_CONFIG = {
   rotary_stability: { name: "Rotary Stability", bodyArea: "Core Rotation", bilateral: true },
 } as const;
 
-export type FmsTestKey = keyof typeof FMS_TEST_CONFIG;
+type FmsTestKey = keyof typeof FMS_TEST_CONFIG;
 
 export interface FmsScore {
   testKey: FmsTestKey;
