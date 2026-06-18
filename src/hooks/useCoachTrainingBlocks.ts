@@ -2,9 +2,9 @@
  * src/hooks/useCoachTrainingBlocks.ts
  * ---------------------------------------------------------------------------
  * Returns the training phases ("blocks") owned by the current coach,
- * shaped for `MacroCycleTimeline` consumption.
+ * shaped for `TrainingBlocksTimeline` consumption.
  *
- * Closes audit finding M3 (zona MOCK_BLOCKS in MacroCycleTimeline).
+ * Closes audit finding M3 (replaced the former MOCK_BLOCKS placeholder data).
  *
  * The underlying table is `training_phases` (already in schema). This hook
  * joins to `profiles` for the athlete display name so the timeline can
@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-/** Shape consumed by `MacroCycleTimeline`. */
+/** Shape consumed by `TrainingBlocksTimeline`. */
 export interface TrainingBlock {
   id: string;
   name: string;

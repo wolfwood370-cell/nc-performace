@@ -13,6 +13,7 @@ import { MetabolicChart } from "@/components/coach/analytics/MetabolicChart";
 import { StrengthChart } from "@/components/coach/analytics/StrengthChart";
 import { VolumeIntensityChart } from "@/components/coach/analytics/VolumeIntensityChart";
 import { AcwrGauge } from "@/components/coach/analytics/AcwrGauge";
+import { TrainingBlocksTimeline } from "@/components/coach/analytics/TrainingBlocksTimeline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users } from "lucide-react";
 import { useRealtimeAnalytics } from "@/hooks/useRealtimeAnalytics";
@@ -98,6 +99,9 @@ export default function CoachAnalytics() {
           </div>
           {/* Optional: Add more cards here in the future */}
         </div>
+
+        {/* Section D: Roster periodization (coach-wide, not athlete-scoped) */}
+        <TrainingBlocksTimeline />
       </div>
     </CoachLayout>
   );
