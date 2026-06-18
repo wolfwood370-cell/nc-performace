@@ -36,7 +36,6 @@ const config: KnipConfig = {
     "src/hooks/usePeriodization.ts",
     "src/hooks/useCyclePhasing.ts",
     "src/hooks/useCoachTrainingBlocks.ts",
-    "src/hooks/useCoachNutritionAnalytics.ts",
     "src/hooks/useAthleteHealthProfile.ts",
     "src/hooks/useFmsAlerts.ts",
     "src/hooks/useOfflineSync.ts",
