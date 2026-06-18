@@ -67,6 +67,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, startOfWeek } from "date-fns";
 import { log } from "@/lib/logger";
+import { NutritionAdherenceCard } from "@/components/coach/analytics/NutritionAdherenceCard";
 
 // Define chart data type for proper TypeScript typing
 interface MacroChartEntry {
@@ -1234,6 +1235,9 @@ export function StrategyContent({ athleteId }: StrategyContentProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Section A2: Nutrition adherence (read-only analytics, coabita con la prescrizione) */}
+      <NutritionAdherenceCard athleteId={athleteId} />
 
       {/* Section B: Habit Stacking */}
       <Card>
