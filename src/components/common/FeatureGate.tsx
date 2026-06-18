@@ -37,7 +37,12 @@ const FEATURE_LABELS: Record<Feature, string> = {
 export function FeatureGate({ feature, current, children, fallback, className }: FeatureGateProps) {
   const { canAccess, getLimit } = useFeatureAccess();
 
-  const locked = current !== undefined ? current >= getLimit(feature) : !canAccess(feature);
+  // `current` applies only to numeric-limit features (limit > 0). Boolean
+  // features report getLimit() === 0, so they fall back to the access check and
+  // never mis-lock on `current >= 0` if `current` is passed by mistake.
+  const numericLimit = getLimit(feature);
+  const locked =
+    current !== undefined && numericLimit > 0 ? current >= numericLimit : !canAccess(feature);
 
   if (!locked) {
     return <>{children}</>;
@@ -55,7 +60,8 @@ function UpgradePrompt({ feature, className }: { feature: Feature; className?: s
 
   return (
     <div
-      role="status"
+      role="region"
+      aria-label="Funzione premium bloccata"
       className={cn(
         "flex flex-col items-center gap-3 rounded-3xl border border-border bg-surface-container-low p-6 text-center",
         className,

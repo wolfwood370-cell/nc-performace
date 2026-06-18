@@ -115,36 +115,36 @@ export default function MasterCopilot() {
 
         {/* Input */}
         <div className="border-t border-border/60 bg-background/80 backdrop-blur-sm">
-          <FeatureGate feature="ai_chat_daily" className="m-4">
-          <form
-            onSubmit={handleSubmit}
-            className="mx-auto w-full max-w-3xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6"
-          >
-            <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Chiedi al tuo copilot clinico..."
-                rows={1}
-                disabled={isLoading}
-                className="min-h-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                aria-label="Invia messaggio"
-                disabled={!input.trim() || isLoading}
-                className="h-9 w-9 shrink-0 rounded-xl"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="mt-2 text-center text-3xs text-muted-foreground">
-              Le risposte si basano sui documenti caricati nell'AI Brain.
-            </p>
-          </form>
+          <FeatureGate feature="ai_chat_daily" className="m-4 mx-auto w-full max-w-3xl">
+            <form
+              onSubmit={handleSubmit}
+              className="mx-auto w-full max-w-3xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6"
+            >
+              <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Chiedi al tuo copilot clinico..."
+                  rows={1}
+                  disabled={isLoading}
+                  className="min-h-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label="Invia messaggio"
+                  disabled={!input.trim() || isLoading}
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="mt-2 text-center text-3xs text-muted-foreground">
+                Le risposte si basano sui documenti caricati nell'AI Brain.
+              </p>
+            </form>
           </FeatureGate>
         </div>
       </div>

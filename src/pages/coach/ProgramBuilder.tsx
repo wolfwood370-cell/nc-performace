@@ -329,7 +329,9 @@ export default function ProgramBuilder() {
   // `max_active_programs` limit on Publish (excludes the block being edited so
   // re-publishing an existing program never counts against itself).
   const navigate = useNavigate();
-  const { count: activeProgramsCount } = useActiveProgramsCount(block?.id);
+  const { count: activeProgramsCount, isLoading: programsCountLoading } = useActiveProgramsCount(
+    block?.id,
+  );
 
   // -------------------------------------------------------------------------
   // Local UI state — selected week (a pure view concern)
@@ -628,7 +630,7 @@ export default function ProgramBuilder() {
                     type="button"
                     size="sm"
                     onClick={handlePublish}
-                    disabled={isSaving || !block.athlete_id}
+                    disabled={isSaving || !block.athlete_id || programsCountLoading}
                     className="gap-2"
                     title={
                       !block.athlete_id
