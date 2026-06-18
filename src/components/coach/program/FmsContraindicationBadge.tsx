@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFmsAlerts, checkExerciseContraindication } from "@/hooks/useFmsAlerts";
 
@@ -27,13 +27,14 @@ export function FmsContraindicationBadge({
     <TooltipProvider delayDuration={120}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span
-            className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-3xs font-bold text-destructive"
+          <button
+            type="button"
+            className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-3xs font-bold text-destructive outline-none focus-visible:ring-1 focus-visible:ring-destructive"
             aria-label={`Controindicazione FMS: ${hit.message}`}
           >
-            <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+            <ShieldAlert className="h-3 w-3" aria-hidden="true" />
             FMS
-          </span>
+          </button>
         </TooltipTrigger>
         <TooltipContent
           side="top"

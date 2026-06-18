@@ -21,6 +21,14 @@ const STATUS_CONFIG: Record<HealthStatus, { tone: string; bg: string; icon: type
     red: { tone: "text-destructive", bg: "bg-destructive/10", icon: ShieldAlert },
   };
 
+const INJURY_STATUS_LABELS: Record<string, string> = {
+  in_rehab: "In riabilitazione",
+  monitoring: "In osservazione",
+  recovered: "Recuperato",
+  chronic: "Cronico",
+  active: "Attivo",
+};
+
 function fmsScoreTone(status: FmsScore["status"]): string {
   switch (status) {
     case "optimal":
@@ -179,8 +187,8 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
                     <p className="truncate text-xs text-muted-foreground">{injury.description}</p>
                   )}
                 </div>
-                <Badge variant="outline" className="shrink-0 capitalize">
-                  {injury.status.replace(/_/g, " ")}
+                <Badge variant="outline" className="shrink-0">
+                  {INJURY_STATUS_LABELS[injury.status] ?? injury.status.replace(/_/g, " ")}
                 </Badge>
               </div>
             ))}

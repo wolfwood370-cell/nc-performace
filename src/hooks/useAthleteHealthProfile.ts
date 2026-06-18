@@ -276,7 +276,7 @@ function generateHealthSummary({
     status = "red";
     criticalInjuries.forEach((injury) => {
       details.push(
-        `INFORTUNIO ATTIVO: ${injury.bodyZone}${injury.description ? `- ${injury.description}` : ""}`,
+        `INFORTUNIO ATTIVO: ${injury.bodyZone}${injury.description ? ` - ${injury.description}` : ""}`,
       );
     });
   }
