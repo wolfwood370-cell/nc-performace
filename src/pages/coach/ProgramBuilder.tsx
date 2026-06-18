@@ -29,6 +29,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { CoachLayout } from "@/components/coach/CoachLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ import {
   Loader2,
   Copy,
   Send,
+  Lock,
   User,
   BookmarkPlus,
   Activity,
@@ -64,10 +66,12 @@ import { ExerciseLibraryDrawer } from "@/components/coach/program/ExerciseLibrar
 import { GenerateAiWeekDialog } from "@/components/coach/program/GenerateAiWeekDialog";
 import { ProgrammedExerciseCard } from "@/components/coach/program/ProgrammedExerciseCard";
 import { ProgressionInspector } from "@/components/coach/program/ProgressionInspector";
+import { FeatureGate } from "@/components/common/FeatureGate";
 import { useSaveProgramBlock, SaveProgramBlockError } from "@/hooks/useSaveProgramBlock";
 import { useAuth } from "@/hooks/useAuth";
 import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import { useAthleteRiskAnalysis } from "@/hooks/useAthleteRiskAnalysis";
+import { useActiveProgramsCount } from "@/hooks/useActiveProgramsCount";
 import { supabase } from "@/integrations/supabase/client";
 import type { ExerciseInfo, ExerciseRiskAssessment } from "@/lib/math/fmsRiskEngine";
 import type { Microcycle, Session, UUID } from "@/types/training";
@@ -320,6 +324,12 @@ export default function ProgramBuilder() {
 
   const assignedAthleteId = block?.athlete_id ?? null;
   const { checkExercise } = useAthleteRiskAnalysis(assignedAthleteId);
+
+  // Premium gating: count the coach's other published programs to enforce the
+  // `max_active_programs` limit on Publish (excludes the block being edited so
+  // re-publishing an existing program never counts against itself).
+  const navigate = useNavigate();
+  const { count: activeProgramsCount } = useActiveProgramsCount(block?.id);
 
   // -------------------------------------------------------------------------
   // Local UI state — selected week (a pure view concern)
@@ -596,22 +606,40 @@ export default function ProgramBuilder() {
                   {isSaving ? "Salvataggio…" : "Salva Bozza"}
                 </Button>
 
-                {/* Publish (primary CTA) */}
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handlePublish}
-                  disabled={isSaving || !block.athlete_id}
-                  className="gap-2"
-                  title={
-                    !block.athlete_id
-                      ? "Assegna un atleta prima di pubblicare"
-                      : "Pubblica il programma"
+                {/* Publish (primary CTA) — gated by max_active_programs */}
+                <FeatureGate
+                  feature="max_active_programs"
+                  current={activeProgramsCount}
+                  fallback={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/coach/business")}
+                      className="gap-2"
+                      title="Limite di programmi attivi raggiunto per il tuo piano — passa a un piano superiore per pubblicarne altri"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Limite piano
+                    </Button>
                   }
                 >
-                  <Send className="h-4 w-4" />
-                  Pubblica
-                </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handlePublish}
+                    disabled={isSaving || !block.athlete_id}
+                    className="gap-2"
+                    title={
+                      !block.athlete_id
+                        ? "Assegna un atleta prima di pubblicare"
+                        : "Pubblica il programma"
+                    }
+                  >
+                    <Send className="h-4 w-4" />
+                    Pubblica
+                  </Button>
+                </FeatureGate>
               </div>
             </div>
 
