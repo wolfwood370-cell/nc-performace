@@ -49,8 +49,17 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
   const points = result?.data ?? [];
   const hasData = result?.hasData ?? false;
 
-  const adherenceTone =
-    adherence >= 80 ? "text-success" : adherence >= 50 ? "text-warning" : "text-destructive";
+  // Distinguish "no meals logged" (adherence not computable) from a real low
+  // adherence: an athlete may have only weight data → hasData true but 0 meals,
+  // which would otherwise render a misleading "0%" in red.
+  const hasLoggedMeals = points.some((p) => p.loggedCalories != null);
+  const adherenceTone = !hasLoggedMeals
+    ? "text-muted-foreground"
+    : adherence >= 80
+      ? "text-success"
+      : adherence >= 50
+        ? "text-warning"
+        : "text-destructive";
   const DeltaIcon = avgDelta > 0 ? TrendingUp : avgDelta < 0 ? TrendingDown : Minus;
 
   return (
@@ -81,7 +90,7 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center">
                 <div className={cn("text-2xl font-bold tabular-nums", adherenceTone)}>
-                  {adherence}%
+                  {hasLoggedMeals ? `${adherence}%` : "—"}
                 </div>
                 <div className="text-3xs uppercase tracking-wide text-muted-foreground">
                   Aderenza target
@@ -89,12 +98,18 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 text-2xl font-bold tabular-nums">
-                  <DeltaIcon className="h-4 w-4 text-muted-foreground" />
-                  {avgDelta > 0 ? "+" : ""}
-                  {avgDelta}
+                  {hasLoggedMeals ? (
+                    <>
+                      <DeltaIcon className="h-4 w-4 text-muted-foreground" />
+                      {avgDelta > 0 ? "+" : ""}
+                      {avgDelta}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </div>
                 <div className="text-3xs uppercase tracking-wide text-muted-foreground">
-                  Δ medio kcal/g
+                  Δ medio kcal/gg
                 </div>
               </div>
               <div className="text-center">
@@ -111,62 +126,69 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
             </div>
 
             {/* 30-day logged vs target calories */}
-            <div className="h-[140px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={points} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
-                  <defs>
-                    <linearGradient id="nutritionLogged" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="dateFormatted"
-                    tick={{ fontSize: 9 }}
-                    interval={6}
-                    tickLine={false}
-                    axisLine={false}
-                    stroke="hsl(var(--muted-foreground))"
-                  />
-                  <YAxis hide domain={["dataMin - 200", "dataMax + 200"]} />
-                  {targetCalories != null && (
-                    <ReferenceLine
-                      y={targetCalories}
-                      stroke="hsl(var(--muted-foreground))"
-                      strokeDasharray="4 4"
-                      strokeWidth={1}
+            {!hasLoggedMeals && (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                Nessun pasto registrato in questo periodo
+              </p>
+            )}
+            {hasLoggedMeals && (
+              <div className="h-[140px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={points} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+                    <defs>
+                      <linearGradient id="nutritionLogged" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="dateFormatted"
+                      tick={{ fontSize: 9 }}
+                      interval={6}
+                      tickLine={false}
+                      axisLine={false}
+                      stroke="var(--muted-foreground)"
                     />
-                  )}
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const p = payload[0].payload as NutritionAnalyticsPoint;
-                      return (
-                        <div className="rounded-lg border border-border bg-popover p-2 text-xs shadow-lg">
-                          <p className="font-medium">{p.dateFormatted}</p>
-                          <p className="text-muted-foreground">
-                            Loggate: {p.loggedCalories ?? "—"} kcal
-                          </p>
-                          {targetCalories != null && (
-                            <p className="text-muted-foreground">Target: {targetCalories} kcal</p>
-                          )}
-                        </div>
-                      );
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="loggedCalories"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    fill="url(#nutritionLogged)"
-                    connectNulls
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            {targetCalories != null && (
+                    <YAxis hide domain={["dataMin - 200", "dataMax + 200"]} />
+                    {targetCalories != null && (
+                      <ReferenceLine
+                        y={targetCalories}
+                        stroke="var(--muted-foreground)"
+                        strokeDasharray="4 4"
+                        strokeWidth={1}
+                      />
+                    )}
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const p = payload[0].payload as NutritionAnalyticsPoint;
+                        return (
+                          <div className="rounded-lg border border-border bg-popover p-2 text-xs shadow-lg">
+                            <p className="font-medium">{p.dateFormatted}</p>
+                            <p className="text-muted-foreground">
+                              Loggate: {p.loggedCalories ?? "—"} kcal
+                            </p>
+                            {targetCalories != null && (
+                              <p className="text-muted-foreground">Target: {targetCalories} kcal</p>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="loggedCalories"
+                      stroke="var(--primary)"
+                      strokeWidth={2}
+                      fill="url(#nutritionLogged)"
+                      connectNulls
+                      dot={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {hasLoggedMeals && targetCalories != null && (
               <p className="text-center text-3xs text-muted-foreground">
                 Linea tratteggiata = target {targetCalories} kcal
               </p>
