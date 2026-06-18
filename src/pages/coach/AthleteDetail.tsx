@@ -172,6 +172,7 @@ import {
 import { useRealtimeAnalytics } from "@/hooks/useRealtimeAnalytics";
 import { VelocityTrendChart } from "@/components/coach/analytics/VelocityTrendChart";
 import { BarPathGallery } from "@/components/coach/video/BarPathGallery";
+import { FeatureGate } from "@/components/common/FeatureGate";
 import { AiInsightCard } from "@/components/coach/analytics/AiInsightCard";
 import { OverviewTab } from "./athlete-detail/OverviewTab";
 import { ProgramTab } from "./athlete-detail/ProgramTab";
@@ -3175,7 +3176,9 @@ export default function AthleteDetail() {
 
           <TabsContent value="vbt-analytics" className="space-y-6">
             <VelocityTrendChart athleteId={id} />
-            <BarPathGallery athleteId={id} />
+            <FeatureGate feature="video_feedback">
+              <BarPathGallery athleteId={id} />
+            </FeatureGate>
           </TabsContent>
 
           <TabsContent value="strategy" className="space-y-6">

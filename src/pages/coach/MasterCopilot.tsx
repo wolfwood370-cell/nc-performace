@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AiQuotaBadge } from "@/components/coach/ai/AiQuotaBadge";
+import { FeatureGate } from "@/components/common/FeatureGate";
 import { useCopilotChat, type CopilotMessage } from "@/hooks/useCopilotChat";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +115,7 @@ export default function MasterCopilot() {
 
         {/* Input */}
         <div className="border-t border-border/60 bg-background/80 backdrop-blur-sm">
+          <FeatureGate feature="ai_chat_daily" className="m-4">
           <form
             onSubmit={handleSubmit}
             className="mx-auto w-full max-w-3xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6"
@@ -143,6 +145,7 @@ export default function MasterCopilot() {
               Le risposte si basano sui documenti caricati nell'AI Brain.
             </p>
           </form>
+          </FeatureGate>
         </div>
       </div>
     </CoachLayout>
