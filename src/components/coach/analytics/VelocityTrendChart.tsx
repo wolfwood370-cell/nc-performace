@@ -29,7 +29,10 @@ interface VelocityTrendChartProps {
 export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
   const [selectedExercise, setSelectedExercise] = useState("");
   const { data: exercises = [], isLoading: exLoading } = useAthleteVbtExercises(athleteId);
-  const { data: vbtData = [], isLoading: dataLoading } = useAthleteVbtData(athleteId, selectedExercise);
+  const { data: vbtData = [], isLoading: dataLoading } = useAthleteVbtData(
+    athleteId,
+    selectedExercise,
+  );
 
   // Auto-select first exercise
   useMemo(() => {
@@ -46,7 +49,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
     const avgV = vbtData.reduce((s, d) => s + d.meanVelocity, 0) / vbtData.length;
     const peakV = Math.max(...vbtData.map((d) => d.peakVelocity));
     const powerPoints = vbtData.filter((d) => d.powerWatts !== null);
-    const avgP = powerPoints.length > 0 ? powerPoints.reduce((s, d) => s + (d.powerWatts ?? 0), 0) / powerPoints.length : 0;
+    const avgP =
+      powerPoints.length > 0
+        ? powerPoints.reduce((s, d) => s + (d.powerWatts ?? 0), 0) / powerPoints.length
+        : 0;
     return {
       avgVelocity: Math.round(avgV * 1000) / 1000,
       peakVelocity: Math.round(peakV * 1000) / 1000,
@@ -64,8 +70,12 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader><Skeleton className="h-5 w-48" /></CardHeader>
-        <CardContent><Skeleton className="h-[300px] w-full" /></CardContent>
+        <CardHeader>
+          <Skeleton className="h-5 w-48" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
       </Card>
     );
   }
@@ -91,7 +101,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Velocità Media</p>
-                <p className="text-3xl font-bold tabular-nums">{kpis.avgVelocity} <span className="text-base font-normal text-muted-foreground">m/s</span></p>
+                <p className="text-3xl font-bold tabular-nums">
+                  {kpis.avgVelocity}{" "}
+                  <span className="text-base font-normal text-muted-foreground">m/s</span>
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-1/10 flex items-center justify-center">
                 <Gauge className="h-6 w-6 text-chart-1" />
@@ -104,7 +117,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Picco Velocità</p>
-                <p className="text-3xl font-bold tabular-nums">{kpis.peakVelocity} <span className="text-base font-normal text-muted-foreground">m/s</span></p>
+                <p className="text-3xl font-bold tabular-nums">
+                  {kpis.peakVelocity}{" "}
+                  <span className="text-base font-normal text-muted-foreground">m/s</span>
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
                 <Zap className="h-6 w-6 text-success" />
@@ -117,7 +133,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Potenza Media</p>
-                <p className="text-3xl font-bold tabular-nums">{kpis.avgPower} <span className="text-base font-normal text-muted-foreground">W</span></p>
+                <p className="text-3xl font-bold tabular-nums">
+                  {kpis.avgPower}{" "}
+                  <span className="text-base font-normal text-muted-foreground">W</span>
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-chart-4/10 flex items-center justify-center">
                 <Dumbbell className="h-6 w-6 text-chart-4" />
@@ -137,7 +156,9 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
               </div>
               <div>
                 <CardTitle className="text-base">Trend Velocità</CardTitle>
-                <p className="text-xs text-muted-foreground">Velocità media concentrica per sessione</p>
+                <p className="text-xs text-muted-foreground">
+                  Velocità media concentrica per sessione
+                </p>
               </div>
             </div>
             <Select value={selectedExercise} onValueChange={setSelectedExercise}>
@@ -146,7 +167,9 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
               </SelectTrigger>
               <SelectContent>
                 {exercises.map((ex) => (
-                  <SelectItem key={ex} value={ex}>{ex}</SelectItem>
+                  <SelectItem key={ex} value={ex}>
+                    {ex}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -178,37 +201,32 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <ReferenceArea
                     y1={1.0}
                     y2={yDomain[1]}
-                    fill="hsl(var(--success))"
+                    fill="var(--success)"
                     fillOpacity={0.08}
                   />
-                  <ReferenceArea
-                    y1={0}
-                    y2={0.5}
-                    fill="hsl(var(--destructive))"
-                    fillOpacity={0.08}
-                  />
+                  <ReferenceArea y1={0} y2={0.5} fill="var(--destructive)" fillOpacity={0.08} />
                   <ReferenceLine
                     y={1.0}
-                    stroke="hsl(var(--success))"
+                    stroke="var(--success)"
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                   />
                   <ReferenceLine
                     y={0.5}
-                    stroke="hsl(var(--destructive))"
+                    stroke="var(--destructive)"
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                   />
 
                   <XAxis
                     dataKey="dateFormatted"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -224,24 +242,37 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                         <div className="bg-popover border border-border rounded-lg p-3 shadow-lg space-y-1 text-sm">
                           <p className="font-medium">{d.exerciseName}</p>
                           <p className="text-muted-foreground">
-                            Velocità Media: <span className="font-semibold text-foreground">{d.meanVelocity} m/s</span>
+                            Velocità Media:{" "}
+                            <span className="font-semibold text-foreground">
+                              {d.meanVelocity} m/s
+                            </span>
                           </p>
                           <p className="text-muted-foreground">
-                            Picco: <span className="font-semibold text-foreground">{d.peakVelocity} m/s</span>
+                            Picco:{" "}
+                            <span className="font-semibold text-foreground">
+                              {d.peakVelocity} m/s
+                            </span>
                           </p>
                           {d.weightKg > 0 && (
                             <p className="text-muted-foreground">
-                              Carico: <span className="font-semibold text-foreground">{d.weightKg} kg</span>
+                              Carico:{" "}
+                              <span className="font-semibold text-foreground">{d.weightKg} kg</span>
                             </p>
                           )}
                           {d.estimated1RM > 0 && (
                             <p className="text-muted-foreground">
-                              1RM Stimato: <span className="font-semibold text-foreground">{d.estimated1RM} kg</span>
+                              1RM Stimato:{" "}
+                              <span className="font-semibold text-foreground">
+                                {d.estimated1RM} kg
+                              </span>
                             </p>
                           )}
                           {d.powerWatts && (
                             <p className="text-muted-foreground">
-                              Potenza: <span className="font-semibold text-foreground">{d.powerWatts} W</span>
+                              Potenza:{" "}
+                              <span className="font-semibold text-foreground">
+                                {d.powerWatts} W
+                              </span>
                             </p>
                           )}
                         </div>
@@ -251,10 +282,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <Line
                     type="monotone"
                     dataKey="meanVelocity"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--primary)"
                     strokeWidth={2.5}
-                    dot={{ fill: "hsl(var(--primary))", r: 4, strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
+                    dot={{ fill: "var(--primary)", r: 4, strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: "var(--primary)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>

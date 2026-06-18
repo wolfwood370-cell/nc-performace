@@ -66,62 +66,62 @@ export function MetabolicChart({ athleteId }: MetabolicChartProps) {
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="dateFormatted" 
-                tick={{ fontSize: 11 }} 
+              <XAxis
+                dataKey="dateFormatted"
+                tick={{ fontSize: 11 }}
                 tickLine={false}
                 className="text-muted-foreground"
               />
-              <YAxis 
+              <YAxis
                 yAxisId="weight"
                 orientation="left"
                 domain={[minWeight, maxWeight]}
                 tick={{ fontSize: 11 }}
                 tickLine={false}
-                label={{ value: 'kg', angle: -90, position: 'insideLeft', fontSize: 11 }}
+                label={{ value: "kg", angle: -90, position: "insideLeft", fontSize: 11 }}
                 className="text-muted-foreground"
               />
-              <YAxis 
+              <YAxis
                 yAxisId="calories"
                 orientation="right"
                 domain={[1800, 3200]}
                 tick={{ fontSize: 11 }}
                 tickLine={false}
-                label={{ value: 'kcal', angle: 90, position: 'insideRight', fontSize: 11 }}
+                label={{ value: "kcal", angle: 90, position: "insideRight", fontSize: 11 }}
                 className="text-muted-foreground"
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  fontSize: '12px',
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
                 }}
                 labelStyle={{ fontWeight: 600 }}
               />
               <Legend />
-              <ReferenceLine 
-                yAxisId="calories" 
-                y={caloriesTarget} 
-                stroke="hsl(var(--destructive))" 
+              <ReferenceLine
+                yAxisId="calories"
+                y={caloriesTarget}
+                stroke="var(--destructive)"
                 strokeDasharray="5 5"
-                label={{ value: `Target: ${caloriesTarget}`, position: 'right', fontSize: 10 }}
+                label={{ value: `Target: ${caloriesTarget}`, position: "right", fontSize: 10 }}
               />
-              <Bar 
-                yAxisId="calories" 
-                dataKey="caloriesLogged" 
-                fill="hsl(var(--primary))" 
+              <Bar
+                yAxisId="calories"
+                dataKey="caloriesLogged"
+                fill="var(--primary)"
                 opacity={0.6}
                 name="Calorie Registrate"
                 radius={[4, 4, 0, 0]}
               />
-              <Line 
-                yAxisId="weight" 
-                type="monotone" 
-                dataKey="bodyWeight" 
-                stroke="hsl(var(--chart-2))" 
+              <Line
+                yAxisId="weight"
+                type="monotone"
+                dataKey="bodyWeight"
+                stroke="var(--chart-weight)"
                 strokeWidth={2}
-                dot={{ fill: 'hsl(var(--chart-2))', r: 3 }}
+                dot={{ fill: "var(--chart-weight)", r: 3 }}
                 connectNulls
                 name="Peso Corporeo (kg)"
               />

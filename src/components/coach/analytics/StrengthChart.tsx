@@ -1,8 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  useAthleteStrengthProgression,
-  useAthleteExerciseList,
-} from "@/hooks/useAthleteAnalytics";
+import { useAthleteStrengthProgression, useAthleteExerciseList } from "@/hooks/useAthleteAnalytics";
 import {
   LineChart,
   Line,
@@ -48,9 +45,8 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
   const hasData = data && data.length > 0;
 
   // Calculate trend
-  const trend = hasData && data.length >= 2
-    ? data[data.length - 1].estimated1RM - data[0].estimated1RM
-    : 0;
+  const trend =
+    hasData && data.length >= 2 ? data[data.length - 1].estimated1RM - data[0].estimated1RM : 0;
 
   return (
     <Card className="border-0 shadow-sm h-full">
@@ -66,10 +62,13 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
             </div>
           </div>
           {trend !== 0 && (
-            <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-              trend > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-            }`}>
-              {trend > 0 ? '+' : ''}{trend.toFixed(1)} kg
+            <div
+              className={`text-xs font-medium px-2 py-1 rounded-full ${
+                trend > 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              }`}
+            >
+              {trend > 0 ? "+" : ""}
+              {trend.toFixed(1)} kg
             </div>
           )}
         </div>
@@ -84,7 +83,9 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
               </SelectItem>
             ))}
             {(!exercises || exercises.length === 0) && (
-              <SelectItem value="Back Squat" className="text-xs">Back Squat</SelectItem>
+              <SelectItem value="Back Squat" className="text-xs">
+                Back Squat
+              </SelectItem>
             )}
           </SelectContent>
         </Select>
@@ -93,42 +94,40 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
         {!hasData ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Dumbbell className="h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-xs text-muted-foreground">
-              Nessun dato per {selectedExercise}
-            </p>
+            <p className="text-xs text-muted-foreground">Nessun dato per {selectedExercise}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="dateFormatted" 
-                tick={{ fontSize: 10 }} 
-                tickLine={false}
-                className="text-muted-foreground"
-              />
-              <YAxis 
+              <XAxis
+                dataKey="dateFormatted"
                 tick={{ fontSize: 10 }}
                 tickLine={false}
-                domain={['dataMin - 5', 'dataMax + 5']}
                 className="text-muted-foreground"
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                }}
-                formatter={(value: number) => [`${value} kg`, '1RM Stimato']}
+              <YAxis
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                domain={["dataMin - 5", "dataMax + 5"]}
+                className="text-muted-foreground"
               />
-              <Line 
-                type="monotone" 
-                dataKey="estimated1RM" 
-                stroke="hsl(var(--chart-3))" 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  fontSize: "11px",
+                }}
+                formatter={(value: number) => [`${value} kg`, "1RM Stimato"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="estimated1RM"
+                stroke="var(--chart-intensity)"
                 strokeWidth={2}
-                dot={{ fill: 'hsl(var(--chart-3))', r: 4 }}
-                activeDot={{ r: 6, fill: 'hsl(var(--chart-3))' }}
+                dot={{ fill: "var(--chart-intensity)", r: 4 }}
+                activeDot={{ r: 6, fill: "var(--chart-intensity)" }}
               />
             </LineChart>
           </ResponsiveContainer>
