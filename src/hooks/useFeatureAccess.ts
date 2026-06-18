@@ -19,8 +19,8 @@ const BOOLEAN_GATES = {
   video_feedback: { free: false, basic: false, pro: true },
 } as const;
 
-export type NumericFeature = keyof typeof NUMERIC_LIMITS;
-export type BooleanFeature = keyof typeof BOOLEAN_GATES;
+type NumericFeature = keyof typeof NUMERIC_LIMITS;
+type BooleanFeature = keyof typeof BOOLEAN_GATES;
 export type Feature = NumericFeature | BooleanFeature;
 
 // ---------------------------------------------------------------------------

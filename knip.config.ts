@@ -40,7 +40,6 @@ const config: KnipConfig = {
     "src/hooks/useAthleteHealthProfile.ts",
     "src/hooks/useFmsAlerts.ts",
     "src/hooks/useOfflineSync.ts",
-    "src/hooks/useFeatureAccess.ts",
     "src/lib/math/readinessMath.ts",
     "src/lib/math/adaptiveTDEE.ts",
     "src/lib/math/biometrics.ts",

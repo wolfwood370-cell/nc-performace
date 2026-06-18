@@ -18,7 +18,7 @@ Origine: audit **D8** (`docs/D8_AUDIT_CODICE_MORTO.md`, 2026-06-14).
 | FMS / Salute                               | `src/hooks/useAthleteHealthProfile.ts`, `src/hooks/useFmsAlerts.ts`                                                                 | onboarding/profilo atleta + alert coach                        |
 | Offline / PWA                              | `src/hooks/useOfflineSync.ts`, `src/lib/offlineStorage.ts`                                                                          | ⚠️ richiede re-introdurre la PWA (rimossa da `vite.config.ts`) |
 | Media / immagini                           | `src/lib/media.ts`, `src/lib/mediaSession.ts`, `src/lib/imageCompression.ts`                                                        | upload foto/video                                              |
-| Gating abbonamento                         | `src/hooks/useFeatureAccess.ts`, `src/types/database.ts`                                                                            | gating Stripe                                                  |
+| Tipi DB JSONB (task separato)              | `src/types/database.ts`                                                                                                             | tipi JSONB generici (non gating/Stripe — vedi D13 §5 C2)       |
 
 ## Note
 
