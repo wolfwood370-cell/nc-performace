@@ -228,9 +228,11 @@ interface SessionColumnProps {
    * data lands (returns a low-risk verdict with `unknown_assessment`).
    */
   checkExercise?: (exercise: ExerciseInfo) => ExerciseRiskAssessment;
+  /** Athlete the program is assigned to — threaded to the FMS badge. */
+  athleteId?: string | null;
 }
 
-function SessionColumn({ weekId, session, checkExercise }: SessionColumnProps) {
+function SessionColumn({ weekId, session, checkExercise, athleteId }: SessionColumnProps) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const removeExercise = useAdvancedProgramStore((s) => s.removeExercise);
 
@@ -268,6 +270,7 @@ function SessionColumn({ weekId, session, checkExercise }: SessionColumnProps) {
               exercise={ex}
               onRemove={() => removeExercise(weekId, session.id, ex.id)}
               checkExercise={checkExercise}
+              athleteId={athleteId}
             />
           ))
         )}
@@ -719,6 +722,7 @@ export default function ProgramBuilder() {
                       weekId={selectedWeek.id}
                       session={session}
                       checkExercise={assignedAthleteId ? checkExercise : undefined}
+                      athleteId={assignedAthleteId}
                     />
                   ))
                 ) : (

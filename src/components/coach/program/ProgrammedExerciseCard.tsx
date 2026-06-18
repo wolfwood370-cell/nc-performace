@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Plus, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProgramBuilderStore } from "@/stores/programBuilder/useProgramBuilderStore";
+import { FmsContraindicationBadge } from "@/components/coach/program/FmsContraindicationBadge";
 import type { ExerciseInfo, ExerciseRiskAssessment } from "@/lib/math/fmsRiskEngine";
 import type {
   ProgrammedExercise,
@@ -131,6 +132,9 @@ export interface ProgrammedExerciseCardProps {
    * athlete assigned) the card renders neutrally — risk is OFF.
    */
   checkExercise?: (exercise: ExerciseInfo) => ExerciseRiskAssessment;
+  /** Athlete the program is assigned to — enables the FMS contraindication
+   *  badge (useFmsAlerts → fms_tests). Undefined/null = badge off. */
+  athleteId?: string | null;
 }
 
 export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
@@ -140,6 +144,7 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
   onRemove,
   autoRegMode = "rpe",
   checkExercise,
+  athleteId,
 }: ProgrammedExerciseCardProps) {
   // Store actions are pulled atomically — using shallow selectors here would
   // be overkill since the function references are stable inside zustand.
@@ -250,6 +255,9 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
           >
             {exercise.exercise_name}
           </span>
+          {athleteId && (
+            <FmsContraindicationBadge exerciseName={exercise.exercise_name} athleteId={athleteId} />
+          )}
         </div>
         {onRemove && (
           <Button
