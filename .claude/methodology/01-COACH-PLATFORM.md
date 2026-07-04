@@ -446,14 +446,14 @@ Coach signup → /auth (Supabase Auth)
 
 ### 7.3 Failure modes
 
-| Sintomo                       | Causa                                       | Fix                                                                  |
-| ----------------------------- | ------------------------------------------- | -------------------------------------------------------------------- |
-| Coach loggato vede `/auth`    | Subscription expired                        | Verifica Stripe Dashboard subscription status                        |
-| Webhook 401 silent            | `STRIPE_WEBHOOK_SECRET` env desync          | Confronta env var con Stripe Dashboard webhook endpoint secret       |
-| Subscription mai attivata FE  | Webhook ricevuto ma write fail              | Service role key necessaria nell'edge — vedi `03-BACKEND-LOVABLE.md` |
-| Bundle ha key staging in prod | `VITE_STRIPE_PUBLISHABLE_KEY` non rebildato | Trigger Lovable rebuild dopo env change                              |
+| Sintomo                       | Causa                                       | Fix                                                                   |
+| ----------------------------- | ------------------------------------------- | --------------------------------------------------------------------- |
+| Coach loggato vede `/auth`    | Subscription expired                        | Verifica Stripe Dashboard subscription status                         |
+| Webhook 401 silent            | `STRIPE_WEBHOOK_SECRET` env desync          | Confronta env var con Stripe Dashboard webhook endpoint secret        |
+| Subscription mai attivata FE  | Webhook ricevuto ma write fail              | Service role key necessaria nell'edge — vedi `03-BACKEND-SUPABASE.md` |
+| Bundle ha key staging in prod | `VITE_STRIPE_PUBLISHABLE_KEY` non rebildato | Trigger Lovable rebuild dopo env change                               |
 
-Per pattern edge function Stripe vedi `03-BACKEND-LOVABLE.md §6`.
+Per pattern edge function Stripe vedi `03-BACKEND-SUPABASE.md §6`.
 
 <a id="8-ai"></a>
 

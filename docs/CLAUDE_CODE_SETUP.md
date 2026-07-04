@@ -83,7 +83,7 @@ Tradotti dalle tue leggi in garanzie deterministiche:
 
 ## 4. Subagent
 
-- **Progetto** (file forniti): `aura-theme-auditor` (conformità tema Coach/Athlete, legge #5) · `supabase-rls-auditor` (sicurezza RLS/edge, §4/§5, D5 report-only).
+- **Progetto** (file forniti): `aura-theme-auditor` (conformità tema Coach/Athlete, legge #5) · `supabase-rls-auditor` (sicurezza RLS/edge, §4/§5 — solo segnalazione; security = ownership condivisa, D5 risolta).
 - **Universali** (a livello utente `~/.claude/agents/`, dal tuo base harness): `auditor`, `reviewer`, `planner`.
 
 Uso: _"Usa il subagent aura-theme-auditor su `src/components/coach/`."_ / _"Usa supabase-rls-auditor su `supabase/functions/stripe-webhook`."_
@@ -123,7 +123,7 @@ GUARDRAIL (vincolanti):
   sorgente GitHub e aspetta la mia approvazione esplicita.
 
 FASE 0 — ESPLORA (nessuna modifica)
-1. Leggi CLAUDE.md + .claude/methodology/00-CORE.md e 03-BACKEND-LOVABLE.md.
+1. Leggi CLAUDE.md + .claude/methodology/00-CORE.md e 03-BACKEND-SUPABASE.md.
 2. Leggi docs/DB_MIGRATION_FASE1_REPORT.md (stato: schema migrato sul mio Supabase).
 3. Controlla cosa esiste già: .mcp.json, .claude/settings.json, .claude/agents/,
    .claude/hooks/ → dimmi cosa c'è per non duplicare.

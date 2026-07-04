@@ -251,24 +251,24 @@ done
 
 ## 5. Decision rules: rimuovere vs flaggare
 
-| Categoria                                           | Rule                                                    |
-| --------------------------------------------------- | ------------------------------------------------------- |
-| Export TS unused (high confidence)                  | Rimuovi se non re-export pubblico                       |
-| File completamente orfano                           | Rimuovi (verifica con grep manuale prima)               |
-| Dipendenza package.json unused                      | Rimuovi se confermato (chiedi se uncertain)             |
-| Hook custom orfano                                  | Rimuovi (likely safe)                                   |
-| Componente shadcn-style in `ui/` ma non usato       | **NON** rimuovere — primitive future-usable             |
-| Componente custom non usato in `components/<area>/` | Rimuovi                                                 |
-| `console.log` debug                                 | Rimuovi o convert a logger                              |
-| `console.error` con full err object                 | Convert a logger (no PII leak)                          |
-| TODO con data >30 giorni                            | Flag al user, chiedi se ancora valido                   |
-| Token CSS unused                                    | Flag — può essere usato in futuro Stitch implementation |
-| Migration vecchia                                   | **MAI** rimuovere — storica                             |
-| File `*.test.ts` non eseguito                       | Rimuovi o aggiungi a test suite                         |
+| Categoria                                           | Rule                                                              |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| Export TS unused (high confidence)                  | Rimuovi se non re-export pubblico                                 |
+| File completamente orfano                           | Rimuovi (verifica con grep manuale prima)                         |
+| Dipendenza package.json unused                      | Rimuovi se confermato (chiedi se uncertain)                       |
+| Hook custom orfano                                  | Rimuovi (likely safe)                                             |
+| Componente shadcn-style in `ui/` ma non usato       | **NON** rimuovere — primitive future-usable                       |
+| Componente custom non usato in `components/<area>/` | Rimuovi                                                           |
+| `console.log` debug                                 | Rimuovi o convert a logger                                        |
+| `console.error` con full err object                 | Convert a logger (no PII leak)                                    |
+| TODO con data >30 giorni                            | Flag al user, chiedi se ancora valido                             |
+| Token CSS unused                                    | Flag — può servire a una futura implementazione da handoff Design |
+| Migration vecchia                                   | **MAI** rimuovere — storica                                       |
+| File `*.test.ts` non eseguito                       | Rimuovi o aggiungi a test suite                                   |
 
 ### 5.1 Casi STOP & ASK
 
-- File con commenti tipo `// Used by Lovable Dashboard` o `// Public API`
+- File con commenti tipo `// Public API` o che dichiarano un contratto esterno
 - Tabelle DB referenziate solo in edge functions (grep solo `src/` può mancarle)
 - Componenti shadcn customizzati internamente
 - Hook di feature non ancora rilasciata (in attesa di routing)
@@ -413,7 +413,7 @@ DEAD CODE AUDIT REPORT (2026-05-24)
 
 - DB column `profiles.legacy_field`  [0 hits FE, possibile uso edge/trigger]
 - TODO obsoleto (>30gg):             src/lib/x.ts:88
-- Token CSS `--accent-soft`          [0 hits, possibile uso futuro Stitch]
+- Token CSS `--accent-soft`          [0 hits, possibile uso futuro da handoff Design]
 
 ## Bundle warnings
 

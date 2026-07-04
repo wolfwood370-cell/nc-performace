@@ -1,8 +1,8 @@
-# 04 — Stitch workflow (Google Stitch HTML → TSX)
+# 04 — Design-to-Code (handoff Claude Design → TSX)
 
-> Metodologia per implementare design forniti da **Google Stitch** (HTML + screenshot + DESIGN.md) in TSX che rispetta i token Aura (Coach) o `.theme-athlete` (Athlete).
+> Metodologia per implementare design forniti da **Claude Design** (handoff bundle: HTML/CSS o spec + screenshot) in TSX che rispetta i token Aura (Coach) o `.theme-athlete` (Athlete). Corsia Design: `docs/DESIGN.md`.
 >
-> Attivata quando l'utente fornisce: HTML Stitch + screenshot di riferimento + eventuale aggiornamento DESIGN.md.
+> Attivata quando arriva un handoff Design ("Send to local coding agent") o l'utente fornisce design + target da implementare.
 
 ---
 
@@ -10,10 +10,10 @@
 
 1. [Input atteso dall'utente](#1-input)
 2. [Pipeline operativa step-by-step](#2-pipeline)
-3. [Mapping: colori Stitch → token](#3-colors)
+3. [Mapping: colori del design → token](#3-colors)
 4. [Mapping: elementi HTML → primitive shadcn](#4-elements)
-5. [Mapping: typography Stitch → tokens](#5-typography)
-6. [Mapping: spacing Stitch → Tailwind scale](#6-spacing)
+5. [Mapping: typography del design → tokens](#5-typography)
+6. [Mapping: spacing del design → Tailwind scale](#6-spacing)
 7. [Generazione TSX](#7-tsx-gen)
 8. [Audit post-implementazione](#8-audit)
 9. [Failure modes — quando STOP & ASK](#9-failures)
@@ -27,15 +27,16 @@
 
 L'utente fornisce, in genere in 1-3 messaggi:
 
-| Input                | Format                                                        | Note                                  |
-| -------------------- | ------------------------------------------------------------- | ------------------------------------- |
-| **HTML Stitch**      | Paste in chat o file `.html`                                  | Solo styling — la logica resta nostra |
-| **Screenshot**       | Immagine PNG/JPG                                              | Reference visivo                      |
-| **Target**           | "Questo va in `/coach/inbox`" o "Sostituisci `CoachHome.tsx`" | Indica dove implementare              |
-| **DESIGN.md update** | Path locale (es. `~/Downloads/DESIGN.md`)                     | Solo se DESIGN.md è cambiato          |
-| **Vincoli**          | "Mantieni la logica esistente di X"                           | Opzionale                             |
+| Input                     | Format                                                        | Note                                          |
+| ------------------------- | ------------------------------------------------------------- | --------------------------------------------- |
+| **Handoff Claude Design** | Bundle "Send to local coding agent" (HTML/CSS o spec + asset) | Solo styling — la logica resta nostra         |
+| **Screenshot**            | Immagine PNG/JPG                                              | Reference visivo (di solito già nell'handoff) |
+| **Target**                | "Questo va in `/coach/inbox`" o "Sostituisci `CoachHome.tsx`" | Indica dove implementare                      |
+| **Vincoli**               | "Mantieni la logica esistente di X"                           | Opzionale                                     |
 
-Se l'input è incompleto (es. solo screenshot senza HTML, o target vago), **STOP & ASK** con AskUserQuestion.
+Se il design system è cambiato, la sorgente è l'**handoff aggiornato** (Design ha già rifatto `/design-sync` — vedi `docs/DESIGN.md §2`), non un file da incollare.
+
+Se l'input è incompleto (es. solo screenshot senza HTML/spec, o target vago), **STOP & ASK** con AskUserQuestion.
 
 <a id="2-pipeline"></a>
 
@@ -43,9 +44,8 @@ Se l'input è incompleto (es. solo screenshot senza HTML, o target vago), **STOP
 
 ```
 1. PARSE input
-   - Leggi HTML Stitch
+   - Leggi l'handoff Design (HTML/CSS o spec)
    - Leggi screenshot (visual reference)
-   - Leggi DESIGN.md aggiornato se fornito
    - Identifica target (Coach o Athlete? quale route/componente?)
 
 2. ANALISI HTML
@@ -58,14 +58,14 @@ Se l'input è incompleto (es. solo screenshot senza HTML, o target vago), **STOP
    - Animation / transition (se presente)
 
 3. MAPPING (vedi sezioni 3-6)
-   - Hex Stitch → token Aura / .theme-athlete
+   - Hex del design → token Aura / .theme-athlete
    - <button> / <div class="card"> → primitive shadcn
    - Font-family → font-display / font-sans
    - px values → Tailwind scale (4px = 1, 8px = 2, 16px = 4, ecc.)
 
 4. STOP & ASK se:
    - Color non mappabile (hex non esiste in token palette)
-   - Component custom Stitch senza equivalente shadcn (es. carousel particolare)
+   - Component custom del design senza equivalente shadcn (es. carousel particolare)
    - Layout confligge con responsive existing
    - Logica esistente cambia (devo solo cambiare styling o anche behavior?)
 
@@ -85,17 +85,17 @@ Se l'input è incompleto (es. solo screenshot senza HTML, o target vago), **STOP
 
 7. COMMIT
    - Prefisso `design:` o `style:`
-   - Msg italiano: "implementa Stitch <area> con token Aura"
-   - Co-Authored-By: Claude Opus 4.7
+   - Msg italiano: "implementa da handoff Design <area> con token Aura"
+   - Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 <a id="3-colors"></a>
 
-## 3. Mapping: colori Stitch → token
+## 3. Mapping: colori del design → token
 
 ### 3.1 Coach (Aura palette)
 
-| Hex Stitch tipico     | Token Aura                                          | CSS var                       |
+| Hex tipico del design | Token Aura                                          | CSS var                       |
 | --------------------- | --------------------------------------------------- | ----------------------------- |
 | `#003e62` / `#003C62` | `bg-primary` / `text-primary`                       | `--primary`                   |
 | `#005685`             | `bg-primary-container`                              | `--primary-container`         |
@@ -118,18 +118,18 @@ Se l'input è incompleto (es. solo screenshot senza HTML, o target vago), **STOP
 
 ### 3.2 Athlete (`.theme-athlete` palette)
 
-| Hex Stitch tipico | Class TSX                                             |
-| ----------------- | ----------------------------------------------------- |
-| `#ffffff`         | `bg-[var(--nc-surface)]`                              |
-| `#043555`         | `text-[var(--nc-ink)]`                                |
-| `#50768e`         | `text-[var(--nc-muted)]`                              |
-| `#226fa3`         | `bg-[var(--nc-primary)]` / `text-[var(--nc-primary)]` |
-| `#093858`         | `bg-[var(--nc-deep)]`                                 |
-| `#f1f5f9`         | `bg-[var(--nc-track)]`                                |
+| Hex tipico del design | Class TSX                                             |
+| --------------------- | ----------------------------------------------------- |
+| `#ffffff`             | `bg-[var(--nc-surface)]`                              |
+| `#043555`             | `text-[var(--nc-ink)]`                                |
+| `#50768e`             | `text-[var(--nc-muted)]`                              |
+| `#226fa3`             | `bg-[var(--nc-primary)]` / `text-[var(--nc-primary)]` |
+| `#093858`             | `bg-[var(--nc-deep)]`                                 |
+| `#f1f5f9`             | `bg-[var(--nc-track)]`                                |
 
 ### 3.3 Color non mappabile → STOP & ASK
 
-Se Stitch usa un hex che non corrisponde a nessun token (es. `#7b3aff` viola fuori palette):
+Se il design usa un hex che non corrisponde a nessun token (es. `#7b3aff` viola fuori palette):
 
 ```
 STOP. Chiedi all'utente:
@@ -142,7 +142,7 @@ STOP. Chiedi all'utente:
 
 ## 4. Mapping: elementi HTML → primitive shadcn
 
-| HTML Stitch                  | Primitive shadcn                             | Import                         |
+| HTML del design              | Primitive shadcn                             | Import                         |
 | ---------------------------- | -------------------------------------------- | ------------------------------ |
 | `<button>` solido            | `<Button>` (variant `default`)               | `@/components/ui/button`       |
 | `<button>` outline           | `<Button variant="outline">`                 | idem                           |
@@ -180,21 +180,21 @@ STOP. Chiedi all'utente:
 
 <a id="5-typography"></a>
 
-## 5. Mapping: typography Stitch → tokens
+## 5. Mapping: typography del design → tokens
 
 ### 5.1 Font family
 
-| Stitch CSS                                                | TSX class             |
+| CSS del design                                            | TSX class             |
 | --------------------------------------------------------- | --------------------- |
 | `font-family: 'Manrope'` o `font-family: 'Inter Display'` | `font-display`        |
 | `font-family: 'Inter'` o `system-ui`                      | `font-sans` (default) |
 | `font-family: 'Geist Mono'` o `monospace`                 | `font-mono`           |
 
-⚠️ Se Stitch usa altri font (Roboto, Open Sans, Poppins) → **STOP**, non aggiungere font extra. Sostituisci con Manrope/Inter.
+⚠️ Se il design usa altri font (Roboto, Open Sans, Poppins) → **STOP**, non aggiungere font extra. Sostituisci con Manrope/Inter.
 
 ### 5.2 Font size
 
-| Stitch px | Tailwind class          | Token Aura                       |
+| px design | Tailwind class          | Token Aura                       |
 | --------- | ----------------------- | -------------------------------- |
 | 8px       | `text-5xs`              |                                  |
 | 9px       | `text-4xs`              |                                  |
@@ -210,7 +210,7 @@ STOP. Chiedi all'utente:
 
 ### 5.3 Font weight
 
-| Stitch | Tailwind         |
+| Design | Tailwind         |
 | ------ | ---------------- |
 | 400    | `font-normal`    |
 | 500    | `font-medium`    |
@@ -220,11 +220,11 @@ STOP. Chiedi all'utente:
 
 <a id="6-spacing"></a>
 
-## 6. Mapping: spacing Stitch → Tailwind scale
+## 6. Mapping: spacing del design → Tailwind scale
 
 Tailwind scale: ogni unit = 4px.
 
-| Stitch px | Tailwind              |
+| px design | Tailwind              |
 | --------- | --------------------- |
 | 4px       | `1` (gap-1, p-1, m-1) |
 | 8px       | `2`                   |
@@ -241,7 +241,7 @@ Tailwind scale: ogni unit = 4px.
 
 ### 6.1 Radius
 
-| Stitch px | Tailwind                                        |
+| px design | Tailwind                                        |
 | --------- | ----------------------------------------------- |
 | 4-6px     | `rounded-sm`                                    |
 | 8px       | `rounded`                                       |
@@ -253,7 +253,7 @@ Tailwind scale: ogni unit = 4px.
 
 ### 6.2 Shadow
 
-| Stitch       | Tailwind / custom                     |
+| Design       | Tailwind / custom                     |
 | ------------ | ------------------------------------- |
 | Soft ambient | `shadow-sm`                           |
 | Card lift    | `shadow` o `shadow-aura`              |
@@ -290,7 +290,7 @@ export default function PageName() {
   // 3. Render
   return (
     <CoachLayout title="..." subtitle="...">
-      {/* JSX Stitch-derived, con TOKEN ONLY */}
+      {/* JSX derivato dall'handoff, con TOKEN ONLY */}
       <div className="rounded-3xl bg-surface-container-lowest p-6 shadow-aura">
         {/* ... */}
       </div>
@@ -309,7 +309,7 @@ Se stai **sostituendo** styling di un file esistente:
 4. Mantieni gli stessi prop names + tipi
 5. Mantieni gli imports di logica (rimuovi solo quelli styling-only inutilizzati)
 
-❌ **MAI** riscrivere la business logic perché lo Stitch HTML "sembra diverso". Lo Stitch HTML è SOLO design, non architettura.
+❌ **MAI** riscrivere la business logic perché l'HTML dell'handoff "sembra diverso". L'handoff è SOLO design, non architettura.
 
 <a id="8-audit"></a>
 
@@ -339,16 +339,16 @@ npx tsc --noEmit -p tsconfig.app.json
 
 ## 9. Failure modes — quando STOP & ASK
 
-| Caso                                                                                              | Azione                                                                                    |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Color hex non mappabile**                                                                       | `AskUserQuestion`: aggiungere palette? sostituire? skippare?                              |
-| **Font non-Aura** (Roboto, Poppins, ...)                                                          | `AskUserQuestion`: sostituire con Manrope/Inter? aggiungere font (richiede edit globale)? |
-| **Component custom Stitch senza equivalente shadcn** (carousel particolare, animazione complessa) | `AskUserQuestion`: implementare custom? semplificare? linkare libreria esterna?           |
-| **Layout confligge con responsive existing**                                                      | `AskUserQuestion`: priorità mobile o desktop?                                             |
-| **Logica esistente deve cambiare?**                                                               | `AskUserQuestion`: solo styling o anche behavior?                                         |
-| **HTML Stitch mostra dati ma backend non li espone**                                              | `AskUserQuestion`: mockare con placeholder? estendere backend?                            |
-| **Target ambiguo** (es. "mettilo nella sidebar" ma ci sono 3 sidebar)                             | `AskUserQuestion`: quale specificamente                                                   |
-| **DESIGN.md aggiornato confligge con Stitch HTML**                                                | `AskUserQuestion`: quale source of truth                                                  |
+| Caso                                                                                                  | Azione                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Color hex non mappabile**                                                                           | `AskUserQuestion`: aggiungere palette? sostituire? skippare?                              |
+| **Font non-Aura** (Roboto, Poppins, ...)                                                              | `AskUserQuestion`: sostituire con Manrope/Inter? aggiungere font (richiede edit globale)? |
+| **Component custom del design senza equivalente shadcn** (carousel particolare, animazione complessa) | `AskUserQuestion`: implementare custom? semplificare? linkare libreria esterna?           |
+| **Layout confligge con responsive existing**                                                          | `AskUserQuestion`: priorità mobile o desktop?                                             |
+| **Logica esistente deve cambiare?**                                                                   | `AskUserQuestion`: solo styling o anche behavior?                                         |
+| **L'handoff mostra dati ma backend non li espone**                                                    | `AskUserQuestion`: mockare con placeholder? estendere backend?                            |
+| **Target ambiguo** (es. "mettilo nella sidebar" ma ci sono 3 sidebar)                                 | `AskUserQuestion`: quale specificamente                                                   |
+| **Handoff Design confligge con `docs/DESIGN.md`**                                                     | `AskUserQuestion`: quale source of truth                                                  |
 
 <a id="10-example"></a>
 
@@ -356,9 +356,9 @@ npx tsc --noEmit -p tsconfig.app.json
 
 **Input utente**:
 
-> Implementa questo nuovo CoachInbox header. HTML allegato + screenshot. Va in `src/pages/coach/CoachCheckinInbox.tsx`. Mantieni la logica esistente.
+> Implementa questo nuovo CoachInbox header. Handoff Design (HTML) + screenshot. Va in `src/pages/coach/CoachCheckinInbox.tsx`. Mantieni la logica esistente.
 
-**HTML Stitch** (sample):
+**Handoff Design** (HTML sample):
 
 ```html
 <header style="background: #f5faff; padding: 24px; border-bottom: 1px solid #c1c7d0;">
@@ -382,7 +382,7 @@ npx tsc --noEmit -p tsconfig.app.json
 
 **Audit**:
 
-- ✅ Tutti hex Stitch → token Aura
+- ✅ Tutti gli hex dell'handoff → token Aura
 - ✅ Manrope → `font-display`
 - ✅ 28px → `text-headline-md`
 - ✅ 9999px border-radius → `rounded-full`
@@ -392,7 +392,7 @@ npx tsc --noEmit -p tsconfig.app.json
 **Commit**:
 
 ```
-design(coach): implementa Stitch header CoachCheckinInbox con token Aura
+design(coach): implementa da handoff Design header CoachCheckinInbox con token Aura
 
-Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```

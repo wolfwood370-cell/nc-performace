@@ -14,7 +14,7 @@
 6. [Git workflow worktree](#6-git)
 7. [Commit conventions](#7-commits)
 8. [Hook order safety](#8-hook-order)
-9. [Hand-patch Lovable types.ts](#9-handpatch)
+9. [types.ts: regen di proprietà (hand-patch OBSOLETO)](#9-handpatch)
 10. [Pre-commit checklist](#10-precommit)
 11. [Glossary dominio](#11-glossary)
 
@@ -31,7 +31,7 @@
 5. **No "while you're here".** Out-of-scope → `mcp__ccd_session__spawn_task`, mai mescolare.
 6. **Aura/theme compliance non-negoziabile.** Coach usa Aura tokens; Athlete usa `.theme-athlete`. Mai mescolare.
 7. **Hook order è legge.** Tutti gli hook PRIMA di qualsiasi return early. Anti-pattern canonico §8.
-8. **Hand-patch resilience.** Lovable rigenera `types.ts`. Verifica blocco `appointments` dopo ogni merge. §9.
+8. **Types ownership.** `types.ts` si rigenera con `supabase gen types typescript --linked` (DB di proprietà); l'hand-patch `appointments` è **obsoleto** (§9, `CLAUDE.md` legge #7).
 9. **Worktree-isolated.** Tu (AI) operi in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Non pushi mai.**
 10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log`.
 
@@ -41,16 +41,16 @@
 
 **Auto mode**: per default decidi e procedi. Chiedi via `AskUserQuestion` solo se:
 
-| Caso                                                | Esempio                                                                                         |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Direzione architetturale ambigua**                | "Usiamo Zustand o Context per il nuovo store?" — solo se l'impatto è cross-cutting (>3 file)    |
-| **Breaking change su API pubblica**                 | Cambio props di un componente usato in 10+ posti                                                |
-| **Decisione commerciale/business**                  | Pricing, copy marketing, feature flag, default plan                                             |
-| **Conflitto fra istruzioni**                        | User dice X, DESIGN.md dice Y                                                                   |
-| **Possibile data loss**                             | Migration destructive, drop column, cascade delete                                              |
-| **RLS bypass o Stripe destructive**                 | Disabilitazione policy, modifica webhook event handling                                         |
-| **Security issue / Advisor warning**                | **SEMPRE chiedi** — default deferire a Lovable Security Agent (vedi `03-BACKEND-LOVABLE.md §0`) |
-| **Color/spacing non mappabile** Stitch → token Aura | Hex che non corrisponde a nessun token esistente                                                |
+| Caso                                                        | Esempio                                                                                                                                                              |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direzione architetturale ambigua**                        | "Usiamo Zustand o Context per il nuovo store?" — solo se l'impatto è cross-cutting (>3 file)                                                                         |
+| **Breaking change su API pubblica**                         | Cambio props di un componente usato in 10+ posti                                                                                                                     |
+| **Decisione commerciale/business**                          | Pricing, copy marketing, feature flag, default plan                                                                                                                  |
+| **Conflitto fra istruzioni**                                | User dice X, DESIGN.md dice Y                                                                                                                                        |
+| **Possibile data loss**                                     | Migration destructive, drop column, cascade delete                                                                                                                   |
+| **RLS bypass o Stripe destructive**                         | Disabilitazione policy, modifica webhook event handling                                                                                                              |
+| **Security issue / Advisor warning**                        | **SEMPRE chiedi** — default: Cowork prepara il fix (advisors/RLS via connettore), Nick approva; Code propone il FILE di migration (vedi `03-BACKEND-SUPABASE.md §0`) |
+| **Color/spacing non mappabile** handoff Design → token Aura | Hex che non corrisponde a nessun token esistente                                                                                                                     |
 
 Se decidi senza chiedere, **dichiara** in 1 riga nella risposta:
 
@@ -182,8 +182,8 @@ Se commit ha emesso warning prettier/lint-staged (es. CRLF/LF, reformat), è OK 
 
 1. **Fetch origin**
 2. **Switch** sul branch `claude/<slug>` (se non già attivo)
-3. **Branch → Merge into current branch → main** (integra eventuali regen Lovable)
-4. **Verifica `types.ts`**: se Lovable ha rimosso `appointments`, segnala all'AI per hand-patch (§9)
+3. **Branch → Merge into current branch → main** (integra eventuali commit arrivati su main)
+4. **Verifica `types.ts`**: se lo schema è cambiato e i tipi sono stale, l'AI rigenera con `supabase gen types typescript --linked` (§9)
 5. **Push origin**
 
 ### 6.5 Verifica push success (a richiesta utente o quando utente lo conferma)
@@ -200,13 +200,13 @@ git log --oneline origin/claude/<slug> 2>&1 || \
 
 **Interpretazione output**:
 
-| Output `git status -sb`                               | Significato                                                                  |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `## claude/<slug>...origin/main` senza ahead/behind   | ✅ Push success — locale e main sincronizzati (utente ha mergiato + pushato) |
-| `## claude/<slug>...origin/<slug>` senza ahead/behind | ✅ Push success — branch claude pushato direttamente (no merge)              |
-| `[ahead N]`                                           | ❌ Push non fatto — N commit locali non su origin                            |
-| `[behind N]`                                          | ⚠️ Origin ha commit nuovi che il locale non ha (Lovable regen?)              |
-| `[ahead N, behind M]`                                 | ⚠️ Divergenza — serve merge/rebase                                           |
+| Output `git status -sb`                               | Significato                                                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `## claude/<slug>...origin/main` senza ahead/behind   | ✅ Push success — locale e main sincronizzati (utente ha mergiato + pushato)              |
+| `## claude/<slug>...origin/<slug>` senza ahead/behind | ✅ Push success — branch claude pushato direttamente (no merge)                           |
+| `[ahead N]`                                           | ❌ Push non fatto — N commit locali non su origin                                         |
+| `[behind N]`                                          | ⚠️ Origin ha commit nuovi che il locale non ha (merge di Nick o editing Lovable su main?) |
+| `[ahead N, behind M]`                                 | ⚠️ Divergenza — serve merge/rebase                                                        |
 
 Riporta esito all'utente in 1-2 righe + lista hash commit confermati su origin.
 
@@ -229,21 +229,21 @@ git branch -d claude/<slug>
 
 [corpo opzionale: perché, non cosa]
 
-Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 ### 7.2 Tipi
 
-| Tipo                 | Uso                                                 |
-| -------------------- | --------------------------------------------------- |
-| `feat:`              | Nuova feature                                       |
-| `fix:`               | Bug fix                                             |
-| `refactor:`          | Refactor senza cambio comportamento                 |
-| `style:` / `design:` | Solo cosmetic / Aura tokens / Stitch implementation |
-| `chore:`             | Config, deps, lint                                  |
-| `docs:`              | Solo documentazione                                 |
-| `perf:`              | Performance optimization                            |
-| `test:`              | Solo test                                           |
+| Tipo                 | Uso                                                             |
+| -------------------- | --------------------------------------------------------------- |
+| `feat:`              | Nuova feature                                                   |
+| `fix:`               | Bug fix                                                         |
+| `refactor:`          | Refactor senza cambio comportamento                             |
+| `style:` / `design:` | Solo cosmetic / Aura tokens / implementazione da handoff Design |
+| `chore:`             | Config, deps, lint                                              |
+| `docs:`              | Solo documentazione                                             |
+| `perf:`              | Performance optimization                                        |
+| `test:`              | Solo test                                                       |
 
 ### 7.3 Aree esempio
 
@@ -256,7 +256,7 @@ fix(coach): sposta hooks prima del early return in ProgramBuilder (Rendered more
 feat(athlete): aggiungi daily-checkin streak counter
 refactor(coach): estrai WeekTimelineCard da ProgramBuilder (-79 righe)
 style(athlete): porta AthleteDashboard ai token .theme-athlete
-design(coach): implementa Stitch CoachInbox layout 3-column
+design(coach): implementa da handoff Design CoachInbox layout 3-column
 chore(deps): aggiungi knip + depcheck per audit codice morto
 ```
 
@@ -311,33 +311,16 @@ Caso canonico applicato: commit `b7cef88` su `ProgramBuilder.tsx`.
 
 <a id="9-handpatch"></a>
 
-## 9. Hand-patch Lovable types.ts
+## 9. types.ts — regen di proprietà (hand-patch OBSOLETO)
 
-### Sintomo
+> **OBSOLETO (nota storica).** L'hand-patch del blocco `appointments` serviva quando `types.ts` era rigenerato dalla piattaforma Lovable, che lo droppava a ogni regen. Con il DB di proprietà il regen è deterministico e **include `appointments`**: niente più drop, niente cast `(supabase as any)`.
 
-Lovable rigenera `src/integrations/supabase/types.ts` (auto-codegen) **rimuovendo il blocco `appointments`**.
-
-### Verifica
+**Oggi** (allineato a `CLAUDE.md` legge #7): dopo ogni cambio di schema →
 
 ```bash
-# Deve ritornare ≥ 1
-grep -c "appointments:" src/integrations/supabase/types.ts
-
-# Deve ritornare 0 (se il blocco è presente)
-grep -c "supabase as any" src/hooks/useCoachAppointments.ts
+supabase gen types typescript --linked > src/integrations/supabase/types.ts
+npx tsc --noEmit -p tsconfig.app.json
 ```
-
-### Hand-patch
-
-Riapplica il blocco `appointments` fra `ai_usage_tracking` e `athlete_ai_insights` in `types.ts`. Reference: `git log -p src/integrations/supabase/types.ts | grep -A 50 "appointments:"` per recuperare il diff originale.
-
-Fallback temporaneo: `(supabase as any)` cast in `useCoachAppointments.ts`. **Documenta nel commit message**.
-
-### Quando verificare
-
-- **Sempre** dopo `git merge origin/main`
-- **Sempre** se vedi TS errors random su `.from('appointments')`
-- **Sempre** dopo interazioni dell'utente con Lovable Dashboard
 
 <a id="10-precommit"></a>
 
@@ -350,7 +333,7 @@ Fallback temporaneo: `(supabase as any)` cast in `useCoachAppointments.ts`. **Do
 - [ ] No `// TODO` introdotti senza ticket
 - [ ] Import orfani rimossi
 - [ ] Commit message italiano, prefisso `<tipo>:` corretto
-- [ ] `Co-Authored-By: Claude Opus 4.7`
+- [ ] `Co-Authored-By: Claude`
 
 **Nota Husky**: prettier riformatta `*.{ts,tsx,css,md,json}` al commit. Diff finale può differire dal write (line wrap, trailing comma) — non rifare Read solo per verificare.
 
@@ -377,24 +360,24 @@ Fallback temporaneo: `(supabase as any)` cast in `useCoachAppointments.ts`. **Do
 
 ### Roles & flow
 
-| Termine              | Significato                                                                      |
-| -------------------- | -------------------------------------------------------------------------------- |
-| **Coach**            | `role = 'coach'`. Accede a `/coach/*`. Web-first responsive                      |
-| **Athlete**          | `role = 'athlete'`. Accede a `/athlete/*`. Ha `coach_id` FK. Mobile PWA          |
-| **Subscription**     | Stripe subscription gating `/coach/*`                                            |
-| **Onboarding**       | Multi-step wizard athlete (biometrics + lifestyle + neurotype)                   |
-| **Readiness**        | Score giornaliero athlete (sleep + HRV + stress + soreness)                      |
-| **Aura**             | Design system Coach (refactor attivo)                                            |
-| **`.theme-athlete`** | Tema CSS scope per Athlete PWA                                                   |
-| **Stitch**           | Google Stitch — tool per generare design HTML da prompt                          |
-| **Lovable**          | Lovable.dev — platform che hosta il backend e rigenera periodicamente `types.ts` |
+| Termine              | Significato                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Coach**            | `role = 'coach'`. Accede a `/coach/*`. Web-first responsive                                                                    |
+| **Athlete**          | `role = 'athlete'`. Accede a `/athlete/*`. Ha `coach_id` FK. Mobile PWA                                                        |
+| **Subscription**     | Stripe subscription gating `/coach/*`                                                                                          |
+| **Onboarding**       | Multi-step wizard athlete (biometrics + lifestyle + neurotype)                                                                 |
+| **Readiness**        | Score giornaliero athlete (sleep + HRV + stress + soreness)                                                                    |
+| **Aura**             | Design system Coach (refactor attivo)                                                                                          |
+| **`.theme-athlete`** | Tema CSS scope per Athlete PWA                                                                                                 |
+| **Claude Design**    | Corsia design: design system + prototipi → handoff a Code (`docs/DESIGN.md`)                                                   |
+| **Lovable**          | Lovable.dev — editor visuale opzionale su `main`; ex hosting backend (migrato a Supabase di proprietà, `docs/DB_MIGRATION.md`) |
 
 ### Tech terms
 
-| Termine             | Significato                                                                    |
-| ------------------- | ------------------------------------------------------------------------------ |
-| **Worktree**        | `.claude/worktrees/<slug>` — copia branch isolata per AI agent                 |
-| **Hand-patch**      | Modifica manuale a file auto-generato (es. `types.ts` blocco `appointments`)   |
-| **Slice pattern**   | Zustand store splittato in più file per dominio (`src/stores/programBuilder/`) |
-| **Aura compliance** | Uso di soli token Aura/`.theme-athlete`, mai hex raw                           |
-| **PWA install**     | Athlete app installabile come app nativa su mobile                             |
+| Termine             | Significato                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| **Worktree**        | `.claude/worktrees/<slug>` — copia branch isolata per AI agent                                     |
+| **Hand-patch**      | Modifica manuale a file auto-generato — storico: il caso `types.ts`/`appointments` è obsoleto (§9) |
+| **Slice pattern**   | Zustand store splittato in più file per dominio (`src/stores/programBuilder/`)                     |
+| **Aura compliance** | Uso di soli token Aura/`.theme-athlete`, mai hex raw                                               |
+| **PWA install**     | Athlete app installabile come app nativa su mobile                                                 |
