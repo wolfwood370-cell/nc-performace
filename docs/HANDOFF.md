@@ -24,8 +24,8 @@ Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web 
 
 ## 3. Decisioni
 
-**Chiuse:** D1 schema-only · D2 AI→OpenAI (validata 6/6) · D3 OAuth Google · audit · E2E · rebranding · guard coach · smoke AI + invito (2026-06-15) · fix cache roster (2026-06-15) · **generate-program UI (D11, 2026-06-16)** · **D12 Set A cleanup ACWR (2026-06-17, `6dcd2fc`)** · **dual-agent Code/Cowork formalizzato (`COWORK.md`, 2026-06-18, `69e8a4a`)** · **campagna autonoma D13 COMPLETA (2026-06-18)** — 7 hook WIP collegati + suite E2E verde + audit pulito (`docs/D13_AUDIT_REPORT.md`).
-**Aperte:** **D4** hosting FE (Cloudflare Pages vs Vercel) · **D5** security report-only (= Lovable) · **D6** timing cutover `.env` · **libreria esercizi** (come popolarla, §4 r.8) · **D12 Set B** (`readinessMath`/`constants`) **tenuto** — rimuovere solo su conferma esplicita di abbandono della feature readiness.
+**Chiuse:** D1 schema-only · D2 AI→OpenAI (validata 6/6) · D3 OAuth Google · audit · E2E · rebranding · guard coach · smoke AI + invito (2026-06-15) · fix cache roster (2026-06-15) · **generate-program UI (D11, 2026-06-16)** · **D12 Set A cleanup ACWR (2026-06-17, `6dcd2fc`)** · **dual-agent Code/Cowork formalizzato (`COWORK.md`, 2026-06-18, `69e8a4a`)** · **campagna autonoma D13 COMPLETA (2026-06-18)** — 7 hook WIP collegati + suite E2E verde + audit pulito (`docs/D13_AUDIT_REPORT.md`) · **✅ D5 RISOLTA (2026-07-04, metodo v2):** security = ownership condivisa (5 attori) — Code = codice sicuro + `/security-review`; Cowork = advisors/RLS/DB via connettore col benestare di Nick. Vedi `CLAUDE.md` legge #11 / `COWORK.md §5` / `03-BACKEND-SUPABASE.md §0`.
+**Aperte:** **D4** hosting FE (Cloudflare Pages vs Vercel) · **D6** timing cutover `.env` · **libreria esercizi** (come popolarla, §4 r.8) · **D12 Set B** (`readinessMath`/`constants`) **tenuto** — rimuovere solo su conferma esplicita di abbandono della feature readiness.
 
 ## 4. Prossimi passi
 
@@ -54,9 +54,18 @@ Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web 
 - **Cowork sandbox:** file montati con NUL padding → usa `Read`/`grep -a`; `git status` mostra tutto il tree modificato (CRLF, falso) e può lasciare `index.lock` → git read-only in Cowork; `knip`/`depcheck` in CC.
 - Anteprima/dev = `npm run dev` (`localhost:8080`).
 
+## 5-bis. Registro attori ↔ repo
+
+- `main` = fonte di verità · **un attore alla volta sul working tree**. Cowork aggiorna questa tabella a inizio/fine sessione.
+
+| Repo                                                                   | Attore attivo ora               | Corsia                              |
+| ---------------------------------------------------------------------- | ------------------------------- | ----------------------------------- |
+| nc-performance-hub                                                     | — (compilare a inizio sessione) | build modulo / DB / handoff         |
+| satelliti (questionnaire · calendar · movement · business · education) | read-only per Cowork            | cave da fondere nel Hub, non attivi |
+
 ## 6. Guardrail (vincolanti)
 
-Risposte/commit **italiano** · **MAI push** (sincronizza Nick) · build gate `tsc --noEmit -p tsconfig.app.json` verde · commit atomici · secrets/credenziali/Stripe/Google = Nick · security D5 report-only (legge #11) · niente operazioni distruttive senza conferma · confermare costo prima di creare risorse Supabase.
+Risposte/commit **italiano** · **MAI push** (sincronizza Nick) · build gate `tsc --noEmit -p tsconfig.app.json` verde · commit atomici · secrets/credenziali/Stripe/Google = Nick · security = ownership condivisa (legge #11): Code = codice sicuro + `/security-review` ai milestone; il DB (RLS/advisor/migration) lo opera Cowork via connettore col benestare di Nick · niente operazioni distruttive senza conferma · confermare costo prima di creare risorse Supabase.
 
 ## 7. Documenti di riferimento
 
@@ -68,18 +77,17 @@ Tutti **trackati** (2026-06-18): `CLAUDE.md` · `COWORK.md` + `.claude/methodolo
 
 ```
 Prosecuzione nc-performance-hub (Lovable → Supabase mio). Leggi PRIMA docs/HANDOFF.md
-+ CLAUDE.md + .claude/methodology/00-CORE.md.
++ CLAUDE.md + docs/auto-miglioramento.md + .claude/methodology/00-CORE.md.
 
-Stato (2026-06-18): smoke AI 6/6, invito→atleta ok, generate-program CABLATA (8735e0d),
-D12 Set A dead-code rimosso (6dcd2fc), e CAMPAGNA D13 COMPLETA (7 hook WIP collegati, suite
-E2E verde, audit pulito docs/D13_AUDIT_REPORT.md). Tutto su origin/main (tip 2296074). NB: la
-libreria esercizi è ANCORA VUOTA (§4 r.8) → i programmi referenziano esercizi SENTINEL finché
-non viene popolata.
+Stato: vedi §2 per lo stato fattuale (campagna D13 completa — dettagli in
+docs/D13_AUDIT_REPORT.md). Blocco vivo: la libreria esercizi è ANCORA VUOTA (SENTINEL,
+§4 r.8) → i programmi referenziano esercizi SENTINEL finché non viene popolata.
 
 GUARDRAIL: italiano; all'inizio VERIFICA il branch e crea claude/<slug> (NON su main); MAI push
 (sincronizzo io); build gate tsc --noEmit -p tsconfig.app.json verde; commit atomici; secrets le
-imposto io; security D5 report-only (legge #11). MONITORA il contesto: a ~85% fermati, dichiaralo e
-prepara handoff + prompt di ripartenza. Esplora→pianifica e proponi il piano PRIMA di modificare.
+imposto io; security = ownership condivisa (legge #11): tu = codice sicuro + /security-review,
+il DB lo tocca Cowork col benestare di Nick — tu proponi il FILE di migration. MONITORA il
+contesto: a ~85% fermati, dichiaralo e prepara handoff + prompt di ripartenza.
 
 OBIETTIVO (dimmi tu quale): collegare un modulo WIP da docs/WIP_MODULES.md, o un fix FE.
 Esplora→pianifica e proponi il piano PRIMA di modificare.
@@ -88,16 +96,20 @@ Esplora→pianifica e proponi il piano PRIMA di modificare.
 ## 9. PROMPT DI TRASFERIMENTO — Cowork (lavoro su CONNETTORE/INFRA)
 
 ```
-Prosecuzione nc-performance-hub su Cowork. Leggi PRIMA COWORK.md (corsia Cowork) + docs/HANDOFF.md.
+Prosecuzione nc-performance-hub su Cowork. Leggi PRIMA COWORK.md (corsia Cowork) + docs/HANDOFF.md
++ docs/auto-miglioramento.md.
 
-Stato (2026-06-18): dual-agent attivo (CLAUDE.md §0 → COWORK.md tracked). D12 dead-code Set A fatto;
-Set B tenuto. Campagna D13 COMPLETA su main: 7 hook WIP collegati (Quota AI, Gating, Nutrizione,
-FMS/Salute, Periodizzazione), suite E2E verde, audit pulito. Backend ref xgxtplqlewpqjzghvbke con
-tabelle per lo più vuote; LIBRERIA ESERCIZI ANCORA VUOTA (SENTINEL); FE su .env.local (TEMP).
+Stato: vedi §2 per lo stato fattuale (dual-agent attivo; campagna D13 completa — dettagli in
+docs/D13_AUDIT_REPORT.md). Backend ref xgxtplqlewpqjzghvbke con tabelle per lo più vuote;
+LIBRERIA ESERCIZI ANCORA VUOTA (SENTINEL); FE su .env.local (TEMP). Resume del progetto Supabase
+(free-tier pausing) prima di ogni lavoro DB.
 
 CORSIA COWORK (da COWORK.md): git READ-ONLY; niente scritture nel repo (i file li committa Code su
-branch); verifica prima di ogni distruttivo (stash/.env); secrets/.env/Stripe/Google = Nick; security
-report-only; MAI push; esplora→pianifica→proponi PRIMA di agire; a ~85% di contesto fermati e prepara
+branch); il DB è il tuo binario: apply_migration (DDL) + il FILE supabase/migrations/* lo committa
+Code + get_advisors dopo ogni DDL; execute_sql per DML/seed; backup prima dei distruttivi; deviazione
+MCP-su-prod dichiarata, ok finché zero dati reali. Verifica prima di ogni distruttivo (stash/.env);
+secrets/.env/Stripe/Google = Nick; security = advisors/RLS/review DB via connettore col benestare di
+Nick; MAI push; esplora→pianifica→proponi PRIMA di agire; a ~85% di contesto fermati e prepara
 handoff + prompt.
 
 OBIETTIVO (dimmi tu quale): (a) popolare la libreria esercizi (export Lovable → import via connettore,
@@ -108,4 +120,4 @@ Proponimi il micro-piano e procedi.
 
 ---
 
-_Hand-off aggiornato 2026-06-18 (campagna autonoma **D13 COMPLETA** su `origin/main` tip `2296074`: 7 hook WIP collegati + E2E verde + audit pulito `docs/D13_AUDIT_REPORT.md`; D12 Set A `6dcd2fc`, Set B tenuto; dual-agent `COWORK.md` `69e8a4a`; stash-loop chiuso `f6bd4b2`/`1de3b7f`). Aperti (§4): `.env`+stash, credenziali E2E, Set B, token --warning, **libreria esercizi VUOTA**. Aggiornare §2/§3/§4 man mano._
+_Hand-off aggiornato 2026-06-18 (campagna autonoma **D13 COMPLETA** su `origin/main` tip `2296074`: 7 hook WIP collegati + E2E verde + audit pulito `docs/D13_AUDIT_REPORT.md`; D12 Set A `6dcd2fc`, Set B tenuto; dual-agent `COWORK.md` `69e8a4a`; stash-loop chiuso `f6bd4b2`/`1de3b7f`). (2026-07-04) **metodo v2**: file-guida allineati a Supabase proprio + 5 attori; D5 risolta; auto-miglioramento + registro attori↔repo aggiunti. Aperti (§4): `.env`+stash, credenziali E2E, Set B, token --warning, **libreria esercizi VUOTA**. Aggiornare §2/§3/§4 man mano._
