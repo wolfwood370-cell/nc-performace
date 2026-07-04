@@ -1,16 +1,16 @@
-# 03 — Backend & Lovable Cloud
+# 03 — Backend & Supabase (progetto di proprietà)
 
 > Metodologia per lavoro su `supabase/functions/**`, `supabase/migrations/**`, RLS policies, `src/integrations/supabase/*`, hook che chiamano edge functions.
 >
-> Backend è gestito da **Lovable Cloud** (hosted). Deploy via Lovable Dashboard, non da CLI. L'utente fa deploy, non l'agente AI.
+> Backend = **Supabase, progetto di proprietà** (ref `xgxtplqlewpqjzghvbke`, UE). Deploy edge via CLI/connettore; il DB lo opera **Cowork** col connettore (`COWORK.md §4-bis`), **Code** propone i FILE di migrazione. Migrazione da Lovable Cloud tracciata in `docs/DB_MIGRATION.md`.
 
 ---
 
 ## Indice
 
-0. [⚠ Security ownership policy](#0-security-ownership)
-1. [Architettura Lovable Cloud](#1-arch)
-2. [Supabase client + types.ts hand-patch](#2-client)
+0. [⚠ Security ownership policy — condivisa](#0-security-ownership)
+1. [Architettura Supabase (progetto di proprietà)](#1-arch)
+2. [Supabase client + types.ts](#2-client)
 3. [Edge functions inventario](#3-edge-inventory)
 4. [Edge function pattern canonical](#4-edge-pattern)
 5. [Security checklist edge](#5-security)
@@ -25,100 +25,78 @@
 
 <a id="0-security-ownership"></a>
 
-## 0. ⚠ Security ownership policy
+## 0. ⚠ Security ownership policy — ownership condivisa
 
-**Decisione 2026-05-25**: i security issues sono ownership del **Lovable Security Agent**, NON di Claude. Vale per:
+**Decisione 2026-07-04 (metodo v2 — chiude la D5 di `docs/DB_MIGRATION.md`)**: con il DB di proprietà la security non è più delegata a un agente esterno. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping, storage policy e advisor Supabase sono responsabilità **condivisa**:
 
-- Lovable Supabase Advisor warnings (qualsiasi severity)
-- RLS policy gaps
-- Edge function auth bypasses
-- SECURITY DEFINER hardening
-- Realtime topic scoping
-- Privilege escalation triggers
-- Storage bucket policies
-- Stripe webhook signature / Origin header issues
+| Attore          | Possiede                                                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cowork**      | Review e **applicazione** DB via connettore Supabase (RLS, `SECURITY DEFINER`, advisor, Realtime scoping): `apply_migration` + `get_advisors(security)` dopo ogni DDL, col **benestare di Nick**. |
+| **Claude Code** | **Codice sicuro** + `/security-review` ai milestone. Propone migration/policy come **FILE** in `supabase/migrations/`, **non applica sul DB** (niente MCP Supabase in scrittura da Code).         |
+| **Nick**        | Approva ogni chiamata DB; merge/push; secrets.                                                                                                                                                    |
 
-### 0.1 Perché Lovable, non Claude
+Operazioni potenzialmente distruttive → **STOP & ASK** (`CLAUDE.md §5`).
 
-| Capability                                                                    | Lovable Agent         | Claude                                    |
-| ----------------------------------------------------------------------------- | --------------------- | ----------------------------------------- |
-| Accesso DB live                                                               | ✅ diretto            | ❌ via worktree + merge                   |
-| Apply migration immediato                                                     | ✅ in-place           | ❌ deve aspettare deploy post-merge       |
-| Test RLS post-apply                                                           | ✅ può eseguire query | ❌ solo via FE smoke test                 |
-| Conoscenza limitazioni Lovable Cloud (es. `realtime.messages` blocked schema) | ✅ a priori           | ❌ scopre solo a deploy fallito           |
-| Visibilità Advisor real-time                                                  | ✅ stato corrente DB  | ❌ legge solo screenshot utente           |
-| Costo iteration                                                               | basso (in-place)      | alto (commit → merge → deploy → re-audit) |
+### 0.1 Il loop security si chiude via connettore
 
-In pratica: per ogni iterazione security, Lovable chiude il loop in secondi. Claude richiede 3+ round (commit, merge bidirezionale GitHub Desktop, attesa deploy Lovable, re-audit Advisor) e produce migration "tentative" perché non può testare contro lo schema live.
+Il loop security si chiude **via connettore (Cowork)** — apply + `get_advisors` + query di verifica post-apply — non serve più un agente esterno: accesso DB live, apply immediato e test RLS post-apply sono nativi della corsia Cowork (`COWORK.md §4-bis`).
 
 ### 0.2 Workflow corretto
 
 ```
-1. Advisor warning emerso
+1. Advisor warning / RLS gap emerso
    ↓
-2. L'UTENTE chiede a Lovable Security Agent di fixare
+2. Cowork prepara la migration (SQL)
    ↓
-3. Lovable applica fix (edge fn edits + migrations) direttamente su main
+3. STOP-per-OK di Nick
    ↓
-4. L'utente sincronizza il worktree Claude via fast-forward:
-     git fetch origin && git merge --ff-only origin/main
+4. Cowork: apply_migration + get_advisors(security) di verifica
    ↓
-5. Claude verifica:
-     - tsc --noEmit verde
-     - blocco `appointments` in types.ts (handpatch §2.2)
-     - cast `(supabase as any)` in useCoachAppointments se serve
+5. Code crea il FILE supabase/migrations/<timestamp>_<nome>.sql
+   corrispondente (stesso nome/versione) e lo committa su branch claude/*
    ↓
-6. Claude estrae pattern persistenti utili
-   (es. trigger anti-escalation, ownership RPC) e aggiorna la
-   metodologia con `docs: aggiungi pattern <X> da Lovable fix`.
+6. Pattern persistenti utili (es. trigger anti-escalation, ownership RPC)
+   → estratti in §5.x con `docs: aggiungi pattern <X>`.
 ```
 
-### 0.3 Quando Claude può intervenire su security
+### 0.3 Advisor: dal connettore, non da screenshot
 
-Solo se l'utente lo chiede **esplicitamente**, e in 2 casi specifici:
+Gli advisor si leggono **dal connettore** (`get_advisors`), non da screenshot. Il default non è più "chiedi a un agente esterno" ma: **Cowork prepara il fix, Nick approva**. Code interviene sul codice (edge functions, client) e propone i FILE di migrazione.
 
-1. **Bug runtime causato indirettamente da security** (es. `fa84fa3` Realtime channel race su `/coach`). Non è un security issue, è un bug funzionale → Claude può fixarlo.
-2. **Pattern estrazione/documentazione** post-fix Lovable (es. estrarre helper `_shared/origin-validator.ts` da 4 edge functions con whitelist duplicato).
+### 0.4 Quando Code interviene su security
 
-Per tutto il resto: **STOP & ASK** quando l'utente menziona "sicurezza" / "vulnerability" / "Advisor" / "RLS".
+1. **Codice sicuro, sempre**: checklist §5 su ogni edge function toccata + `/security-review` ai milestone.
+2. **Bug runtime causato indirettamente da security** (es. `fa84fa3` Realtime channel race su `/coach`): è un bug funzionale → Code lo fixa.
+3. **Fix RLS/DDL**: Code propone il FILE di migrazione, ma l'applicazione passa dal workflow §0.2 (Cowork + benestare di Nick). Quando l'utente menziona "sicurezza" / "vulnerability" / "Advisor" / "RLS" → **STOP & ASK** (`CLAUDE.md §4/§5`).
 
-### 0.4 Cosa fare quando l'utente passa screenshot Advisor
+### 0.5 Pattern security già documentati
 
-1. **Non proporre fix di iniziativa.** Attendi che l'utente dica "fai correggere a Lovable" oppure esplicitamente "fixa tu".
-2. **Puoi analizzare** lo screenshot per capire la natura del warning, ma il next step di default è: "Vuoi che gestisca Lovable o procedo io?"
-3. **Se l'utente dice "Lovable"**: aspetta il merge, poi sync + verifica + eventuale estrazione pattern in metodologia.
-4. **Se l'utente dice "Claude"**: procedi con migration tentative + commit, e dichiara esplicitamente i rischi (es. "policy su `realtime.messages` può essere bloccata da Lovable Cloud schema management").
+- §5.1 Ownership check via RPC `is_coach_of_athlete` (pattern del repo, commit `082df0b`)
+- §5.2 Trigger anti privilege-escalation su `profiles` (migration del repo `20260525125306`)
 
-### 0.5 Pattern estratti dai fix Lovable già documentati
+Quando un fix security produce un nuovo pattern riusabile, estrai in §5.x con riferimento al commit/migration di origine.
 
-- §5.1 Ownership check via RPC `is_coach_of_athlete` (da commit Lovable `082df0b`)
-- §5.2 Trigger anti privilege-escalation su `profiles` (da migration Lovable `20260525125306`)
+### 0.6 Vincoli noti (finding verificati sul DB)
 
-Quando Lovable produce un nuovo pattern security, estrai in §5.x con riferimento al commit/migration di origine.
+Finding confermati sul progetto — riverificati anche post-migrazione (`docs/DB_MIGRATION_FASE1_REPORT.md §4 R1`) — da NON tentare di ri-fixare:
 
-### 0.6 Vincoli noti Lovable Cloud (confermati da Security Agent)
+**`realtime.messages` è in uno schema gestito da Supabase — NON modificabile.**
+Una `CREATE POLICY ON realtime.messages` (migration tentative `69119fc` del
+2026-05-25) viene **bloccata** al deploy con `insufficient_privilege`.
+Comportamento atteso, gestito dal DO block con exception handling.
+**L'advisor "Any authenticated user can subscribe to any Realtime channel
+topic" rimane OPEN by design** — l'app è già sicura per i canali
+`postgres_changes` (RLS sulle tabelle sorgente) e non usa Broadcast/Presence
+al momento.
 
-Findings da sessioni Lovable Security Agent, da NON tentare di ri-fixare:
+**`invite_tokens`: flow coach-only con redemption server-side, ritenuto sicuro.**
+Le 4 policy `coach_id = auth.uid()` + il trigger `handle_new_user`
+SECURITY DEFINER bypass-RLS sono sufficienti. Il commit `207c4b8` (filtro
+`used=false AND expires_at > now()`) resta attivo come hardening extra non
+strettamente necessario — non danneggia nulla perché il flow attuale non
+legge invite stale dal client.
 
-**`realtime.messages` schema è managed by Supabase — NOT modifiable**
-(Lovable agent response 2026-05-25: "realtime.messages is in Supabase-managed
-schema and not modifiable"). Significa che la migration tentative `69119fc`
-del 2026-05-25 con `CREATE POLICY ON realtime.messages` viene **bloccata**
-al deploy con `insufficient_privilege`. Comportamento atteso, gestito dal
-DO block con exception handling. **Advisor flag #1/#3 "Any authenticated
-user can subscribe to any Realtime channel topic" rimane OPEN per design**
-— l'app è già sicura per `postgres_changes` channels (RLS su tabelle
-source) e non usa Broadcast/Presence al momento.
-
-**`invite_tokens` flow attuale considerato sicuro**
-(Lovable agent response 2026-05-25: "invite_tokens already coach-only with
-server-side redemption"). Le 4 policy `coach_id = auth.uid()` + il trigger
-`handle_new_user` SECURITY DEFINER bypass-RLS sono ritenute sufficienti.
-Il mio commit `207c4b8` (filtro `used=false AND expires_at > now()`) resta
-attivo come hardening extra non strettamente necessario — non danneggia
-nulla perché il flow attuale non legge invite stale dal client.
-
-**Quando incontri uno di questi vincoli in futuri scan Advisor**:
+**Quando incontri uno di questi vincoli in futuri scan advisor**:
 
 - Marca come "ignored intentional" nella tua risposta all'utente
 - NON proporre fix di iniziativa
@@ -128,22 +106,24 @@ nulla perché il flow attuale non legge invite stale dal client.
 
 <a id="1-arch"></a>
 
-## 1. Architettura Lovable Cloud
+## 1. Architettura Supabase (progetto di proprietà)
 
 ```
 ┌─────────────────────────────────────────────┐
-│  FE (Vite bundle, hosted by Lovable CDN)    │
+│  FE (Vite bundle)                           │
 │  - React + TS + Vite                        │
-│  - @lovable.dev/cloud-auth-js               │
 │  - @supabase/supabase-js                    │
+│  Hosting: Cloudflare Pages post-D4          │
+│  (oggi Lovable Publish, finché il cutover   │
+│   FE .env — D6 — non è completato)          │
 └─────────────────────────────────────────────┘
               │  HTTPS
               ▼
 ┌─────────────────────────────────────────────┐
-│  Lovable Cloud (Supabase wrapper)           │
+│  Supabase — progetto di proprietà (UE)      │
 │  ┌──────────────────────────────────────┐   │
 │  │ Postgres (RLS-protected)             │   │
-│  │ Auth (email, magic link, OAuth)      │   │
+│  │ Auth (email, OAuth Google nativo)    │   │
 │  │ Realtime (WebSocket)                 │   │
 │  │ Storage (file uploads)               │   │
 │  │ Edge Functions (Deno runtime)        │   │
@@ -154,22 +134,22 @@ nulla perché il flow attuale non legge invite stale dal client.
 ┌─────────────────────────────────────────────┐
 │  External services                          │
 │  - Stripe (webhook signed)                  │
-│  - AI providers (OpenAI/Anthropic/etc.)     │
-│  - Email (SMTP via send-email function)     │
+│  - AI providers (OpenAI)                    │
+│  - Email (Resend via send-email function)   │
 └─────────────────────────────────────────────┘
 ```
 
-### 1.1 Differenze rispetto a Supabase standalone
+### 1.1 Modello operativo (CLI / progetto di proprietà)
 
-- **Deploy**: via Lovable Dashboard, non CLI `supabase functions deploy`
-- **Env vars**: gestiti via Lovable UI, non `.env` file
-- **types.ts auto-gen**: Lovable rigenera periodicamente — può rimuovere blocchi (es. `appointments` — vedi §2.2)
-- **Migrations**: in `supabase/migrations/` — versionate, applicate da Lovable al merge in main
-- **Service role key**: disponibile come secret env per edge functions, mai esposta al client
+- **Deploy edge**: `supabase functions deploy` (CLI) o `deploy_edge_function` via connettore — non più da dashboard di terzi
+- **Env vars / secrets**: `supabase secrets set` + dashboard Supabase. ⚠ Il cutover FE `.env` è **D6**, ancora in corso (oggi `.env.local` temporaneo punta il FE al backend di proprietà)
+- **types.ts**: `supabase gen types typescript --linked` — deterministico, **include `appointments`** → l'**hand-patch è obsoleto** (vedi §2.2 e `CLAUDE.md` legge #7)
+- **Migrations**: `apply_migration` via connettore (**Cowork**) + il **file** `supabase/migrations/*` committato da **Code** (vedi §8.2). Non più applicate automaticamente al merge
+- **Service role key**: disponibile come secret env per edge functions, mai esposta al client (invariato)
 
 <a id="2-client"></a>
 
-## 2. Supabase client + types.ts hand-patch
+## 2. Supabase client + types.ts
 
 ### 2.1 Client singleton
 
@@ -192,33 +172,16 @@ export const supabase = createClient<Database>(
 );
 ```
 
-### 2.2 Hand-patch types.ts (pattern Lovable noto)
+### 2.2 Hand-patch types.ts — OBSOLETO (nota storica)
 
-**Sintomo**: Lovable rigenera `src/integrations/supabase/types.ts` rimuovendo il blocco `appointments`.
+> **OBSOLETO dal passaggio al DB di proprietà.** L'hand-patch serviva quando `types.ts` era rigenerato dalla piattaforma Lovable, che droppava il blocco `appointments` a ogni regen. Con `supabase gen types typescript --linked` il regen è deterministico e **include `appointments`**: nessun hand-patch, nessun cast `(supabase as any)`.
 
-**Verifica**:
-
-```bash
-# Deve ritornare ≥ 1
-grep -c "appointments:" src/integrations/supabase/types.ts
-
-# Deve ritornare 0 se il blocco è presente
-grep -c "supabase as any" src/hooks/useCoachAppointments.ts
-```
-
-**Hand-patch**: ripristina il blocco `appointments` fra `ai_usage_tracking` e `athlete_ai_insights` in `types.ts`. Recupera il diff originale da:
+**Oggi** (allineato a `CLAUDE.md` legge #7): dopo ogni cambio di schema →
 
 ```bash
-git log -p src/integrations/supabase/types.ts | grep -B 2 -A 60 "^\+      appointments:"
+supabase gen types typescript --linked > src/integrations/supabase/types.ts
+npx tsc --noEmit -p tsconfig.app.json
 ```
-
-**Fallback temporaneo**: `(supabase as any).from('appointments')` cast in `useCoachAppointments.ts`. Documenta nel commit (`fix(db): cast as any workaround per regen types.ts Lovable`).
-
-**Quando verificare**:
-
-- Sempre dopo `git merge origin/main`
-- Sempre se TS errors random su `.from('appointments')`
-- Sempre dopo interazioni utente con Lovable Dashboard
 
 <a id="3-edge-inventory"></a>
 
@@ -387,7 +350,7 @@ Quando un'edge function permette al coach di agire per conto di un athlete
 (es. `create-checkout-session` con `athlete_id` payload), serve verificare
 la relazione coach→athlete via RPC (non si può fidare del client).
 
-Pattern canonico (commit Lovable `082df0b`):
+Pattern canonico del repo (commit `082df0b`):
 
 ```ts
 // Use USER client (auth header), NOT service role — l'RPC è SECURITY DEFINER
@@ -416,7 +379,7 @@ a qualsiasi edge function che riceve `athlete_id` da un payload coach.
 ### 5.2 Pattern: trigger anti privilege-escalation su `profiles`
 
 Defense in depth contro user-side modifica diretta di campi sensibili
-(role, coach*id, subscription*\*). Migration Lovable `20260525125306`:
+(role, coach*id, subscription*\*). Migration del repo `20260525125306`:
 
 ```sql
 CREATE OR REPLACE FUNCTION public.prevent_profile_privilege_escalation()
@@ -531,7 +494,7 @@ serve(async (req) => {
 | Webhook 401 / signature mismatch          | `STRIPE_WEBHOOK_SECRET` env desync                          | Confronta env var con Stripe Dashboard webhook endpoint secret   |
 | Subscription mai attivata nel DB          | Webhook ricevuto ma write fail (RLS)                        | Verifica service role key in edge fn                             |
 | Customer Portal redirect fail             | Domain non whitelistato in Stripe Settings                  | Aggiungi domain in Stripe → Settings → Billing → Customer Portal |
-| Bundle ha publishable key staging in prod | `VITE_STRIPE_PUBLISHABLE_KEY` non rebildato dopo env change | Trigger Lovable rebuild                                          |
+| Bundle ha publishable key staging in prod | `VITE_STRIPE_PUBLISHABLE_KEY` non rebildato dopo env change | Rebuild/redeploy del FE dopo il cambio env                       |
 | Duplicate subscription creation           | No idempotency check                                        | Aggiungi UNIQUE constraint su `stripe_events.event_id`           |
 
 <a id="7-ai"></a>
@@ -621,14 +584,15 @@ WITH CHECK (auth.uid() = athlete_id);
 ### 8.2 Migration workflow
 
 ```
-1. Crea nuova migration in supabase/migrations/<timestamp>_<name>.sql
-2. Scrivi SQL (CREATE TABLE, ALTER, RLS policy, …)
-3. Commit nel branch claude/*
-4. Merge in main (via GitHub Desktop dall'utente)
-5. Lovable applica migration in prod automaticamente al merge
+1. Il SQL nasce dal lavoro DB di Cowork (o da un fix proposto da Code come FILE)
+2. STOP-per-OK di Nick
+3. Cowork applica via connettore: apply_migration + get_advisors(security) di verifica
+4. Code salva lo STESSO SQL come file supabase/migrations/<timestamp>_<nome>.sql
+   (stesso nome/versione della apply) e lo committa su branch claude/*
+5. Merge in main via GitHub Desktop (Nick)
 ```
 
-**Mai amendare** una migration mergiata in main → spacchi il prod DB. Crea nuova migration per modificare lo schema.
+**Mai amendare** una migration applicata → migrazione correttiva **in avanti**, mai reset. Mai modificare lo schema remoto fuori dai file di migrazione, o `db push` va in errore di sync.
 
 ### 8.3 Service role bypass
 
@@ -703,9 +667,9 @@ console.error("Stripe webhook fail", { eventType: event.type, status: 400 });
 console.error("Webhook", { body: req.body, headers: req.headers });
 ```
 
-### 10.3 Observability Lovable
+### 10.3 Observability Supabase
 
-- Logs edge function: Lovable Dashboard → Functions → Logs
+- Logs edge function: connettore (`get_logs`) o Supabase Dashboard → Functions → Logs
 - Query slow logs: Supabase Dashboard → Database → Logs
 - Stripe event log: Stripe Dashboard → Developers → Events
 
@@ -713,19 +677,19 @@ console.error("Webhook", { body: req.body, headers: req.headers });
 
 ## 11. Anti-pattern backend
 
-| Anti-pattern                                                      | Perché evitarlo               |
-| ----------------------------------------------------------------- | ----------------------------- |
-| Service role key esposta al client                                | RLS bypass totale             |
-| Edge function senza auth check                                    | Endpoint pubblico unintended  |
-| RLS disabilitata "tanto controllo edge"                           | Defense in depth violata      |
-| Webhook senza signature verification                              | Spoofable                     |
-| Loggare body request completo                                     | PII/token leak                |
-| `select('*')` quando ti servono 3 campi                           | Bandwidth waste               |
-| Modifica manuale `types.ts` fuori da hand-patch documentato       | Perso al regen Lovable        |
-| Amend migration mergiata in main                                  | Spacchi prod DB               |
-| AI endpoint senza quota check                                     | Quota burn + bill shock       |
-| Realtime subscribe senza cleanup                                  | Zombie channels, memory leak  |
-| `supabase.from(table).then(...)` in render senza useQuery wrapper | Re-fire ogni render, no cache |
-| Hardcoded prompt AI in TS                                         | Edit richiede deploy          |
-| Migration con `DROP COLUMN` senza backup                          | Data loss                     |
-| Cascade delete via SQL trigger invece di RPC atomic               | Partial state on fail         |
+| Anti-pattern                                                      | Perché evitarlo                        |
+| ----------------------------------------------------------------- | -------------------------------------- |
+| Service role key esposta al client                                | RLS bypass totale                      |
+| Edge function senza auth check                                    | Endpoint pubblico unintended           |
+| RLS disabilitata "tanto controllo edge"                           | Defense in depth violata               |
+| Webhook senza signature verification                              | Spoofable                              |
+| Loggare body request completo                                     | PII/token leak                         |
+| `select('*')` quando ti servono 3 campi                           | Bandwidth waste                        |
+| Modifica manuale `types.ts`                                       | Perso al prossimo `gen types --linked` |
+| Amend migration mergiata in main                                  | Spacchi prod DB                        |
+| AI endpoint senza quota check                                     | Quota burn + bill shock                |
+| Realtime subscribe senza cleanup                                  | Zombie channels, memory leak           |
+| `supabase.from(table).then(...)` in render senza useQuery wrapper | Re-fire ogni render, no cache          |
+| Hardcoded prompt AI in TS                                         | Edit richiede deploy                   |
+| Migration con `DROP COLUMN` senza backup                          | Data loss                              |
+| Cascade delete via SQL trigger invece di RPC atomic               | Partial state on fail                  |
