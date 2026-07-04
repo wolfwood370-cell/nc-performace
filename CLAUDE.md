@@ -9,7 +9,9 @@
 
 Questo file è il manuale operativo di **Claude Code** (codice / branch / commit).
 Se operi in **Cowork** (infra / connettore / planning / doc), leggi PRIMA **`COWORK.md`**:
-corsia diversa — git read-only, niente scritture nel repo, handoff a Code.
+corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowork col connettore, handoff a Code.
+
+**5 attori** (dettaglio in `COWORK.md §1` + `docs/DESIGN.md`): **Nicolò** (decisioni, merge/push, secrets) · **Claude Code** (codice, branch, commit) · **Cowork** (planning, DB via connettore, verifica, doc) · **Claude Design** (design system → handoff a Code) · **Lovable** (editing visuale opzionale su `main`).
 
 ---
 
@@ -17,7 +19,7 @@ corsia diversa — git read-only, niente scritture nel repo, handoff a Code.
 
 **Frontend**: React 18 · Vite 5 · TypeScript strict · Tailwind + shadcn/ui · TanStack Query v5 (IndexedDB persist) · Zustand+immer · React Router v6 · Framer Motion.
 
-**Backend**: Supabase via Lovable Cloud (Postgres + Auth + Realtime + Storage + Edge Functions Deno).
+**Backend**: **Supabase — progetto di proprietà (UE)** — Postgres + Auth + Realtime + Storage + Edge Functions Deno. Deploy da CLI/connettore (non più "applicato da Lovable al merge"). ⚠ **Cutover FE `.env` ancora in corso (D6)**: oggi il front-end punta al backend di proprietà solo via `.env.local` temporaneo. Migrazione da Lovable Cloud tracciata in `docs/DB_MIGRATION.md`.
 
 **Pagamenti**: Stripe (Subscriptions + Checkout + Customer Portal + Webhooks).
 
@@ -50,11 +52,11 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 4. **No "while you're here"**: flagga via `mcp__ccd_session__spawn_task`, non mescolare scope.
 5. **Aura compliance**: token sempre, mai hex raw nei namespace Coach/Athlete.
 6. **Hook order**: tutti gli hook prima di qualsiasi return early.
-7. **Hand-patch resilience**: dopo ogni merge da `origin/main`, verifica blocco `appointments` in `src/integrations/supabase/types.ts`.
+7. **Types ownership**: `types.ts` è rigenerato da te via `supabase gen types typescript --linked` (DB di proprietà). Il blocco `appointments` non viene più droppato: l'**hand-patch storico è obsoleto**. Rigenera dopo ogni cambio di schema.
 8. **Worktree-isolated**: opera in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Non pushare mai** — l'utente sincronizza via GitHub Desktop.
-9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` sempre.
+9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude <noreply@anthropic.com>` sempre.
 10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` (usa `src/lib/logger.ts`).
-11. **Security = Lovable**: i security issues (RLS, edge auth, SECURITY DEFINER, Realtime, advisor warnings) sono **ownership di Lovable Security Agent**, NON di Claude. Vedi `methodology/03-BACKEND-LOVABLE.md §0` per il workflow completo. Claude interviene su security solo se l'utente lo chiede esplicitamente.
+11. **Security = ownership condivisa (DB di proprietà)**: non esiste più il Lovable Security Agent. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping e advisor Supabase sono responsabilità **condivisa**: tu (Claude Code) = **codice sicuro + `/security-review` ai milestone**; **Cowork** = advisors/RLS/review del DB via connettore. Tu puoi proporre migration/policy come **FILE** in `supabase/migrations/`, ma **non applichi sul DB** (niente MCP Supabase in Code): l'applicazione la esegue **Cowork col benestare di Nicolò**. Operazioni potenzialmente distruttive → **STOP & ASK** (§5). Vedi `methodology/03-BACKEND-SUPABASE.md §0`.
 
 ---
 
@@ -63,18 +65,20 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 ```
 Inizio sessione                                  → leggi questo CLAUDE.md
                                                  → leggi methodology/00-CORE.md
+                                                 → leggi docs/auto-miglioramento.md (lezioni di processo)
 
 Richiesta utente coinvolge…
 
-  HTML Stitch / "design" / screenshot fornito    → methodology/04-STITCH-WORKFLOW.md
+  handoff Claude Design / "design" / screenshot  → methodology/04-DESIGN-TO-CODE.md
   src/pages/coach/** o src/components/coach/**   → methodology/01-COACH-PLATFORM.md
   src/pages/athlete/** o components/athlete|mobile|pwa/  → methodology/02-ATHLETE-APP.md
-  supabase/functions/**, RLS, types.ts, edge     → methodology/03-BACKEND-LOVABLE.md
+  supabase/functions/**, RLS, types.ts, edge     → methodology/03-BACKEND-SUPABASE.md
   "audit" / "dead code" / "pulizia" / "ottimizza"→ methodology/05-DEAD-CODE-AUDIT.md
   Refactor cross-cutting / pattern generico      → methodology/00-CORE.md
 
   ⚠ "security" / "vulnerability" / "Advisor warning" / "fix RLS" → STOP & ASK
-     (default: deferire a Lovable Security Agent — vedi 03-BACKEND-LOVABLE.md §0)
+     RLS/edge/SECURITY DEFINER/advisor = ownership condivisa: il DB lo tocca Cowork
+     col benestare di Nicolò; tu proponi il FILE di migration (vedi 03-BACKEND-SUPABASE.md §0)
 ```
 
 Massimo 2 file di metodologia aperti per task = context window snello.
@@ -88,9 +92,9 @@ Auto mode: per default decidi. Chiedi solo se:
 - **Direzione architetturale ambigua** (es. Zustand vs Context per nuovo store)
 - **Breaking change su API pubblica** (componente usato in 10+ posti)
 - **Decisione commerciale/business** (pricing, copy marketing, feature flag)
-- **Conflitto fra istruzioni** (es. user dice X, DESIGN.md dice Y)
+- **Conflitto fra istruzioni** (es. user dice X, `docs/DESIGN.md` dice Y)
 - **Possibile data loss / RLS bypass / Stripe webhook destructive**
-- **Color/spacing non mappabile** da HTML Stitch a token Aura
+- **Color/spacing non mappabile** dal handoff Design a token Aura
 
 Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + dirty in un solo selector — minor coupling vs 2 hook separati").
 
@@ -99,8 +103,9 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 ## 6. Workflow standard (riassunto)
 
 ```
-1. Leggi CLAUDE.md (this file) + 00-CORE.md   (auto, inizio sessione)
-2. Identifica file metodologia rilevante      (§4 decision flow)
+0. Leggi docs/auto-miglioramento.md              (lezioni di processo; aggiorna la RETRO a fine sessione)
+1. Leggi CLAUDE.md (this file) + 00-CORE.md      (auto, inizio sessione)
+2. Identifica file metodologia rilevante         (§4 decision flow)
 3. Read del file metodologia
 4. Esegui task seguendo il workflow del file
 5. Build gate (tsc --noEmit)
@@ -119,20 +124,29 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 
 ## 7. File di metodologia
 
-| File                                                                             | Quando                                                     |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`methodology/00-CORE.md`](.claude/methodology/00-CORE.md)                       | Sempre. Mindset, decision tree, git, hooks, glossary.      |
-| [`methodology/01-COACH-PLATFORM.md`](.claude/methodology/01-COACH-PLATFORM.md)   | Coach web+mobile (Aura, routes, Stripe, AI).               |
-| [`methodology/02-ATHLETE-APP.md`](.claude/methodology/02-ATHLETE-APP.md)         | Athlete PWA mobile (`.theme-athlete`, offline, Wake Lock). |
-| [`methodology/03-BACKEND-LOVABLE.md`](.claude/methodology/03-BACKEND-LOVABLE.md) | Supabase + Lovable Cloud + edge functions + security.      |
-| [`methodology/04-STITCH-WORKFLOW.md`](.claude/methodology/04-STITCH-WORKFLOW.md) | Implementazione design da Google Stitch.                   |
-| [`methodology/05-DEAD-CODE-AUDIT.md`](.claude/methodology/05-DEAD-CODE-AUDIT.md) | Routine audit codice morto (knip, depcheck, grep).         |
+| File                                                                               | Quando                                                          |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| [`methodology/00-CORE.md`](.claude/methodology/00-CORE.md)                         | Sempre. Mindset, decision tree, git, hooks, glossary.           |
+| [`methodology/01-COACH-PLATFORM.md`](.claude/methodology/01-COACH-PLATFORM.md)     | Coach web+mobile (Aura, routes, Stripe, AI).                    |
+| [`methodology/02-ATHLETE-APP.md`](.claude/methodology/02-ATHLETE-APP.md)           | Athlete PWA mobile (`.theme-athlete`, offline, Wake Lock).      |
+| [`methodology/03-BACKEND-SUPABASE.md`](.claude/methodology/03-BACKEND-SUPABASE.md) | Supabase di proprietà + edge functions + CLI deploy + security. |
+| [`methodology/04-DESIGN-TO-CODE.md`](.claude/methodology/04-DESIGN-TO-CODE.md)     | Implementazione design da handoff Claude Design.                |
+| [`methodology/05-DEAD-CODE-AUDIT.md`](.claude/methodology/05-DEAD-CODE-AUDIT.md)   | Routine audit codice morto (knip, depcheck, grep).              |
+
+**Altri file di processo (fuori da `methodology/`):**
+
+| File                             | Quando                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| `docs/auto-miglioramento.md`     | A inizio (leggi) e fine (RETRO) di ogni sessione. Lezioni di processo + DA NON FARE. |
+| `docs/prompts/_template-task.md` | Template per ogni prompt-file di task (obiettivo · contratto · file · verifica).     |
+| `docs/DESIGN.md`                 | Corsia Claude Design (design system, handoff a Code).                                |
+| `docs/HANDOFF.md`                | Stato del repo + prompt di trasferimento §8 (Code) / §9 (Cowork).                    |
 
 ---
 
 ## 8. Tu, agente AI
 
-Sei un ingegnere senior specializzato React/TS + Aura design + Lovable Cloud + PWA offline-first.
+Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgres/Edge/RLS) + PWA offline-first.
 
 **Modalità default**: safest-path autonoma. Stop & ask solo per i casi in §5.
 
@@ -144,18 +158,6 @@ Sei un ingegnere senior specializzato React/TS + Aura design + Lovable Cloud + P
 
 ---
 
-## 9. Context7 library IDs
+## 9. Documentazione librerie
 
-> ⏳ **STUB** — ID da fissare via `resolve-library-id` quando sarà impostata una `CONTEXT7_API_KEY` valida (prefisso `ctx7sk`). Regola utente globale: per le librerie consulta Context7 prima di proporre codice, non affidarti alla memoria per API che cambiano.
-
-Una volta fissati, usa questi ID Context7 con `query-docs` senza ri-risolverli a ogni sessione:
-
-| Libreria              | Context7 ID    |
-| --------------------- | -------------- |
-| react                 | _(da fissare)_ |
-| vite                  | _(da fissare)_ |
-| @tanstack/react-query | _(da fissare)_ |
-| @supabase/supabase-js | _(da fissare)_ |
-| stripe                | _(da fissare)_ |
-| framer-motion         | _(da fissare)_ |
-| tailwindcss           | _(da fissare)_ |
+**Context7 non adottato** (decisione dotazione 2026-07-04): per React / Vite / TanStack Query / Supabase / Stripe / Tailwind la web search + le docs ufficiali bastano, e il benchmark del vendor stesso mostra guadagno minimo sulle librerie popolari. Niente `CONTEXT7_API_KEY` da configurare. Si rivaluta **solo** se emergono problemi di documentazione versione-specifica. Regola valida comunque: per le API che cambiano, consulta la fonte ufficiale, non la memoria.
