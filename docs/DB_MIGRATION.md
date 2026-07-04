@@ -27,14 +27,14 @@ Conseguenza operativa centrale: **tutto ciò che richiede `pg_dump`/`psql` sul D
 
 ## 2. Stato attuale del backend (orientamento)
 
-| Aspetto               | Valore rilevato                                                                                                                                         | Fonte                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Supabase project ref  | `geepagjpequxsjsoahgw`                                                                                                                                  | `supabase/config.toml`                                    |
-| Env names (solo nomi) | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`                                                                        | `.env`                                                    |
-| Client                | `@supabase/supabase-js` v2.90 · `createClient<Database>` · `persistSession` su `localStorage`                                                           | `src/integrations/supabase/client.ts`                     |
-| Tipi                  | `src/integrations/supabase/types.ts` (92 KB, generato)                                                                                                  | repo                                                      |
-| Deploy model attuale  | Migrazioni applicate da Lovable al merge in `main`; functions deploy da Lovable Dashboard; env/secrets via Lovable UI; `types.ts` rigenerato da Lovable | `methodology/03-BACKEND-LOVABLE.md §1.1`                  |
-| Auth sociale          | OAuth Google/Apple/Microsoft via **`@lovable.dev/cloud-auth-js`** (non nativo Supabase)                                                                 | `src/integrations/lovable/index.ts`, `src/pages/Auth.tsx` |
+| Aspetto               | Valore rilevato                                                                                                                                         | Fonte                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Supabase project ref  | `geepagjpequxsjsoahgw`                                                                                                                                  | `supabase/config.toml`                                                                                 |
+| Env names (solo nomi) | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`                                                                        | `.env`                                                                                                 |
+| Client                | `@supabase/supabase-js` v2.90 · `createClient<Database>` · `persistSession` su `localStorage`                                                           | `src/integrations/supabase/client.ts`                                                                  |
+| Tipi                  | `src/integrations/supabase/types.ts` (92 KB, generato)                                                                                                  | repo                                                                                                   |
+| Deploy model attuale  | Migrazioni applicate da Lovable al merge in `main`; functions deploy da Lovable Dashboard; env/secrets via Lovable UI; `types.ts` rigenerato da Lovable | `methodology/03-BACKEND-SUPABASE.md §1.1` (all'epoca, col vecchio nome, descriveva il modello Lovable) |
+| Auth sociale          | OAuth Google/Apple/Microsoft via **`@lovable.dev/cloud-auth-js`** (non nativo Supabase)                                                                 | `src/integrations/lovable/index.ts`, `src/pages/Auth.tsx`                                              |
 
 > ⚠️ Nota chiave: l'OAuth non passa da Supabase Auth nativo ma dalla libreria Lovable. Questo è un **cambio di codice**, non una semplice riconfigurazione (vedi §6 Fase 8 e Decisione D3).
 
@@ -238,18 +238,20 @@ Ricostruisci **solo lo schema** replicando le 125 migrazioni sul nuovo progetto 
 
 ## 8. Implicazioni sulla metodologia (modello "DB di proprietà")
 
-Lo spostamento cambia premesse codificate in `CLAUDE.md` e `methodology/03-BACKEND-LOVABLE.md`:
+Lo spostamento cambia premesse codificate in `CLAUDE.md` e `methodology/03-BACKEND-SUPABASE.md` (all'epoca col vecchio nome Lovable):
 
-| Tema                                     | Oggi (Lovable Cloud)                          | Dopo (DB di proprietà)                                                                |
-| ---------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Deploy migrazioni                        | Lovable applica al merge in `main`            | 👤 `supabase db push` (o CI) — passo nuovo, prima implicito                           |
-| Deploy edge functions                    | Lovable Dashboard                             | 👤 `supabase functions deploy`                                                        |
-| `types.ts`                               | Rigenerato da Lovable (droppa `appointments`) | 🤝 `supabase gen types --linked` (deterministico, **include `appointments`**)         |
-| **Legge #7** (hand-patch `appointments`) | Necessaria                                    | **Obsoleta** — il regen di proprietà non droppa più il blocco                         |
-| Secrets/env                              | Lovable UI                                    | 👤 `supabase secrets set` + dashboard                                                 |
-| **Legge #11** (Security = Lovable)       | Ownership Lovable Security Agent              | **Non esiste più un Lovable Security Agent** → ownership da ridefinire (Decisione D5) |
+| Tema                                     | Oggi (Lovable Cloud)                          | Dopo (DB di proprietà)                                                                          |
+| ---------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Deploy migrazioni                        | Lovable applica al merge in `main`            | 👤 `supabase db push` (o CI) — passo nuovo, prima implicito                                     |
+| Deploy edge functions                    | Lovable Dashboard                             | 👤 `supabase functions deploy`                                                                  |
+| `types.ts`                               | Rigenerato da Lovable (droppa `appointments`) | 🤝 `supabase gen types --linked` (deterministico, **include `appointments`**)                   |
+| **Legge #7** (hand-patch `appointments`) | Necessaria                                    | **Obsoleta** — il regen di proprietà non droppa più il blocco                                   |
+| Secrets/env                              | Lovable UI                                    | 👤 `supabase secrets set` + dashboard                                                           |
+| **Legge #11** (Security = Lovable)       | Ownership del Security Agent di Lovable       | **Quell'agente non esiste più** → ownership ridefinita in D5 (✅ risolta: condivisa, metodo v2) |
 
 Vedi **Appendice A** per il diff proposto a `CLAUDE.md`.
+
+> ✅ **Applicato in "metodo v2" (2026-07-04):** `CLAUDE.md` legge #7/#11 + §4/§7 aggiornati, `03` rinominato in `03-BACKEND-SUPABASE.md`, **D5 risolta** (ownership condivisa: Code = codice sicuro + `/security-review`; Cowork = advisors/RLS/DB via connettore col benestare di Nick).
 
 ---
 
@@ -274,14 +276,14 @@ Vedi **Appendice A** per il diff proposto a `CLAUDE.md`.
 
 ## 10. Decisioni aperte (da approvare prima di qualsiasi esecuzione)
 
-| ID     | Decisione                                                                                                                  | Perché serve                                                              | Default proposto                                                    |
-| ------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **D1** | Come ottenere accesso al DB sorgente? Opzione A (con connection string/export da Lovable) o B (solo schema, perdita dati)? | Determina se migriamo i dati o ripartiamo a vuoto. Blocca tutto il resto. | Tentare A; B solo se Lovable non concede accesso                    |
-| **D2** | Destino del Lovable AI Gateway: mantenere `LOVABLE_API_KEY` o re-puntare le 6 functions AI a un provider diretto?          | 6 endpoint AI dipendono dal gateway                                       | Verificare validità key; pianificare re-point a OpenAI come piano B |
-| **D3** | OAuth social: mantenere Google/Apple/Microsoft con codice nativo Supabase?                                                 | Richiede credenziali provider e cambio di codice                          | Sì, migrare a `supabase.auth.signInWithOAuth`                       |
-| **D4** | Hosting FE: resta su Lovable Publish o si sposta (Vercel/Netlify)?                                                         | La migrazione DB non lo impone ma è legato alle env/redirect              | Disaccoppiare in step successivo, non in questo                     |
-| **D5** | Security ownership (legge #11): chi possiede ora la security senza Lovable Security Agent?                                 | Senza Lovable serve un nuovo modello                                      | Vedi Appendice A — proposta "ownership condivisa utente/Claude"     |
-| **D6** | Timing del cutover e durata della finestra in parallelo Lovable↔nuovo                                                      | Definisce quando è sicuro dismettere Lovable                              | ≥ qualche giorno di osservazione                                    |
+| ID     | Decisione                                                                                                                             | Perché serve                                                              | Default proposto                                                                                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1** | Come ottenere accesso al DB sorgente? Opzione A (con connection string/export da Lovable) o B (solo schema, perdita dati)?            | Determina se migriamo i dati o ripartiamo a vuoto. Blocca tutto il resto. | Tentare A; B solo se Lovable non concede accesso                                                                                                      |
+| **D2** | Destino del Lovable AI Gateway: mantenere `LOVABLE_API_KEY` o re-puntare le 6 functions AI a un provider diretto?                     | 6 endpoint AI dipendono dal gateway                                       | Verificare validità key; pianificare re-point a OpenAI come piano B                                                                                   |
+| **D3** | OAuth social: mantenere Google/Apple/Microsoft con codice nativo Supabase?                                                            | Richiede credenziali provider e cambio di codice                          | Sì, migrare a `supabase.auth.signInWithOAuth`                                                                                                         |
+| **D4** | Hosting FE: resta su Lovable Publish o si sposta (Vercel/Netlify)?                                                                    | La migrazione DB non lo impone ma è legato alle env/redirect              | Disaccoppiare in step successivo, non in questo                                                                                                       |
+| **D5** | ✅ RISOLTA (2026-07-04, metodo v2) — Security ownership (legge #11): chi possiede ora la security senza il Security Agent di Lovable? | Senza Lovable serveva un nuovo modello                                    | Ownership condivisa: Code = codice sicuro + `/security-review`; Cowork = advisors/RLS/DB via connettore col benestare di Nick (`CLAUDE.md` legge #11) |
+| **D6** | Timing del cutover e durata della finestra in parallelo Lovable↔nuovo                                                                 | Definisce quando è sicuro dismettere Lovable                              | ≥ qualche giorno di osservazione                                                                                                                      |
 
 ---
 
@@ -312,8 +314,8 @@ Vedi **Appendice A** per il diff proposto a `CLAUDE.md`.
 
 **Touchpoint correlati (segnalati, non nel diff minimo richiesto):**
 
-- §4 _decision flow_: il ramo `⚠ security → defer a Lovable Security Agent` va riscritto (non c'è più Lovable); aggiornare anche il puntatore `03-BACKEND-LOVABLE.md`.
-- `methodology/03-BACKEND-LOVABLE.md`: §0 (security ownership), §1.1 (deploy/env/types via Lovable), §8.2 (migration applicata al merge) e §10.3 (observability Lovable) sono da riscrivere per il modello CLI/owned. Consigliato rinominare il file in `03-BACKEND-SUPABASE.md`.
+- §4 _decision flow_: il ramo "⚠ security → defer al Security Agent di Lovable" va riscritto (non c'è più Lovable); aggiornare anche il puntatore al file di metodologia backend.
+- `methodology/03-BACKEND-SUPABASE.md` (all'epoca col vecchio nome): §0 (security ownership), §1.1 (deploy/env/types via Lovable), §8.2 (migration applicata al merge) e §10.3 (observability Lovable) sono da riscrivere per il modello CLI/owned. Rename e riscritture **eseguiti** in "metodo v2" (2026-07-04, vedi riga di stato in §8).
 
 ---
 
