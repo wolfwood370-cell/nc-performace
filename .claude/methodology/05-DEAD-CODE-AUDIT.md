@@ -413,7 +413,7 @@ DEAD CODE AUDIT REPORT (2026-05-24)
 
 - DB column `profiles.legacy_field`  [0 hits FE, possibile uso edge/trigger]
 - TODO obsoleto (>30gg):             src/lib/x.ts:88
-- Token CSS `--accent-soft`          [0 hits, possibile uso futuro Stitch]
+- Token CSS `--accent-soft`          [0 hits, possibile uso futuro da handoff Design]
 
 ## Bundle warnings
 

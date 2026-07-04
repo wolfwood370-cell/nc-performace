@@ -29,11 +29,11 @@
 
 **Decisione 2026-07-04 (metodo v2 — chiude la D5 di `docs/DB_MIGRATION.md`)**: con il DB di proprietà la security non è più delegata a un agente esterno. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping, storage policy e advisor Supabase sono responsabilità **condivisa**:
 
-| Attore          | Possiede                                                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Cowork**      | Review e **applicazione** DB via connettore Supabase (RLS, `SECURITY DEFINER`, advisor, Realtime scoping): `apply_migration` + `get_advisors(security)` dopo ogni DDL, col **benestare di Nick**. |
-| **Claude Code** | **Codice sicuro** + `/security-review` ai milestone. Propone migration/policy come **FILE** in `supabase/migrations/`, **non applica sul DB** (niente MCP Supabase in scrittura da Code).         |
-| **Nick**        | Approva ogni chiamata DB; merge/push; secrets.                                                                                                                                                    |
+| Attore          | Possiede                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cowork**      | Review e **applicazione** DB via connettore Supabase (RLS, `SECURITY DEFINER`, advisor, Realtime scoping): `apply_migration` + `get_advisors(security)` dopo ogni DDL, col **benestare di Nick**.    |
+| **Claude Code** | **Codice sicuro** + `/security-review` ai milestone. Propone migration/policy come **FILE** in `supabase/migrations/`, **non applica sul DB** (niente MCP Supabase in Code — `CLAUDE.md` legge #11). |
+| **Nick**        | Approva ogni chiamata DB; merge/push; secrets.                                                                                                                                                       |
 
 Operazioni potenzialmente distruttive → **STOP & ASK** (`CLAUDE.md §5`).
 
