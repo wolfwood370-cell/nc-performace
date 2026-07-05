@@ -42,6 +42,7 @@ import {
   ImageIcon,
   Sparkles,
   MessageSquarePlus,
+  Lock,
 } from "lucide-react";
 import { FeedbackDialog } from "@/components/common/FeedbackDialog";
 import { cn } from "@/lib/utils";
