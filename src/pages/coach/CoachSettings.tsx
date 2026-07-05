@@ -825,6 +825,78 @@ export default function CoachSettings() {
                 </Select>
               </CardContent>
             </Card>
+
+            {/* Password Change */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Lock className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Sicurezza</CardTitle>
+                    <CardDescription>Cambia la password del tuo account</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="current-password">Password attuale</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">Nuova password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimo 8 caratteri"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Conferma nuova password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Ripeti la nuova password"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleChangePassword}
+                    disabled={
+                      changingPassword ||
+                      !currentPassword ||
+                      !newPassword ||
+                      !confirmPassword
+                    }
+                    className="gap-2"
+                  >
+                    {changingPassword ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Lock className="h-4 w-4" />
+                    )}
+                    Aggiorna Password
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
