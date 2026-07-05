@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -34,63 +34,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      appointments: {
-        Row: {
-          athlete_id: string
-          coach_id: string
-          created_at: string
-          date: string
-          duration_min: number | null
-          id: string
-          notes: string | null
-          time: string | null
-          title: string
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          athlete_id: string
-          coach_id: string
-          created_at?: string
-          date: string
-          duration_min?: number | null
-          id?: string
-          notes?: string | null
-          time?: string | null
-          title: string
-          type?: string
-          updated_at?: string
-        }
-        Update: {
-          athlete_id?: string
-          coach_id?: string
-          created_at?: string
-          date?: string
-          duration_min?: number | null
-          id?: string
-          notes?: string | null
-          time?: string | null
-          title?: string
-          type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appointments_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "analytics_athlete_summary"
-            referencedColumns: ["athlete_id"]
-          },
-          {
-            foreignKeyName: "appointments_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       athlete_ai_insights: {
         Row: {
@@ -361,45 +304,33 @@ export type Database = {
       }
       body_measurements: {
         Row: {
-          arm_cm: number | null
           athlete_id: string
           body_fat_percentage: number | null
-          chest_cm: number | null
           created_at: string
           date: string
           id: string
           muscle_mass_kg: number | null
-          thigh_cm: number | null
           updated_at: string
-          waist_cm: number | null
           weight_kg: number | null
         }
         Insert: {
-          arm_cm?: number | null
           athlete_id: string
           body_fat_percentage?: number | null
-          chest_cm?: number | null
           created_at?: string
           date?: string
           id?: string
           muscle_mass_kg?: number | null
-          thigh_cm?: number | null
           updated_at?: string
-          waist_cm?: number | null
           weight_kg?: number | null
         }
         Update: {
-          arm_cm?: number | null
           athlete_id?: string
           body_fat_percentage?: number | null
-          chest_cm?: number | null
           created_at?: string
           date?: string
           id?: string
           muscle_mass_kg?: number | null
-          thigh_cm?: number | null
           updated_at?: string
-          waist_cm?: number | null
           weight_kg?: number | null
         }
         Relationships: [
@@ -982,10 +913,10 @@ export type Database = {
           exercise_id: string
           id?: string
           is_completed?: boolean
-          reps: number
+          reps?: number
           session_id: string
           set_number: number
-          weight: number
+          weight?: number
         }
         Update: {
           created_at?: string
@@ -998,13 +929,6 @@ export type Database = {
           weight?: number
         }
         Relationships: [
-          {
-            foreignKeyName: "exercise_logs_exercise_id_fkey"
-            columns: ["exercise_id"]
-            isOneToOne: false
-            referencedRelation: "exercises"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "exercise_logs_session_id_fkey"
             columns: ["session_id"]
@@ -2566,7 +2490,7 @@ export type Database = {
           status: Database["public"]["Enums"]["workout_log_status"]
           sync_status: string
           total_load_au: number | null
-          workout_id: string | null
+          workout_id: string
         }
         Insert: {
           athlete_id: string
@@ -2591,7 +2515,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["workout_log_status"]
           sync_status?: string
           total_load_au?: number | null
-          workout_id?: string | null
+          workout_id: string
         }
         Update: {
           athlete_id?: string
@@ -2616,7 +2540,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["workout_log_status"]
           sync_status?: string
           total_load_au?: number | null
-          workout_id?: string | null
+          workout_id?: string
         }
         Relationships: [
           {
@@ -2884,10 +2808,6 @@ export type Database = {
       schedule_program_week: {
         Args: { p_athlete_id: string; p_start_date: string; p_week_id: string }
         Returns: number
-      }
-      set_athlete_daily_limit: {
-        Args: { p_athlete_id: string; p_daily_limit: number }
-        Returns: undefined
       }
       shares_room_with: {
         Args: { _other_user_id: string; _user_id: string }
