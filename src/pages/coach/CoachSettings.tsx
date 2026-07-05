@@ -130,6 +130,50 @@ export default function CoachSettings() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!user?.email) {
+      toast.error("Sessione non valida. Effettua di nuovo il login.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("La nuova password deve avere almeno 8 caratteri");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Le password non coincidono");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      // Re-verify current password before allowing change
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signInErr) {
+        toast.error("Password attuale non corretta");
+        return;
+      }
+      const { error: updErr } = await supabase.auth.updateUser({ password: newPassword });
+      if (updErr) throw updErr;
+      toast.success("Password aggiornata con successo");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore durante l'aggiornamento";
+      toast.error(msg);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   // Fetch coach profile
   const { data: profile, isLoading } = useQuery({
     queryKey: ["coach-profile", user?.id],
