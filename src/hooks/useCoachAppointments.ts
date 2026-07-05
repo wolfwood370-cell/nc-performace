@@ -37,7 +37,7 @@ export function useCoachAppointments({ startDate, endDate }: UseCoachAppointment
 
       if (error) throw error;
 
-      return (data ?? []).map((row) => ({
+      return ((data ?? []) as any[]).map((row) => ({
         id: row.id,
         title: row.title,
         type:
