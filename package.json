@@ -15,7 +15,8 @@
     "audit:dead": "knip --reporter compact",
     "audit:deps": "depcheck --skip-missing",
     "audit:exports": "ts-prune -p tsconfig.app.json",
-    "audit:all": "npm run audit:dead && npm run audit:deps && npm run audit:exports"
+    "audit:all": "npm run audit:dead && npm run audit:deps && npm run audit:exports",
+    "gen:types": "supabase gen types typescript --project-id xgxtplqlewpqjzghvbke"
   },
   "lint-staged": {
     "*.{ts,tsx,css,md,json}": [
