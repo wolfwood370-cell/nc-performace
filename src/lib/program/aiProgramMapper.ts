@@ -4,10 +4,11 @@
 // Mappa pura (no React) dell'output della edge function `generate-program`
 // nelle strutture del Program Builder (src/types/training.ts).
 //
-// Contesto (2026-06-15): la tabella `exercises` è VUOTA → il match nome→id
-// fallisce sempre e il fallback SENTINEL è il path principale. A libreria
-// popolata, gli esercizi "scollegati" si riconoscono e ricollegano in blocco
-// filtrando su UNLINKED_EXERCISE_ID; le analytics lo distinguono da un id reale.
+// Contesto (2026-07-05): la libreria `exercises` è POPOLATA (954 esercizi del
+// metodo) e il motore deterministico passa `exercise_id` per ogni esercizio →
+// il path principale è prefer-id (nessun match per nome). Il match nome→id
+// resta come fallback per output legacy senza id; gli esercizi "scollegati"
+// usano il SENTINEL UNLINKED_EXERCISE_ID e restano riconoscibili in blocco.
 // =============================================================================
 
 import type { Session, ProgrammedExercise, ProgrammedSet, UUID } from "@/types/training";
@@ -21,6 +22,8 @@ export const UNLINKED_EXERCISE_NOTE = "⚠ IA: esercizio da collegare alla libre
 
 // --- Contratto output di `generate-program` (vedi supabase/functions/generate-program) ---
 export interface AiProgramExercise {
+  /** exercises.id scelto dal motore deterministico; assente negli output legacy. */
+  exercise_id?: string;
   name: string;
   sets: number;
   reps: string;
@@ -118,7 +121,11 @@ export function mapAiDaysToSessions(days: AiProgramDay[], library: LibraryExerci
       order: day.day_index,
       focus: day.focus?.trim() || undefined,
       exercises: (day.exercises ?? []).map((ex, idx): ProgrammedExercise => {
-        const exercise_id = matchExerciseId(ex.name, library);
+        // Prefer-id: l'id del motore viene dalla libreria del coach ed è già
+        // collegato; il match per nome resta come fallback per output legacy.
+        const exercise_id = ex.exercise_id?.trim()
+          ? (ex.exercise_id as UUID)
+          : matchExerciseId(ex.name, library);
         const parsed = parseLoad(ex.load);
         return {
           id: crypto.randomUUID(),
