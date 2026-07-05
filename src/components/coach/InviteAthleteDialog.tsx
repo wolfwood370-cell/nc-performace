@@ -1,24 +1,29 @@
 // =============================================================================
 // src/components/coach/InviteAthleteDialog.tsx
 // =============================================================================
-// Coach-facing modal: generate a one-time onboarding link for an athlete.
+// Coach-facing modal to invite an athlete.
 //
-// Replaces the previous email-based flow (Edge Function `invite-athlete`)
-// with a manual-share flow:
+// PRIMARY flow — native Supabase invite via the `invite-athlete` edge function:
 //   1. Coach fills in first name, last name, email.
-//   2. "Genera link" → INSERT into `athlete_onboarding_links` with a
-//      fresh `unique_token` (UUID). RLS guard: only authenticated coaches
-//      with `coach_id = auth.uid()` can insert.
-//   3. On success, display the public URL `{origin}/auth?token=<...>` +
-//      a copy-to-clipboard button so the coach can share it via WhatsApp,
-//      email, or any other channel.
-//   4. The athlete opens the URL → Auth.tsx prefills the signup form →
-//      successful signup atomically calls `redeem_athlete_onboarding_link`
-//      RPC and links the new athlete profile to this coach.
+//   2. "Invia invito" → supabase.functions.invoke("invite-athlete"): the edge
+//      function verifies the caller is a coach, calls
+//      auth.admin.generateLink({ type: "invite" }) with user_metadata
+//      { coach_id, full_name, ... } and emails the one-time action link via
+//      Resend (verified domain). The invite link is NEVER exposed to this
+//      client — the email is bound to the address entered by the coach.
+//   3. On signup the `handle_new_user` trigger links athlete<->coach from
+//      user_metadata.coach_id and pre-populates the profile name.
+//   4. If the account already exists, the edge function attaches the athlete
+//      to this coach when possible (`attached` / `alreadyLinked` responses).
 //
-// Prop API preserved from the previous implementation:
+// SECONDARY fallback — explicit "Genera link manuale" button: legacy
+// `invite_tokens` INSERT + shareable {origin}/auth?token=<uuid> URL, redeemed
+// server-side by `handle_new_user` via email match. Kept until the native
+// flow is proven; scheduled for later cleanup.
+//
+// Prop API preserved:
 //   - `trigger`: optional custom button (defaults to "Invita atleta" CTA)
-//   - `onAthleteInvited`: optional callback fired after a link is created
+//   - `onAthleteInvited`: optional callback fired after a successful invite
 //     (parent pages can refresh their athlete list / counters).
 // =============================================================================
 
@@ -26,7 +31,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { UserPlus, Loader2, Copy, Check, RefreshCcw } from "lucide-react";
+import { UserPlus, Loader2, Copy, Check, RefreshCcw, Mail, MailCheck, Link2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +53,7 @@ import {
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useAuth } from "@/hooks/useAuth";
 
 const inviteFormSchema = z.object({
@@ -63,15 +69,57 @@ interface InviteAthleteDialogProps {
   trigger?: React.ReactNode;
 }
 
+interface SentInvite {
+  email: string;
+  fullName: string;
+  kind: "sent" | "attached" | "alreadyLinked";
+}
+
 interface GeneratedInvite {
   url: string;
   fullName: string;
   email: string;
 }
 
+// Maps edge-function errors to Italian user-facing messages.
+async function invokeErrorToMessage(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    const status = error.context.status;
+    let code: string | undefined;
+    let serverError: string | undefined;
+    try {
+      const body = await error.context.json();
+      code = typeof body?.code === "string" ? body.code : undefined;
+      serverError = typeof body?.error === "string" ? body.error : undefined;
+    } catch {
+      // Non-JSON body: fall back to status-based messages below.
+    }
+    if (serverError === "You cannot invite yourself") {
+      return "Non puoi invitare te stesso.";
+    }
+    if (status === 401) {
+      return "Sessione non valida o scaduta: accedi di nuovo.";
+    }
+    if (status === 403) {
+      return "Solo un account coach può invitare atleti.";
+    }
+    if (status === 409 || code === "user_already_exists") {
+      return "Esiste già un account con questa email: non è collegabile automaticamente al tuo roster.";
+    }
+    if (status === 502) {
+      return "Invio dell'email non riuscito. Riprova tra qualche minuto.";
+    }
+    return "Impossibile inviare l'invito (errore del server). Riprova.";
+  }
+  // FunctionsFetchError / FunctionsRelayError / network failures: the library
+  // messages are English — show a generic Italian message instead.
+  return "Connessione non riuscita. Controlla la rete e riprova.";
+}
+
 export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthleteDialogProps) {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pending, setPending] = useState<"email" | "link" | null>(null);
+  const [sent, setSent] = useState<SentInvite | null>(null);
   const [generated, setGenerated] = useState<GeneratedInvite | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -86,24 +134,85 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
     },
   });
 
-  const onSubmit = async (data: InviteFormData) => {
+  const requireUser = () => {
     if (!user?.id) {
       toast({
         variant: "destructive",
         title: "Errore",
         description: "Devi effettuare l'accesso per invitare atleti.",
       });
-      return;
+      return false;
     }
+    return true;
+  };
 
-    setIsSubmitting(true);
+  // PRIMARY: native invite → email sent by the edge function.
+  const onSubmit = async (data: InviteFormData) => {
+    if (!requireUser()) return;
+
+    setPending("email");
+    try {
+      const athleteEmail = data.email.toLowerCase().trim();
+      const firstName = data.firstName.trim();
+      const lastName = data.lastName.trim();
+
+      const { data: result, error } = await supabase.functions.invoke("invite-athlete", {
+        body: { athleteEmail, firstName, lastName },
+      });
+
+      if (error) throw new Error(await invokeErrorToMessage(error));
+      if (result?.error) {
+        // Defensive: 2xx with an error body should not happen with the current
+        // edge function — surface a generic Italian message, not the raw string.
+        throw new Error("Impossibile inviare l'invito (errore del server). Riprova.");
+      }
+
+      const fullName = `${firstName} ${lastName}`.trim();
+      const kind: SentInvite["kind"] = result?.alreadyLinked
+        ? "alreadyLinked"
+        : result?.attached
+          ? "attached"
+          : "sent";
+      setSent({ email: athleteEmail, fullName, kind });
+
+      toast({
+        title: kind === "sent" ? "Invito inviato" : "Atleta collegato",
+        description:
+          kind === "sent"
+            ? `Email di invito inviata a ${athleteEmail}.`
+            : kind === "attached"
+              ? "L'atleta risultava già registrato: è stato collegato al tuo roster."
+              : "Questo atleta è già collegato a te.",
+      });
+
+      onAthleteInvited?.();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Impossibile inviare l'invito. Riprova.";
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: message,
+      });
+    } finally {
+      setPending(null);
+    }
+  };
+
+  // SECONDARY fallback: manual one-time link via legacy `invite_tokens`.
+  // The native invite link is never exposed here — this generates a separate
+  // legacy token redeemed by `handle_new_user` via email match.
+  const onGenerateManual = async (data: InviteFormData) => {
+    if (!requireUser()) return;
+
+    setPending("link");
     try {
       const athleteEmail = data.email.toLowerCase().trim();
       const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
       const token = crypto.randomUUID();
 
       const { error } = await supabase.from("invite_tokens").insert({
-        coach_id: user.id,
+        coach_id: user!.id,
         email: athleteEmail,
         full_name: fullName,
         token,
@@ -123,7 +232,7 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
       setGenerated({ url, fullName, email: athleteEmail });
 
       toast({
-        title: "Invito creato",
+        title: "Link manuale creato",
         description: "Copia il link e mandalo all'atleta.",
       });
 
@@ -137,7 +246,7 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
         description: message,
       });
     } finally {
-      setIsSubmitting(false);
+      setPending(null);
     }
   };
 
@@ -160,16 +269,18 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
     }
   };
 
-  const handleGenerateAnother = () => {
+  const handleInviteAnother = () => {
     form.reset();
+    setSent(null);
     setGenerated(null);
     setCopied(false);
   };
 
   const handleOpenChange = (next: boolean) => {
-    if (isSubmitting && !next) return;
+    if (pending !== null && !next) return;
     if (!next) {
       form.reset();
+      setSent(null);
       setGenerated(null);
       setCopied(false);
     }
@@ -193,99 +304,50 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
             Invita Atleta
           </DialogTitle>
           <DialogDescription>
-            Genera un link di registrazione unico. L'atleta apre il link e completa il signup con
-            nome ed email già compilati.
+            L'atleta riceve un'email con il link di attivazione dell'account. In alternativa puoi
+            generare un link manuale da condividere tu.
           </DialogDescription>
         </DialogHeader>
 
-        {!generated ? (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="firstName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Mario"
-                          autoComplete="given-name"
-                          maxLength={60}
-                          disabled={isSubmitting}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lastName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cognome</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Rossi"
-                          autoComplete="family-name"
-                          maxLength={60}
-                          disabled={isSubmitting}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+        {sent ? (
+          <div className="space-y-4 pt-2">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+              <div className="flex items-start gap-3">
+                <MailCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-primary mb-0.5">
+                    {sent.kind === "sent"
+                      ? `Invito inviato via email a ${sent.email}`
+                      : sent.kind === "attached"
+                        ? "Atleta collegato al tuo roster"
+                        : "Atleta già collegato a te"}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {sent.kind === "sent"
+                      ? `${sent.fullName} riceverà un'email con il link di attivazione dell'account.`
+                      : sent.kind === "attached"
+                        ? `${sent.fullName} (${sent.email}) — account già esistente, nessuna email inviata.`
+                        : `${sent.fullName} (${sent.email}) fa già parte del tuo roster.`}
+                  </p>
+                </div>
               </div>
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="mario.rossi@email.com"
-                        autoComplete="email"
-                        disabled={isSubmitting}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleOpenChange(false)}
-                  disabled={isSubmitting}
-                >
-                  Annulla
-                </Button>
-                <Button type="submit" disabled={isSubmitting} className="gradient-primary">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generazione…
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Genera link
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        ) : (
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={handleInviteAnother}>
+                <RefreshCcw className="h-4 w-4 mr-2" />
+                Invita un altro
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleOpenChange(false)}
+                className="gradient-primary"
+              >
+                Chiudi
+              </Button>
+            </div>
+          </div>
+        ) : generated ? (
           <div className="space-y-4 pt-2">
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               <p className="font-medium text-primary mb-0.5">{generated.fullName}</p>
@@ -293,7 +355,7 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="invite-url">URL di registrazione</Label>
+              <Label htmlFor="invite-url">URL di registrazione (fallback manuale)</Label>
               <div className="flex gap-2">
                 <Input
                   id="invite-url"
@@ -323,9 +385,9 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={handleGenerateAnother}>
+              <Button type="button" variant="outline" onClick={handleInviteAnother}>
                 <RefreshCcw className="h-4 w-4 mr-2" />
-                Genera altro
+                Invita un altro
               </Button>
               <Button
                 type="button"
@@ -336,6 +398,110 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
               </Button>
             </div>
           </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Mario"
+                          autoComplete="given-name"
+                          maxLength={60}
+                          disabled={pending !== null}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cognome</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Rossi"
+                          autoComplete="family-name"
+                          maxLength={60}
+                          disabled={pending !== null}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="mario.rossi@email.com"
+                        autoComplete="email"
+                        disabled={pending !== null}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={form.handleSubmit(onGenerateManual)}
+                  disabled={pending !== null}
+                >
+                  {pending === "link" ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Link2 className="h-4 w-4 mr-2" />
+                  )}
+                  Genera link manuale
+                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenChange(false)}
+                    disabled={pending !== null}
+                  >
+                    Annulla
+                  </Button>
+                  <Button type="submit" disabled={pending !== null} className="gradient-primary">
+                    {pending === "email" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Invio…
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Invia invito
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </Form>
         )}
       </DialogContent>
     </Dialog>

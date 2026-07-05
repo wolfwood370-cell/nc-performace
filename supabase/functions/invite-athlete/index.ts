@@ -40,6 +40,18 @@ function sanitizeNameField(raw: unknown): string {
   return raw.replace(CTRL_CHARS, "").trim().slice(0, NAME_MAX);
 }
 
+// Escape user-controlled text before interpolating it into the email HTML —
+// names are coach-supplied and would otherwise allow arbitrary markup to be
+// delivered from the verified sender domain (phishing vector).
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -122,11 +134,9 @@ serve(async (req) => {
 
     const fullName = `${firstName} ${lastName}`.trim();
 
-    const supabaseAdmin = createClient(
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
@@ -143,12 +153,11 @@ serve(async (req) => {
     };
 
     // Generate the invite link WITHOUT triggering Supabase's rate-limited mailer.
-    const { data: linkData, error: linkError } =
-      await supabaseAdmin.auth.admin.generateLink({
-        type: "invite",
-        email: athleteEmail,
-        options: { data: userMetadata },
-      });
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
+      email: athleteEmail,
+      options: { data: userMetadata },
+    });
 
     if (linkError) {
       const message = linkError.message ?? "Failed to generate invite link";
@@ -163,12 +172,12 @@ serve(async (req) => {
       if (isAlreadyExists) {
         // Idempotent path: find the existing user and attach to this coach
         // if they are an unassigned athlete.
-        const { data: list, error: listErr } =
-          await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+        const { data: list, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
+          page: 1,
+          perPage: 200,
+        });
 
-        const existing = list?.users?.find(
-          (u) => u.email?.toLowerCase() === athleteEmail,
-        );
+        const existing = list?.users?.find((u) => u.email?.toLowerCase() === athleteEmail);
 
         if (!listErr && existing) {
           const { data: existingProfile } = await supabaseAdmin
@@ -221,15 +230,15 @@ serve(async (req) => {
     }
 
     // Send via Resend directly — no Supabase mailer rate limit.
-    const subject = `${fullName ? firstName + ", " : ""}sei stato invitato dal tuo coach`;
+    const subject = `${firstName ? firstName + ", " : ""}il tuo coach ti ha invitato su NC Performance Hub`;
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a;background:#ffffff;">
-        <h1 style="font-size:22px;margin:0 0 16px;">Ciao ${firstName || ""},</h1>
+        <h1 style="font-size:22px;margin:0 0 16px;">Ciao ${escapeHtml(firstName)},</h1>
         <p style="font-size:15px;line-height:1.6;color:#334155;margin:0 0 24px;">
-          Il tuo coach ti ha invitato a unirti alla piattaforma di allenamento. Clicca sul pulsante qui sotto per attivare il tuo account.
+          Il tuo coach ti ha invitato su <strong>NC Performance Hub</strong>, la piattaforma per il tuo allenamento. Clicca sul pulsante qui sotto per attivare il tuo account.
         </p>
         <p style="margin:0 0 32px;">
-          <a href="${actionLink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px;">
+          <a href="${actionLink}" style="display:inline-block;background:#003e62;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px;">
             Accetta invito
           </a>
         </p>
@@ -247,7 +256,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Coach <onboarding@resend.dev>",
+        from: "NC Training Systems <noreply@mail.nctrainingsystems.com>",
         to: [athleteEmail],
         subject,
         html,
@@ -257,10 +266,7 @@ serve(async (req) => {
     if (!resendResp.ok) {
       const errBody = await resendResp.text();
       console.error("invite-athlete: Resend send failed", resendResp.status, errBody);
-      return json(
-        { error: "Failed to send invite email", details: errBody },
-        502,
-      );
+      return json({ error: "Failed to send invite email", details: errBody }, 502);
     }
 
     return json(
