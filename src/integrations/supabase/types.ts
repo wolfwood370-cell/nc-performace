@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -34,6 +34,63 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      appointments: {
+        Row: {
+          athlete_id: string
+          coach_id: string
+          created_at: string
+          date: string
+          duration_min: number | null
+          id: string
+          notes: string | null
+          time: string | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          athlete_id: string
+          coach_id: string
+          created_at?: string
+          date: string
+          duration_min?: number | null
+          id?: string
+          notes?: string | null
+          time?: string | null
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          athlete_id?: string
+          coach_id?: string
+          created_at?: string
+          date?: string
+          duration_min?: number | null
+          id?: string
+          notes?: string | null
+          time?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "appointments_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       athlete_ai_insights: {
         Row: {
@@ -304,33 +361,45 @@ export type Database = {
       }
       body_measurements: {
         Row: {
+          arm_cm: number | null
           athlete_id: string
           body_fat_percentage: number | null
+          chest_cm: number | null
           created_at: string
           date: string
           id: string
           muscle_mass_kg: number | null
+          thigh_cm: number | null
           updated_at: string
+          waist_cm: number | null
           weight_kg: number | null
         }
         Insert: {
+          arm_cm?: number | null
           athlete_id: string
           body_fat_percentage?: number | null
+          chest_cm?: number | null
           created_at?: string
           date?: string
           id?: string
           muscle_mass_kg?: number | null
+          thigh_cm?: number | null
           updated_at?: string
+          waist_cm?: number | null
           weight_kg?: number | null
         }
         Update: {
+          arm_cm?: number | null
           athlete_id?: string
           body_fat_percentage?: number | null
+          chest_cm?: number | null
           created_at?: string
           date?: string
           id?: string
           muscle_mass_kg?: number | null
+          thigh_cm?: number | null
           updated_at?: string
+          waist_cm?: number | null
           weight_kg?: number | null
         }
         Relationships: [
@@ -913,10 +982,10 @@ export type Database = {
           exercise_id: string
           id?: string
           is_completed?: boolean
-          reps?: number
+          reps: number
           session_id: string
           set_number: number
-          weight?: number
+          weight: number
         }
         Update: {
           created_at?: string
@@ -930,6 +999,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "exercise_logs_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "exercise_logs_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
@@ -941,48 +1017,115 @@ export type Database = {
       exercises: {
         Row: {
           archived: boolean
+          attributes: Json
+          body_position: Database["public"]["Enums"]["body_position"] | null
           coach_id: string
           created_at: string
+          cyclic_modality: string | null
           default_rpe: number | null
+          equipment: string[]
+          execution_mode: Database["public"]["Enums"]["execution_mode"] | null
+          exercise_family: Database["public"]["Enums"]["exercise_family"] | null
           exercise_type: string
+          fatigue_cost: Database["public"]["Enums"]["fatigue_cost"] | null
           id: string
+          laterality: Database["public"]["Enums"]["laterality"] | null
+          lift_phase: Database["public"]["Enums"]["lift_phase"] | null
           movement_pattern: string | null
           muscles: string[]
           name: string
           notes: string | null
+          os_id: string | null
+          patterns: string[]
           secondary_muscles: string[]
+          source: string[]
+          stability_demand:
+            | Database["public"]["Enums"]["stability_demand"]
+            | null
+          suited_rep_range:
+            | Database["public"]["Enums"]["suited_rep_range"]
+            | null
+          technical_complexity:
+            | Database["public"]["Enums"]["technical_complexity"]
+            | null
           tracking_fields: string[]
           updated_at: string
           video_url: string | null
         }
         Insert: {
           archived?: boolean
+          attributes?: Json
+          body_position?: Database["public"]["Enums"]["body_position"] | null
           coach_id: string
           created_at?: string
+          cyclic_modality?: string | null
           default_rpe?: number | null
+          equipment?: string[]
+          execution_mode?: Database["public"]["Enums"]["execution_mode"] | null
+          exercise_family?:
+            | Database["public"]["Enums"]["exercise_family"]
+            | null
           exercise_type?: string
+          fatigue_cost?: Database["public"]["Enums"]["fatigue_cost"] | null
           id?: string
+          laterality?: Database["public"]["Enums"]["laterality"] | null
+          lift_phase?: Database["public"]["Enums"]["lift_phase"] | null
           movement_pattern?: string | null
           muscles?: string[]
           name: string
           notes?: string | null
+          os_id?: string | null
+          patterns?: string[]
           secondary_muscles?: string[]
+          source?: string[]
+          stability_demand?:
+            | Database["public"]["Enums"]["stability_demand"]
+            | null
+          suited_rep_range?:
+            | Database["public"]["Enums"]["suited_rep_range"]
+            | null
+          technical_complexity?:
+            | Database["public"]["Enums"]["technical_complexity"]
+            | null
           tracking_fields?: string[]
           updated_at?: string
           video_url?: string | null
         }
         Update: {
           archived?: boolean
+          attributes?: Json
+          body_position?: Database["public"]["Enums"]["body_position"] | null
           coach_id?: string
           created_at?: string
+          cyclic_modality?: string | null
           default_rpe?: number | null
+          equipment?: string[]
+          execution_mode?: Database["public"]["Enums"]["execution_mode"] | null
+          exercise_family?:
+            | Database["public"]["Enums"]["exercise_family"]
+            | null
           exercise_type?: string
+          fatigue_cost?: Database["public"]["Enums"]["fatigue_cost"] | null
           id?: string
+          laterality?: Database["public"]["Enums"]["laterality"] | null
+          lift_phase?: Database["public"]["Enums"]["lift_phase"] | null
           movement_pattern?: string | null
           muscles?: string[]
           name?: string
           notes?: string | null
+          os_id?: string | null
+          patterns?: string[]
           secondary_muscles?: string[]
+          source?: string[]
+          stability_demand?:
+            | Database["public"]["Enums"]["stability_demand"]
+            | null
+          suited_rep_range?:
+            | Database["public"]["Enums"]["suited_rep_range"]
+            | null
+          technical_complexity?:
+            | Database["public"]["Enums"]["technical_complexity"]
+            | null
           tracking_fields?: string[]
           updated_at?: string
           video_url?: string | null
@@ -1772,6 +1915,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
           avatar_url: string | null
           bio: string | null
           brand_color: string | null
@@ -1797,9 +1941,11 @@ export type Database = {
           social_links: Json | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           subscription_tier: string | null
+          tax_code: string | null
           updated_at: string
         }
         Insert: {
+          address?: string | null
           avatar_url?: string | null
           bio?: string | null
           brand_color?: string | null
@@ -1825,9 +1971,11 @@ export type Database = {
           social_links?: Json | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_tier?: string | null
+          tax_code?: string | null
           updated_at?: string
         }
         Update: {
+          address?: string | null
           avatar_url?: string | null
           bio?: string | null
           brand_color?: string | null
@@ -1853,6 +2001,7 @@ export type Database = {
           social_links?: Json | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_tier?: string | null
+          tax_code?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2490,7 +2639,7 @@ export type Database = {
           status: Database["public"]["Enums"]["workout_log_status"]
           sync_status: string
           total_load_au: number | null
-          workout_id: string
+          workout_id: string | null
         }
         Insert: {
           athlete_id: string
@@ -2515,7 +2664,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["workout_log_status"]
           sync_status?: string
           total_load_au?: number | null
-          workout_id: string
+          workout_id?: string | null
         }
         Update: {
           athlete_id?: string
@@ -2540,7 +2689,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["workout_log_status"]
           sync_status?: string
           total_load_au?: number | null
-          workout_id?: string
+          workout_id?: string | null
         }
         Relationships: [
           {
@@ -2809,6 +2958,10 @@ export type Database = {
         Args: { p_athlete_id: string; p_start_date: string; p_week_id: string }
         Returns: number
       }
+      set_athlete_daily_limit: {
+        Args: { p_athlete_id: string; p_daily_limit: number }
+        Returns: undefined
+      }
       shares_room_with: {
         Args: { _other_user_id: string; _user_id: string }
         Returns: boolean
@@ -2821,10 +2974,31 @@ export type Database = {
         | "canceled"
         | "incomplete"
         | "canceling"
+      body_position:
+        | "in piedi"
+        | "seduto"
+        | "supino"
+        | "prono"
+        | "sospeso"
+        | "in ginocchio"
+        | "mezzo ginocchio"
+        | "quadrupedia"
+        | "decubito laterale"
       checkin_status: "pending" | "approved" | "sent" | "skipped"
       content_type: "video" | "pdf" | "link" | "text" | "ai_knowledge"
       cycle_phase: "menstrual" | "follicular" | "ovulatory" | "luteal"
+      execution_mode: "grind" | "balistico" | "isometrico"
+      exercise_family: "forza" | "pliometrico" | "ciclico"
+      fatigue_cost: "basso" | "medio" | "alto" | "scalabile"
       knowledge_doc_status: "pending" | "processing" | "processed" | "failed"
+      laterality: "bilaterale" | "unilaterale"
+      lift_phase:
+        | "prima-tirata"
+        | "seconda-tirata"
+        | "transizione"
+        | "incastro-ricezione"
+        | "jerk"
+        | "alzata-completa"
       meal_time: "breakfast" | "lunch" | "dinner" | "snack"
       phase_focus_type:
         | "strength"
@@ -2834,7 +3008,10 @@ export type Database = {
         | "recovery"
         | "peaking"
         | "transition"
+      stability_demand: "bassa" | "media" | "alta"
       subscription_status: "active" | "past_due" | "canceled" | "trial" | "none"
+      suited_rep_range: "forza" | "ipertrofia" | "entrambi"
+      technical_complexity: "bassa" | "media" | "alta"
       ticket_category: "bug" | "feature_request" | "billing" | "other"
       ticket_status: "new" | "in_progress" | "resolved" | "closed"
       user_role: "coach" | "athlete"
@@ -2974,10 +3151,33 @@ export const Constants = {
         "incomplete",
         "canceling",
       ],
+      body_position: [
+        "in piedi",
+        "seduto",
+        "supino",
+        "prono",
+        "sospeso",
+        "in ginocchio",
+        "mezzo ginocchio",
+        "quadrupedia",
+        "decubito laterale",
+      ],
       checkin_status: ["pending", "approved", "sent", "skipped"],
       content_type: ["video", "pdf", "link", "text", "ai_knowledge"],
       cycle_phase: ["menstrual", "follicular", "ovulatory", "luteal"],
+      execution_mode: ["grind", "balistico", "isometrico"],
+      exercise_family: ["forza", "pliometrico", "ciclico"],
+      fatigue_cost: ["basso", "medio", "alto", "scalabile"],
       knowledge_doc_status: ["pending", "processing", "processed", "failed"],
+      laterality: ["bilaterale", "unilaterale"],
+      lift_phase: [
+        "prima-tirata",
+        "seconda-tirata",
+        "transizione",
+        "incastro-ricezione",
+        "jerk",
+        "alzata-completa",
+      ],
       meal_time: ["breakfast", "lunch", "dinner", "snack"],
       phase_focus_type: [
         "strength",
@@ -2988,7 +3188,10 @@ export const Constants = {
         "peaking",
         "transition",
       ],
+      stability_demand: ["bassa", "media", "alta"],
       subscription_status: ["active", "past_due", "canceled", "trial", "none"],
+      suited_rep_range: ["forza", "ipertrofia", "entrambi"],
+      technical_complexity: ["bassa", "media", "alta"],
       ticket_category: ["bug", "feature_request", "billing", "other"],
       ticket_status: ["new", "in_progress", "resolved", "closed"],
       user_role: ["coach", "athlete"],
