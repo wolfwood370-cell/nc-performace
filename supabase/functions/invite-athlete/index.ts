@@ -40,6 +40,18 @@ function sanitizeNameField(raw: unknown): string {
   return raw.replace(CTRL_CHARS, "").trim().slice(0, NAME_MAX);
 }
 
+// Escape user-controlled text before interpolating it into the email HTML —
+// names are coach-supplied and would otherwise allow arbitrary markup to be
+// delivered from the verified sender domain (phishing vector).
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -221,7 +233,7 @@ serve(async (req) => {
     const subject = `${firstName ? firstName + ", " : ""}il tuo coach ti ha invitato su NC Performance Hub`;
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a;background:#ffffff;">
-        <h1 style="font-size:22px;margin:0 0 16px;">Ciao ${firstName || ""},</h1>
+        <h1 style="font-size:22px;margin:0 0 16px;">Ciao ${escapeHtml(firstName)},</h1>
         <p style="font-size:15px;line-height:1.6;color:#334155;margin:0 0 24px;">
           Il tuo coach ti ha invitato su <strong>NC Performance Hub</strong>, la piattaforma per il tuo allenamento. Clicca sul pulsante qui sotto per attivare il tuo account.
         </p>
