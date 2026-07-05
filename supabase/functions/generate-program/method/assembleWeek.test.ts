@@ -7,6 +7,8 @@ import { assertEquals } from "jsr:@std/assert@1";
 import {
   assembleWeek,
   buildExcludedZones,
+  GATE_CLEARANCE_REASON,
+  GATE_RED_FLAGS_REASON,
   normalizeExperience,
   normalizeGoal,
   parseEquipment,
@@ -211,14 +213,47 @@ function input(partial: Partial<AssembleInput> = {}): AssembleInput {
 // S0 — gate e zone escluse
 // ---------------------------------------------------------------------------
 
-Deno.test("safetyGate: clearance richiesta o red_flags non vuoti bloccano", () => {
-  assertEquals(safetyGate({ medicalClearanceRequired: true, redFlags: null }).blocked, true);
+Deno.test("safetyGate: blocca sul contenuto semantico, non sulla presenza dell'oggetto", () => {
+  // L'onboarding scrive SEMPRE l'oggetto a 4 chiavi, anche per un atleta sano:
+  // NON deve bloccare (la review ha rifiutato la regola "oggetto non vuoto").
+  const healthyFlags = {
+    medical_clearance_required: false,
+    medical_yes_questions: [],
+    fms_exclusion_zones: [],
+    reduced_systemic_volume: false,
+  };
+  assertEquals(
+    safetyGate({ medicalClearanceRequired: false, redFlags: healthyFlags }).blocked,
+    false,
+  );
+  // reduced_systemic_volume modula il volume, non blocca.
+  assertEquals(
+    safetyGate({
+      medicalClearanceRequired: false,
+      redFlags: { ...healthyFlags, reduced_systemic_volume: true },
+    }).blocked,
+    false,
+  );
+  // Contenuti semantici bloccanti.
+  const clearance = safetyGate({
+    medicalClearanceRequired: false,
+    redFlags: { ...healthyFlags, medical_clearance_required: true },
+  });
+  assertEquals(clearance.blocked, true);
+  assertEquals(clearance.reason, GATE_CLEARANCE_REASON);
+  const yesQuestions = safetyGate({
+    medicalClearanceRequired: false,
+    redFlags: { ...healthyFlags, medical_yes_questions: ["dolore toracico sotto sforzo"] },
+  });
+  assertEquals(yesQuestions.blocked, true);
+  assertEquals(yesQuestions.reason, GATE_RED_FLAGS_REASON);
+  // Colonna medical_clearance_required = true blocca sempre, col copy canonico.
+  const column = safetyGate({ medicalClearanceRequired: true, redFlags: null });
+  assertEquals(column.blocked, true);
+  assertEquals(column.reason, GATE_CLEARANCE_REASON);
+  // Forme legacy: array/stringa non vuoti bloccano (conservativo).
   assertEquals(
     safetyGate({ medicalClearanceRequired: false, redFlags: ["dolore toracico"] }).blocked,
-    true,
-  );
-  assertEquals(
-    safetyGate({ medicalClearanceRequired: false, redFlags: { nota: "x" } }).blocked,
     true,
   );
   assertEquals(
@@ -230,9 +265,6 @@ Deno.test("safetyGate: clearance richiesta o red_flags non vuoti bloccano", () =
   assertEquals(safetyGate({ medicalClearanceRequired: false, redFlags: {} }).blocked, false);
   assertEquals(safetyGate({ medicalClearanceRequired: false, redFlags: null }).blocked, false);
   assertEquals(safetyGate({ medicalClearanceRequired: false, redFlags: "" }).blocked, false);
-  // La reason bloccante è in italiano e non vuota.
-  const gate = safetyGate({ medicalClearanceRequired: true, redFlags: null });
-  assertEquals(gate.reason.length > 0, true);
 });
 
 Deno.test("buildExcludedZones: unione normalizzata, dedupe, ordinata", () => {
@@ -257,9 +289,13 @@ Deno.test("normalizeGoal: sinonimi -> canonico, default ipertrofia", () => {
   assertEquals(normalizeGoal("boh"), "ipertrofia");
 });
 
-Deno.test("normalizeExperience: canonico > derivazione da training_age > default", () => {
+Deno.test("normalizeExperience: canonico (anche EN dal FE) > training_age > default", () => {
   assertEquals(normalizeExperience("Avanzato", null), "avanzato");
   assertEquals(normalizeExperience("principiante", null), "principiante");
+  // Il FE (onboarding) scrive i valori in INGLESE: devono mappare al canonico.
+  assertEquals(normalizeExperience("beginner", null), "principiante");
+  assertEquals(normalizeExperience("intermediate", null), "intermedio");
+  assertEquals(normalizeExperience("ADVANCED", null), "avanzato");
   assertEquals(normalizeExperience(null, "6 anni di palestra"), "avanzato");
   assertEquals(normalizeExperience(null, "3 mesi"), "principiante");
   assertEquals(normalizeExperience(null, "un po'"), "intermedio");
@@ -297,9 +333,18 @@ Deno.test(
   },
 );
 
-Deno.test("daysPerWeek fuori range: aggancio a [1,6]", () => {
-  assertEquals(assembleWeek(input({ daysPerWeek: 0 })).days.length, 1);
-  assertEquals(assembleWeek(input({ daysPerWeek: 9 })).days.length, 6);
+Deno.test("daysPerWeek fuori range: aggancio a [1,6] + nota nel rationale", () => {
+  const low = assembleWeek(input({ daysPerWeek: 0 }));
+  assertEquals(low.days.length, 1);
+  assertEquals(low.rationale.includes("Giorni richiesti: 0, generati 1"), true);
+  const high = assembleWeek(input({ daysPerWeek: 9 }));
+  assertEquals(high.days.length, 6);
+  assertEquals(high.rationale.includes("Giorni richiesti: 9, generati 6"), true);
+  // In range: nessuna nota di clamp.
+  assertEquals(
+    assembleWeek(input({ daysPerWeek: 3 })).rationale.includes("Giorni richiesti"),
+    false,
+  );
 });
 
 Deno.test("giorno 2-day: ordine slot da tabella (compound prima, accessori dopo)", () => {

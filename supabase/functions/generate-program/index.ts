@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { assembleWeek, buildExcludedZones, safetyGate } from "./method/assembleWeek.ts";
+import {
+  assembleWeek,
+  buildExcludedZones,
+  NO_CANDIDATES_ERROR,
+  safetyGate,
+} from "./method/assembleWeek.ts";
 import type { CandidateRow } from "./method/assembleWeek.ts";
 
 const corsHeaders = {
@@ -167,10 +172,13 @@ serve(async (req) => {
       redFlags: profile.red_flags,
     });
     if (gate.blocked) {
-      return new Response(
-        JSON.stringify({ gate: true, reason: gate.reason, days: [], rationale: gate.reason }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      // 200 con { error, gate } e NESSUN campo days (deciso con Nick): l'hook FE
+      // fa `if (data.error) throw` -> toast col motivo esatto, onSuccess non
+      // parte, la settimana del builder NON viene sostituita. `gate: true`
+      // resta nel body per una futura UI dedicata.
+      return new Response(JSON.stringify({ error: gate.reason, gate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Infortuni IN CORSO. Stati validi del CHECK: in_rehab | recovered | chronic
@@ -199,7 +207,8 @@ serve(async (req) => {
         "id, os_id, name, exercise_family, movement_pattern, patterns, equipment, execution_mode, suited_rep_range, fatigue_cost, technical_complexity, laterality, stability_demand, body_position, lift_phase, muscles, secondary_muscles",
       )
       .eq("coach_id", user.id)
-      .eq("archived", false);
+      .eq("archived", false)
+      .order("id", { ascending: true });
 
     if (exercisesError) {
       console.error("[generate-program] exercises fetch failed", exercisesError);
@@ -225,6 +234,15 @@ serve(async (req) => {
       oneRmData: (profile.one_rm_data as Record<string, unknown> | null) ?? null,
       candidates: (exerciseRows ?? []) as unknown as CandidateRow[],
     });
+
+    // Guard di vitalità: settimana completamente vuota (libreria vuota o tutto
+    // escluso dai filtri) -> stessa risposta error-shaped del gate, così il FE
+    // non sostituisce mai la settimana del builder con il nulla.
+    if (program.days.every((d) => d.exercises.length === 0)) {
+      return new Response(JSON.stringify({ error: NO_CANDIDATES_ERROR, gate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify(program), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

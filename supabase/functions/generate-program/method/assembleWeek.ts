@@ -61,34 +61,47 @@ export interface AiProgramResult {
 // S0 — Gate di sicurezza (il cancello chiude PRIMA dell'obiettivo)
 // ---------------------------------------------------------------------------
 
+/** Messaggi canonici del gate (copy di Nick) — usati anche da index.ts. */
+export const GATE_CLEARANCE_REASON =
+  "Atleta da valutare: richiede clearance medica prima della generazione (rimando allo specialista)";
+export const GATE_RED_FLAGS_REASON =
+  "Atleta da valutare: red flag mediche nel questionario — serve il parere dello specialista prima della generazione";
+export const NO_CANDIDATES_ERROR =
+  "Nessun esercizio disponibile: libreria vuota o tutti esclusi dai filtri (attrezzatura/zone infortunate)";
+
 /**
- * Cancello clearance/red-flags. Regola M2 (conservativa, proponi-non-prescrivere):
- * clearance richiesta o red_flags NON vuoti (array/oggetto/stringa) = bloccante.
+ * Cancello clearance/red-flags. L'onboarding scrive SEMPRE red_flags come
+ * oggetto a 4 chiavi ({medical_clearance_required, medical_yes_questions,
+ * fms_exclusion_zones, reduced_systemic_volume}), anche per un atleta sano:
+ * si blocca sul CONTENUTO semantico, non sulla presenza dell'oggetto.
+ * reduced_systemic_volume modula il volume (iterazione futura), non blocca.
+ * Forme legacy (array o stringa non vuoti) restano bloccanti (conservativo).
  */
 export function safetyGate(input: { medicalClearanceRequired: boolean; redFlags: unknown }): {
   blocked: boolean;
   reason: string;
 } {
   if (input.medicalClearanceRequired) {
-    return {
-      blocked: true,
-      reason:
-        "Serve la clearance medica prima di programmare: generazione sospesa. La sicurezza chiude prima dell'obiettivo.",
-    };
+    return { blocked: true, reason: GATE_CLEARANCE_REASON };
   }
   const rf = input.redFlags;
-  const hasRedFlags = Array.isArray(rf)
+  if (rf && typeof rf === "object" && !Array.isArray(rf)) {
+    const flags = rf as Record<string, unknown>;
+    if (flags.medical_clearance_required === true) {
+      return { blocked: true, reason: GATE_CLEARANCE_REASON };
+    }
+    if (Array.isArray(flags.medical_yes_questions) && flags.medical_yes_questions.length > 0) {
+      return { blocked: true, reason: GATE_RED_FLAGS_REASON };
+    }
+    return { blocked: false, reason: "" };
+  }
+  const hasLegacyFlags = Array.isArray(rf)
     ? rf.length > 0
-    : rf && typeof rf === "object"
-      ? Object.keys(rf as Record<string, unknown>).length > 0
-      : typeof rf === "string"
-        ? rf.trim().length > 0
-        : false;
-  if (hasRedFlags) {
-    return {
-      blocked: true,
-      reason: "Red flag presenti nel profilo: prima il rinvio allo specialista, poi il programma.",
-    };
+    : typeof rf === "string"
+      ? rf.trim().length > 0
+      : false;
+  if (hasLegacyFlags) {
+    return { blocked: true, reason: GATE_RED_FLAGS_REASON };
   }
   return { blocked: false, reason: "" };
 }
@@ -132,9 +145,19 @@ export function normalizeGoal(focusGoal: string): "forza" | "ipertrofia" {
   return "ipertrofia";
 }
 
+/** Il FE (onboarding) scrive experience_level in INGLESE: mappa EN/IT -> canonico. */
+const EXPERIENCE_MAP: Record<string, ExperienceLevel> = {
+  principiante: "principiante",
+  beginner: "principiante",
+  intermedio: "intermedio",
+  intermediate: "intermedio",
+  avanzato: "avanzato",
+  advanced: "avanzato",
+};
+
 /**
- * experience_level canonico se valido; altrimenti derivazione best-effort da
- * training_age (testo libero onboarding); default 'intermedio'.
+ * experience_level canonico (accetta i valori EN del FE); altrimenti derivazione
+ * best-effort da training_age (testo libero onboarding); default 'intermedio'.
  * 'principiante' attiva il filtro anti-complessita'-alta di rankExercises.
  */
 export function normalizeExperience(
@@ -142,7 +165,7 @@ export function normalizeExperience(
   trainingAge: string | null | undefined,
 ): ExperienceLevel {
   const level = experienceLevel?.trim().toLowerCase();
-  if (level === "principiante" || level === "intermedio" || level === "avanzato") return level;
+  if (level && level in EXPERIENCE_MAP) return EXPERIENCE_MAP[level];
   const age = trainingAge?.trim().toLowerCase() ?? "";
   if (age) {
     if (/principiante|beginner|mai allenat|nessun|mesi|^<\s*1|^0/.test(age)) return "principiante";
@@ -429,7 +452,9 @@ export function assembleWeek(input: AssembleInput): AiProgramResult {
   const goal = normalizeGoal(input.focusGoal);
   const experience = normalizeExperience(input.experienceLevel, input.trainingAge ?? null);
   const seed = neurotypeSeed(input.neurotype);
-  const days = Math.min(6, Math.max(1, Math.round(input.daysPerWeek)));
+  // Giorni agganciati a [1,6] (telaio M2); input non finito -> default 3 (documentato).
+  const requestedDays = Number.isFinite(input.daysPerWeek) ? Math.round(input.daysPerWeek) : 3;
+  const days = Math.min(6, Math.max(1, requestedDays));
   const availableEquipment = parseEquipment(input.equipmentRaw);
   const excludedZones = input.excludedZones.map((z) => z.trim().toLowerCase()).filter(Boolean);
 
@@ -499,7 +524,15 @@ export function assembleWeek(input: AssembleInput): AiProgramResult {
 
   return {
     days: outDays,
-    rationale: buildRationale(goal, days, seed, excludedZones, skippedSlots, input.mode),
+    rationale: buildRationale(
+      goal,
+      days,
+      requestedDays,
+      seed,
+      excludedZones,
+      skippedSlots,
+      input.mode,
+    ),
   };
 }
 
@@ -507,6 +540,7 @@ export function assembleWeek(input: AssembleInput): AiProgramResult {
 function buildRationale(
   goal: "forza" | "ipertrofia",
   days: number,
+  requestedDays: number,
   seed: ReturnType<typeof neurotypeSeed>,
   excludedZones: string[],
   skippedSlots: string[],
@@ -522,6 +556,9 @@ function buildRationale(
     );
   } else {
     parts.push("Neurotipo non disponibile: default neutri dell'obiettivo.");
+  }
+  if (requestedDays !== days) {
+    parts.push(`Giorni richiesti: ${requestedDays}, generati ${days} (il telaio M2 copre 1-6).`);
   }
   if (excludedZones.length > 0) {
     parts.push(`Zone escluse dal gate di sicurezza: ${excludedZones.join(", ")}.`);
