@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  assembleWeek,
+  buildExcludedZones,
+  NO_CANDIDATES_ERROR,
+  safetyGate,
+} from "./method/assembleWeek.ts";
+import type { CandidateRow } from "./method/assembleWeek.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,10 +21,10 @@ serve(async (req) => {
 
   try {
     // -------------------------------------------------------------------------
-    // SECURITY GATE — must run before any expensive work (DB reads, OpenAI API
-    // calls). Order: header → JWT → role → ownership. Each step is a hard 401/403
-    // because `verify_jwt = false` at the gateway means this code is the only
-    // line of defense for paid AI invocations.
+    // SECURITY GATE — must run before any expensive work (DB reads, program
+    // assembly). Order: header → JWT → role → ownership. Each step is a hard
+    // 401/403 because `verify_jwt = false` at the gateway means this code is
+    // the only line of defense for this endpoint.
     // -------------------------------------------------------------------------
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -142,10 +149,12 @@ serve(async (req) => {
     // already permits via the coach relationship).
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch athlete profile.
+    // Fetch athlete profile — i campi letti dal motore deterministico (S0/S1/S3).
     const { data: profile } = await supabase
       .from("profiles")
-      .select("coach_id, full_name, onboarding_data, one_rm_data")
+      .select(
+        "coach_id, onboarding_data, one_rm_data, neurotype, experience_level, fms_exclusion_zones, red_flags, medical_clearance_required",
+      )
       .eq("id", athlete_id)
       .single();
 
@@ -156,275 +165,84 @@ serve(async (req) => {
       });
     }
 
-    const athleteName = profile.full_name || "Atleta";
-    const onboarding = profile.onboarding_data as Record<string, unknown> | null;
-    const trainingAge = (onboarding?.training_age as string) || "sconosciuta";
-    const gender = (onboarding?.gender as string) || "unknown";
+    // S0 — Gate di sicurezza del metodo: la sicurezza chiude PRIMA dell'obiettivo.
+    // Clearance medica richiesta o red flags presenti -> nessuna generazione.
+    const gate = safetyGate({
+      medicalClearanceRequired: profile.medical_clearance_required === true,
+      redFlags: profile.red_flags,
+    });
+    if (gate.blocked) {
+      // 200 con { error, gate } e NESSUN campo days (deciso con Nick): l'hook FE
+      // fa `if (data.error) throw` -> toast col motivo esatto, onSuccess non
+      // parte, la settimana del builder NON viene sostituita. `gate: true`
+      // resta nel body per una futura UI dedicata.
+      return new Response(JSON.stringify({ error: gate.reason, gate: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    // Fetch injuries
+    // Infortuni IN CORSO. Stati validi del CHECK: in_rehab | recovered | chronic
+    // ('recovered' non esclude). NB: lo stub filtrava status='active', che non
+    // esiste nello schema — bug corretto qui.
     const { data: injuries } = await supabase
       .from("injuries")
-      .select("body_zone, description, status")
+      .select("body_zone, status")
       .eq("athlete_id", athlete_id)
-      .eq("status", "active");
+      .in("status", ["in_rehab", "chronic"]);
 
-    // Parse 1RM data
-    const oneRmData = profile.one_rm_data as Record<string, unknown> | null;
-    let oneRmSection = "Nessun dato 1RM disponibile.";
-    if (oneRmData && typeof oneRmData === "object") {
-      const entries = Object.entries(oneRmData)
-        .filter(
-          ([_, v]) => v && typeof v === "object" && (v as Record<string, unknown>).estimated_1rm,
-        )
-        .map(([name, v]) => `${name}: ${(v as Record<string, unknown>).estimated_1rm} kg`)
-        .join(", ");
-      if (entries) oneRmSection = entries;
+    // Zone escluse (S0): unione fms_exclusion_zones + zone degli infortuni in corso.
+    const excludedZones = buildExcludedZones(
+      (profile.fms_exclusion_zones as string[] | null) ?? null,
+      (injuries ?? [])
+        .map((i: { body_zone: unknown }) => String(i.body_zone ?? ""))
+        .filter(Boolean),
+    );
+
+    // Libreria esercizi del coach: i candidati per la selezione (S4).
+    // NB: il fetch workout_logs dello stub e' stato rimosso — nutriva solo il
+    // prompt LLM; tornera' col loop RTS (autoregolazione a settimane).
+    const { data: exerciseRows, error: exercisesError } = await supabase
+      .from("exercises")
+      .select(
+        "id, os_id, name, exercise_family, movement_pattern, patterns, equipment, execution_mode, suited_rep_range, fatigue_cost, technical_complexity, laterality, stability_demand, body_position, lift_phase, muscles, secondary_muscles",
+      )
+      .eq("coach_id", user.id)
+      .eq("archived", false)
+      .order("id", { ascending: true });
+
+    if (exercisesError) {
+      console.error("[generate-program] exercises fetch failed", exercisesError);
+      return new Response(JSON.stringify({ error: "Impossibile leggere la libreria esercizi" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // If 'continue' mode, fetch last 4 weeks of workout data
-    let performanceContext = "";
-    if (mode === "continue") {
-      const fourWeeksAgo = new Date();
-      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+    const onboarding = profile.onboarding_data as Record<string, unknown> | null;
 
-      const { data: recentLogs } = await supabase
-        .from("workout_logs")
-        .select(
-          `
-          completed_at, rpe_global, srpe, duration_minutes, status,
-          workout_exercises (exercise_name, mean_velocity_ms, sets_data)
-        `,
-        )
-        .eq("athlete_id", athlete_id)
-        .eq("status", "completed")
-        .gte("completed_at", fourWeeksAgo.toISOString())
-        .order("completed_at", { ascending: true });
-
-      if (recentLogs && recentLogs.length > 0) {
-        let totalVolume = 0;
-        let totalSessions = recentLogs.length;
-        let rpeSum = 0;
-        let rpeCount = 0;
-        const exerciseVolumes: Record<string, number> = {};
-        const exerciseVelocities: Record<string, { sum: number; count: number }> = {};
-
-        recentLogs.forEach((log) => {
-          if (log.rpe_global) {
-            rpeSum += log.rpe_global;
-            rpeCount++;
-          }
-          const exercises = log.workout_exercises as Array<{
-            exercise_name: string;
-            mean_velocity_ms: number | null;
-            sets_data: Array<{ weight_kg?: number; reps?: number }>;
-          }>;
-          exercises?.forEach((ex) => {
-            if (Array.isArray(ex.sets_data)) {
-              ex.sets_data.forEach((s) => {
-                const vol = (Number(s.weight_kg) || 0) * (Number(s.reps) || 0);
-                totalVolume += vol;
-                exerciseVolumes[ex.exercise_name] = (exerciseVolumes[ex.exercise_name] || 0) + vol;
-              });
-            }
-            if (ex.mean_velocity_ms && Number(ex.mean_velocity_ms) > 0) {
-              if (!exerciseVelocities[ex.exercise_name])
-                exerciseVelocities[ex.exercise_name] = { sum: 0, count: 0 };
-              exerciseVelocities[ex.exercise_name].sum += Number(ex.mean_velocity_ms);
-              exerciseVelocities[ex.exercise_name].count++;
-            }
-          });
-        });
-
-        const avgRpe = rpeCount > 0 ? (rpeSum / rpeCount).toFixed(1) : "N/D";
-        const topExercises = Object.entries(exerciseVolumes)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([name, vol]) => `${name}: ${Math.round(vol)} kg volume`)
-          .join("; ");
-
-        const velocityTrends = Object.entries(exerciseVelocities)
-          .map(([name, d]) => `${name}: ${(d.sum / d.count).toFixed(3)} m/s media`)
-          .join("; ");
-
-        performanceContext = `
-DATI ULTIME 4 SETTIMANE (modalità Progressione):
-- Sessioni totali: ${totalSessions}
-- Volume totale: ${Math.round(totalVolume).toLocaleString()} kg
-- RPE medio: ${avgRpe}
-- Top esercizi per volume: ${topExercises}
-- Velocità medie VBT: ${velocityTrends || "Nessun dato VBT"}
-ISTRUZIONE: Identifica alzate stagnanti dalla velocità e dal volume e suggerisci variazioni.`;
-      }
-    }
-
-    const injurySection =
-      injuries && injuries.length > 0
-        ? `INFORTUNI ATTIVI:\n${injuries.map((i) => `- ${i.body_zone}: ${i.description || "Non specificato"}`).join("\n")}\nIMPORTANTE: Evita esercizi che stressano direttamente queste zone.`
-        : "Nessun infortunio attivo.";
-
-    const modeInstruction =
-      mode === "new"
-        ? "Modalità NUOVA SCHEDA: L'atleta è nuovo o riprende da zero. Concentrati su assessment, baseline, e progressione graduale. NON prescrivere test 1RM per principianti — usa RPE per auto-regolazione."
-        : "Modalità PROGRESSIONE: L'atleta ha uno storico. Analizza i dati forniti, identifica punti deboli e alzate stagnanti, e proponi variazioni intelligenti per rompere i plateau.";
-
-    const systemPrompt = `Sei un Coach di Forza & Condizionamento d'élite. Genera programmi di allenamento settimanali strutturati.
-
-${modeInstruction}
-
-CONTESTO ATLETA:
-- Nome: ${athleteName}
-- Genere: ${gender}
-- Età di allenamento: ${trainingAge}
-- Equipment disponibile: ${equipment || "Completo (palestra attrezzata)"}
-- Obiettivo del blocco: ${focus_goal}
-- Frequenza richiesta: ${days_per_week} giorni/settimana
-- 1RM stimati: ${oneRmSection}
-${injurySection}
-${performanceContext}
-
-REGOLE DI OUTPUT:
-1. Genera ESATTAMENTE ${days_per_week} giorni di allenamento per UNA settimana.
-2. I nomi degli esercizi DEVONO essere in inglese (standard internazionale: "Back Squat", "Bench Press", "Romanian Deadlift").
-3. Le note DEVONO essere in italiano.
-4. Usa RPE per auto-regolazione (range 6-9).
-5. Il carico (load) deve essere espresso come percentuale del 1RM (es: "70%") o come RPE-based (es: "RPE 7").
-6. Ogni giorno deve avere tra 4 e 8 esercizi.
-7. Il rest è in secondi (60-300).
-8. Bilancia i gruppi muscolari attraverso la settimana.
-9. Includi sempre un warm-up funzionale come primo esercizio di ogni giorno.`;
-
-    const userPrompt = `Genera il programma settimanale. Rispondi SOLO con la funzione tool call.`;
-
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "AI non configurata (OPENAI_API_KEY mancante)" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-5.2",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "submit_program",
-              description: "Submit the generated weekly training program",
-              parameters: {
-                type: "object",
-                properties: {
-                  days: {
-                    type: "array",
-                    description: "Array of training days",
-                    items: {
-                      type: "object",
-                      properties: {
-                        day_index: { type: "number", description: "Day of week 0=Mon to 6=Sun" },
-                        day_name: { type: "string", description: "Italian day name" },
-                        focus: {
-                          type: "string",
-                          description: "Day focus in Italian (es: 'Forza Lower Body')",
-                        },
-                        exercises: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              name: { type: "string", description: "Exercise name in English" },
-                              sets: { type: "number" },
-                              reps: {
-                                type: "string",
-                                description: "Rep scheme (e.g. '8', '8-12', '5x5')",
-                              },
-                              load: {
-                                type: "string",
-                                description: "Load prescription (e.g. '70%', 'RPE 7', 'BW')",
-                              },
-                              rpe: {
-                                type: "number",
-                                description: "Target RPE 1-10, null if not applicable",
-                              },
-                              rest_seconds: {
-                                type: "number",
-                                description: "Rest between sets in seconds",
-                              },
-                              notes: { type: "string", description: "Coaching notes in Italian" },
-                            },
-                            required: ["name", "sets", "reps", "load", "rest_seconds", "notes"],
-                            additionalProperties: false,
-                          },
-                        },
-                      },
-                      required: ["day_index", "day_name", "focus", "exercises"],
-                      additionalProperties: false,
-                    },
-                  },
-                  rationale: {
-                    type: "string",
-                    description:
-                      "Brief rationale for the program design in Italian (2-3 sentences)",
-                  },
-                },
-                required: ["days", "rationale"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "submit_program" } },
-      }),
+    // Forma B deterministica del metodo (5 strati) — modulo puro, niente AI.
+    const program = assembleWeek({
+      focusGoal: focus_goal,
+      daysPerWeek: days_per_week,
+      equipmentRaw: equipment,
+      mode,
+      experienceLevel: (profile.experience_level as string | null) ?? null,
+      trainingAge:
+        typeof onboarding?.training_age === "string" ? (onboarding.training_age as string) : null,
+      neurotype: (profile.neurotype as string | null) ?? null,
+      excludedZones,
+      oneRmData: (profile.one_rm_data as Record<string, unknown> | null) ?? null,
+      candidates: (exerciseRows ?? []) as unknown as CandidateRow[],
     });
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      if (status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite richieste AI raggiunto. Riprova tra qualche minuto." }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Crediti AI esauriti." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errText = await aiResponse.text();
-      console.error("OpenAI error:", status, errText);
-      return new Response(JSON.stringify({ error: "Errore gateway AI" }), {
-        status: 500,
+    // Guard di vitalità: settimana completamente vuota (libreria vuota o tutto
+    // escluso dai filtri) -> stessa risposta error-shaped del gate, così il FE
+    // non sostituisce mai la settimana del builder con il nulla.
+    if (program.days.every((d) => d.exercises.length === 0)) {
+      return new Response(JSON.stringify({ error: NO_CANDIDATES_ERROR, gate: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-
-    if (!toolCall?.function?.arguments) {
-      return new Response(JSON.stringify({ error: "AI non ha generato un programma valido" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const program = JSON.parse(toolCall.function.arguments);
 
     return new Response(JSON.stringify(program), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
