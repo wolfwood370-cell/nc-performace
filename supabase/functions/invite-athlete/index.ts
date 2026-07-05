@@ -138,7 +138,7 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")?.trim();
     if (!RESEND_API_KEY) {
       return json({ error: "Email service not configured" }, 500);
     }
