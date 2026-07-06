@@ -13,6 +13,7 @@ import { percent1RM } from "./rpeTable.ts";
 import { neurotypeSeed } from "./neurotypeSeed.ts";
 import { rankExercises } from "./exerciseSelection.ts";
 import type { ExerciseRow, ExperienceLevel, SelectionCriteria } from "./types.ts";
+import type { ExcludedZone, ZoneTier } from "./zoneMap.ts";
 
 // ---------------------------------------------------------------------------
 // Tipi (contratto)
@@ -30,7 +31,7 @@ export interface AssembleInput {
   /** Fallback per derivare experienceLevel (onboarding_data.training_age). */
   trainingAge?: string | null;
   neurotype: string | null;
-  excludedZones: string[];
+  excludedZones: ExcludedZone[];
   oneRmData: Record<string, unknown> | null;
   candidates: CandidateRow[];
 }
@@ -107,20 +108,27 @@ export function safetyGate(input: { medicalClearanceRequired: boolean; redFlags:
 }
 
 /**
- * Unione normalizzata (lowercase/trim, dedupe, ordinata = deterministica) di
- * fms_exclusion_zones e delle zone degli infortuni in corso. Il filtro sugli
+ * Zone infortunate risolte con tier (deterministica: lowercase/trim, dedupe,
+ * ordinata per zona). Tier: fms_exclusion_zones e infortuni in_rehab =
+ * 'aggressivo' (conservativo); infortuni 'chronic' = 'moderato'. Se una zona
+ * ricorre in due tier vince il piu' severo ('aggressivo'). Il filtro sugli
  * stati ('in_rehab'/'chronic' in corso, 'recovered' fuori) lo fa index.ts.
  */
 export function buildExcludedZones(
   fmsZones: string[] | null | undefined,
-  injuryZones: string[],
-): string[] {
-  const set = new Set<string>();
-  for (const zone of [...(fmsZones ?? []), ...injuryZones]) {
-    const normalized = zone?.trim().toLowerCase();
-    if (normalized) set.add(normalized);
-  }
-  return [...set].sort();
+  injuries: { zone: string; status: string }[],
+): ExcludedZone[] {
+  const tierByZone = new Map<string, ZoneTier>();
+  const put = (raw: string, tier: ZoneTier) => {
+    const z = raw?.trim().toLowerCase();
+    if (!z) return;
+    if (tier === "aggressivo" || !tierByZone.has(z)) tierByZone.set(z, tier);
+  };
+  for (const z of fmsZones ?? []) put(z, "aggressivo"); // FMS = conservativo
+  for (const i of injuries) put(i.zone, i.status === "chronic" ? "moderato" : "aggressivo");
+  return [...tierByZone.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([zone, tier]) => ({ zone, tier }));
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +464,9 @@ export function assembleWeek(input: AssembleInput): AiProgramResult {
   const requestedDays = Number.isFinite(input.daysPerWeek) ? Math.round(input.daysPerWeek) : 3;
   const days = Math.min(6, Math.max(1, requestedDays));
   const availableEquipment = parseEquipment(input.equipmentRaw);
-  const excludedZones = input.excludedZones.map((z) => z.trim().toLowerCase()).filter(Boolean);
+  // Zone gia' risolte con tier a monte (buildExcludedZones); la normalizzazione
+  // e la mappa zona->muscoli/pattern vivono in zoneMap (usato da rankExercises).
+  const excludedZones = input.excludedZones;
 
   const restBias = REST_BIAS_SECONDS[seed.restBias] ?? 0;
   // varieta' tollerata -> ruota i rank sugli slot ripetuti; bassa (1A/3) -> stesso gesto.
@@ -542,7 +552,7 @@ function buildRationale(
   days: number,
   requestedDays: number,
   seed: ReturnType<typeof neurotypeSeed>,
-  excludedZones: string[],
+  excludedZones: ExcludedZone[],
   skippedSlots: string[],
   mode: "new" | "continue",
 ): string {
@@ -561,7 +571,9 @@ function buildRationale(
     parts.push(`Giorni richiesti: ${requestedDays}, generati ${days} (il telaio M2 copre 1-6).`);
   }
   if (excludedZones.length > 0) {
-    parts.push(`Zone escluse dal gate di sicurezza: ${excludedZones.join(", ")}.`);
+    parts.push(
+      `Zone escluse dal gate di sicurezza: ${excludedZones.map((z) => z.zone).join(", ")}.`,
+    );
   }
   if (skippedSlots.length > 0) {
     parts.push(`Slot senza candidati in libreria (saltati): ${skippedSlots.join("; ")}.`);

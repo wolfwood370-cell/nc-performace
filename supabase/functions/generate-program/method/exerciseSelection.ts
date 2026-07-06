@@ -4,6 +4,7 @@
 // Determinismo: stesso input -> stesso output (tie-break esplicito su os_id).
 
 import type { ExerciseRow, RankedExercise, SelectionCriteria } from "./types.ts";
+import { zoneExcludes } from "./zoneMap.ts";
 
 /**
  * Pesi del punteggio — documentati e tunabili in un punto solo.
@@ -100,18 +101,9 @@ export function hardFilterReasons(row: ExerciseRow, c: SelectionCriteria): strin
     reasons.push("escluso: complessità tecnica alta per principiante");
   }
 
-  // 4. Zone infortunate: token presente in muscles/secondary_muscles/pattern.
-  const zoneHaystack = [
-    ...(row.muscles ?? []).map(norm),
-    ...(row.secondary_muscles ?? []).map(norm),
-    ...rowPatterns(row),
-  ];
-  for (const zone of c.excludedZones) {
-    const z = norm(zone);
-    if (z && zoneHaystack.some((h) => h.includes(z))) {
-      reasons.push(`escluso: zona '${zone}' coinvolta`);
-    }
-  }
+  // 4. Zone infortunate: ponte zona -> muscoli/pattern/posizione/famiglia (zoneMap).
+  const zoneReason = zoneExcludes(row, c.excludedZones);
+  if (zoneReason) reasons.push(`escluso: ${zoneReason}`);
 
   return reasons;
 }

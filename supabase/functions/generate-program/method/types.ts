@@ -5,6 +5,7 @@
 // NULL = sconosciuto, MAI motivo di esclusione.
 
 import type { NeurotypeSeed } from "./neurotypeSeed.ts";
+import type { ExcludedZone } from "./zoneMap.ts";
 
 export type ExerciseFamily = "forza" | "pliometrico" | "ciclico";
 export type ExecutionMode = "grind" | "balistico" | "isometrico";
@@ -35,6 +36,8 @@ export interface ExerciseRow {
   lift_phase: string | null;
   muscles: string[] | null;
   secondary_muscles: string[] | null;
+  /** attributes jsonb della riga; usato per position_load (gate zone). NULL = nessuno. */
+  attributes?: { position_load?: Record<string, string> } | null;
 }
 
 export type ExperienceLevel = "principiante" | "intermedio" | "avanzato";
@@ -55,11 +58,8 @@ export interface SelectionCriteria {
   preferredExecution?: ExecutionMode;
   /** Seed neurotipo (da neurotypeSeed()); NEUTRAL_SEED se non disponibile. */
   neurotype: NeurotypeSeed;
-  /**
-   * Token di zone infortunate/da evitare: escludono la riga se compaiono in
-   * muscles[], secondary_muscles[] o nei pattern.
-   */
-  excludedZones: string[];
+  /** Zone infortunate risolte (con tier per stato). Vedi zoneMap.zoneExcludes. */
+  excludedZones: ExcludedZone[];
 }
 
 /** Esercizio fattibile per lo slot, con punteggio e tracciabilità del perché. */

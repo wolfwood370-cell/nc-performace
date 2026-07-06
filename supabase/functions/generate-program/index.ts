@@ -7,6 +7,7 @@ import {
   safetyGate,
 } from "./method/assembleWeek.ts";
 import type { CandidateRow } from "./method/assembleWeek.ts";
+import { hasGeneralBlock } from "./method/zoneMap.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,13 +191,30 @@ serve(async (req) => {
       .eq("athlete_id", athlete_id)
       .in("status", ["in_rehab", "chronic"]);
 
-    // Zone escluse (S0): unione fms_exclusion_zones + zone degli infortuni in corso.
+    // Zone escluse (S0): unione fms_exclusion_zones + zone degli infortuni in
+    // corso, risolte con tier per stato (in_rehab/fms = aggressivo, chronic = moderato).
     const excludedZones = buildExcludedZones(
       (profile.fms_exclusion_zones as string[] | null) ?? null,
       (injuries ?? [])
-        .map((i: { body_zone: unknown }) => String(i.body_zone ?? ""))
-        .filter(Boolean),
+        .map((i: { body_zone: unknown; status: unknown }) => ({
+          zone: String(i.body_zone ?? ""),
+          status: String(i.status ?? ""),
+        }))
+        .filter((i) => i.zone),
     );
+
+    // Zona 'general' (esclusione FMS grossolana): rimando come il gate clearance.
+    // 200 error-shaped (come safetyGate) -> il FE non sostituisce la settimana.
+    if (hasGeneralBlock(excludedZones)) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Atleta con esclusione 'general': rimando allo specialista prima della generazione",
+          gate: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Libreria esercizi del coach: i candidati per la selezione (S4).
     // NB: il fetch workout_logs dello stub e' stato rimosso — nutriva solo il
@@ -204,7 +222,7 @@ serve(async (req) => {
     const { data: exerciseRows, error: exercisesError } = await supabase
       .from("exercises")
       .select(
-        "id, os_id, name, exercise_family, movement_pattern, patterns, equipment, execution_mode, suited_rep_range, fatigue_cost, technical_complexity, laterality, stability_demand, body_position, lift_phase, muscles, secondary_muscles",
+        "id, os_id, name, exercise_family, movement_pattern, patterns, equipment, execution_mode, suited_rep_range, fatigue_cost, technical_complexity, laterality, stability_demand, body_position, lift_phase, muscles, secondary_muscles, attributes",
       )
       .eq("coach_id", user.id)
       .eq("archived", false)

@@ -267,14 +267,49 @@ Deno.test("safetyGate: blocca sul contenuto semantico, non sulla presenza dell'o
   assertEquals(safetyGate({ medicalClearanceRequired: false, redFlags: "" }).blocked, false);
 });
 
-Deno.test("buildExcludedZones: unione normalizzata, dedupe, ordinata", () => {
-  assertEquals(buildExcludedZones([" Spalle ", "ginocchio"], ["GINOCCHIO", "anca"]), [
-    "anca",
-    "ginocchio",
-    "spalle",
+Deno.test("buildExcludedZones: tier per stato, dedupe severity-wins, ordinata", () => {
+  // FMS -> aggressivo; injury in_rehab -> aggressivo, chronic -> moderato; ordine per zona.
+  assertEquals(
+    buildExcludedZones(
+      [" Spalla "],
+      [
+        { zone: "GINOCCHIO", status: "in_rehab" },
+        { zone: "anca", status: "chronic" },
+      ],
+    ),
+    [
+      { zone: "anca", tier: "moderato" },
+      { zone: "ginocchio", tier: "aggressivo" },
+      { zone: "spalla", tier: "aggressivo" },
+    ],
+  );
+  // Severity wins: stessa zona FMS (aggressivo) + injury chronic (moderato) -> aggressivo.
+  assertEquals(buildExcludedZones(["spalla"], [{ zone: "spalla", status: "chronic" }]), [
+    { zone: "spalla", tier: "aggressivo" },
   ]);
+  // L'ordine di arrivo non declassa: in_rehab poi chronic sulla stessa zona resta aggressivo.
+  assertEquals(
+    buildExcludedZones(
+      [],
+      [
+        { zone: "anca", status: "in_rehab" },
+        { zone: "anca", status: "chronic" },
+      ],
+    ),
+    [{ zone: "anca", tier: "aggressivo" }],
+  );
+  // Vuoti / whitespace scartati.
   assertEquals(buildExcludedZones(null, []), []);
-  assertEquals(buildExcludedZones(undefined, ["  "]), []);
+  assertEquals(buildExcludedZones(undefined, [{ zone: "  ", status: "in_rehab" }]), []);
+});
+
+Deno.test("buildExcludedZones: determinismo (stesso input -> stesso output)", () => {
+  const fms = ["ginocchio"];
+  const inj = [
+    { zone: "spalla", status: "in_rehab" },
+    { zone: "anca", status: "chronic" },
+  ];
+  assertEquals(buildExcludedZones(fms, inj), buildExcludedZones(fms, inj));
 });
 
 // ---------------------------------------------------------------------------
@@ -429,14 +464,21 @@ Deno.test("equipment limitato: il motore ripiega sugli esercizi fattibili", () =
   assertEquals(result.days[0].exercises[0].exercise_id, "id-squat-2");
 });
 
-Deno.test("zona esclusa: gli slot senza candidati vengono saltati e annotati nel rationale", () => {
-  const result = assembleWeek(input({ daysPerWeek: 2, excludedZones: ["spalle"] }));
+Deno.test("zona esclusa (spalla aggressivo): upper quasi svuotato, resta solo l'isolamento", () => {
+  const result = assembleWeek(
+    input({ daysPerWeek: 2, excludedZones: [{ zone: "spalle", tier: "aggressivo" }] }),
+  );
   const upper = result.days[1];
-  // Bench (secondary: spalle) e Overhead Press (muscles: spalle) fuori -> 2 slot saltati.
+  // spalle -> spalla (tier aggressivo): push verticale (forte) + push/pull orizzontale e
+  // pull verticale (cautela) tutti esclusi; sopravvive solo l'isolamento (Biceps Curl).
   const names = upper.exercises.map((e) => e.name);
   assertEquals(names.includes("Bench Press"), false);
   assertEquals(names.includes("Overhead Press"), false);
-  assertEquals(names, ["Barbell Row", "Pull-Up", "Biceps Curl"]);
+  assertEquals(names.includes("Barbell Row"), false);
+  assertEquals(names.includes("Pull-Up"), false);
+  assertEquals(names, ["Biceps Curl"]);
+  // Il lower (squat/hinge/lunge/core) resta pieno: il gate spalla non lo tocca.
+  assertEquals(result.days[0].exercises.length, 4);
   assertEquals(result.rationale.includes("saltati"), true);
   assertEquals(result.rationale.includes("spalle"), true);
 });

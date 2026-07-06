@@ -161,16 +161,20 @@ Deno.test("complessità alta esclusa per principiante; NULL non esclude MAI", ()
   assertEquals(osIds(rankExercises(SQUAT_POOL, criteria())).includes("OS-004"), true);
 });
 
-Deno.test("zone escluse: match su muscles, secondary_muscles e pattern", () => {
-  // 'spalle' compare solo nei secondary_muscles della panca.
-  const c = criteria({ pattern: "push orizzontale", excludedZones: ["spalle"] });
+Deno.test("zone escluse: ponte zonaMap (alias spalle->spalla, tier aggressivo)", () => {
+  // spalle -> spalla; la panca (push orizzontale) cade sul pattern-cautela (tier aggressivo).
+  const c = criteria({
+    pattern: "push orizzontale",
+    excludedZones: [{ zone: "spalle", tier: "aggressivo" }],
+  });
   assertEquals(osIds(rankExercises([benchPress], c)), []);
   const reasons = hardFilterReasons(benchPress, c);
   assertEquals(reasons.length, 1);
-  assertEquals(reasons[0].includes("spalle"), true);
+  // Il motivo cita la zona CANONICA ('spalla'), non l'alias grezzo.
+  assertEquals(reasons[0].includes("spalla"), true);
 
-  // Zona che matcha il pattern stesso.
-  const noSquat = criteria({ excludedZones: ["squat"] });
+  // Zona non mappata che matcha il pattern stesso -> fallback sottostringa.
+  const noSquat = criteria({ excludedZones: [{ zone: "squat", tier: "aggressivo" }] });
   assertEquals(osIds(rankExercises(SQUAT_POOL, noSquat)), []);
 
   // Nessuna zona = nessuna esclusione.
