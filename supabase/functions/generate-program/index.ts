@@ -23,9 +23,11 @@ serve(async (req) => {
   try {
     // -------------------------------------------------------------------------
     // SECURITY GATE — must run before any expensive work (DB reads, program
-    // assembly). Order: header → JWT → role → ownership. Each step is a hard
-    // 401/403 because `verify_jwt = false` at the gateway means this code is
-    // the only line of defense for this endpoint.
+    // assembly). Order: header → JWT → role → ownership. The gateway already
+    // rejects callers without a valid JWT (verify_jwt = true — see
+    // supabase/config.toml [functions.generate-program]); these in-function
+    // checks are defense in depth (safe if the flag is ever toggled off) and
+    // give us user.id for role/ownership enforcement and logging.
     // -------------------------------------------------------------------------
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
