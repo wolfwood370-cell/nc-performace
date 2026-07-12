@@ -17,15 +17,15 @@ corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowo
 
 ## 1. Stack canonico (sintesi)
 
-**Frontend**: React 18 · Vite 5 · TypeScript strict · Tailwind + shadcn/ui · TanStack Query v5 (IndexedDB persist) · Zustand+immer · React Router v6 · Framer Motion.
+**Frontend**: React 18 · Vite 5 · TypeScript (⚠ `strict: false` oggi — `tsconfig.app.json`; direzione dichiarata: strict progressivo in una fetta dedicata futura. Il build gate `tsc --noEmit` NON verifica strictness: ogni handoff deve saperlo) · Tailwind + shadcn/ui · TanStack Query v5 (IndexedDB persist) · Zustand+immer · React Router v7 · Framer Motion.
 
 **Backend**: **Supabase — progetto di proprietà (UE)** — Postgres + Auth + Realtime + Storage + Edge Functions Deno. Deploy da CLI/connettore (non più "applicato da Lovable al merge"). ⚠ **Cutover FE `.env` ancora in corso (D6)**: oggi il front-end punta al backend di proprietà solo via `.env.local` temporaneo. Migrazione da Lovable Cloud tracciata in `docs/DB_MIGRATION.md`.
 
 **Pagamenti**: Stripe (Subscriptions + Checkout + Customer Portal + Webhooks).
 
-**PWA**: Service Worker · IndexedDB · Wake Lock API · Web Audio API.
+**PWA**: RIMOSSA — Service Worker eliminato (`vite.config.ts:5`); i residui offline/Wake Lock sono moduli scollegati (`docs/WIP_MODULES.md`). L'app atleta resta mobile-only, ma NON assumere SW/offline attivi.
 
-**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`).
+**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`) · 45 test unit Deno del motore-metodo: `deno test --cached-only supabase/functions/generate-program/method/`.
 
 **Quality**: Husky + lint-staged + prettier al commit.
 
@@ -52,7 +52,7 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 4. **No "while you're here"**: flagga via `mcp__ccd_session__spawn_task`, non mescolare scope.
 5. **Aura compliance**: token sempre, mai hex raw nei namespace Coach/Athlete.
 6. **Hook order**: tutti gli hook prima di qualsiasi return early.
-7. **Types ownership**: `types.ts` è rigenerato da te via `supabase gen types typescript --linked` (DB di proprietà). Il blocco `appointments` non viene più droppato: l'**hand-patch storico è obsoleto**. Rigenera dopo ogni cambio di schema.
+7. **Types ownership**: `types.ts` è rigenerato da te via `npm run gen:types` (= `supabase gen types typescript --project-id xgxtplqlewpqjzghvbke`; output da redirigere su `src/integrations/supabase/types.ts`). Il blocco `appointments` non viene più droppato: l'**hand-patch storico è obsoleto**. Rigenera dopo ogni cambio di schema.
 8. **Worktree-isolated**: opera in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Non pushare mai** — l'utente sincronizza via GitHub Desktop.
 9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude <noreply@anthropic.com>` sempre.
 10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` (usa `src/lib/logger.ts`).
@@ -160,4 +160,4 @@ Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgre
 
 ## 9. Documentazione librerie
 
-**Context7 non adottato** (decisione dotazione 2026-07-04): per React / Vite / TanStack Query / Supabase / Stripe / Tailwind la web search + le docs ufficiali bastano, e il benchmark del vendor stesso mostra guadagno minimo sulle librerie popolari. Niente `CONTEXT7_API_KEY` da configurare. Si rivaluta **solo** se emergono problemi di documentazione versione-specifica. Regola valida comunque: per le API che cambiano, consulta la fonte ufficiale, non la memoria.
+**Context7 È configurato** in `.mcp.json` (server http con header `CONTEXT7_API_KEY`) — la nota precedente «non adottato» era superata dalla realtà del repo (allineamento 2026-07-12). Uso pragmatico: per React / Vite / TanStack Query / Supabase / Stripe / Tailwind la web search + le docs ufficiali di norma bastano; usa context7 per API versione-specifiche o librerie poco note. Regola valida comunque: per le API che cambiano, consulta la fonte ufficiale, non la memoria.
