@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Env reali: MAI tracciati. Il template coi soli nomi vive in .env.example.
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
