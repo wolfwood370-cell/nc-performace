@@ -65,7 +65,7 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 > Indice snello del modello-dato introdotto dalla fetta F0 (CORE v2.1); dettaglio esteso in `methodology/03-BACKEND-SUPABASE.md §12`.
 
 - **Due modalità, un motore:** `profiles.coaching_mode` {coached, autonomous} — cambia solo CHI rilascia il programma, non il motore. ≠ `mode` (body-param di `generate-program`: new|continue).
-- **Tier + entitlement config-driven:** `profiles.tier` {premium, monthly}; le feature abilitate vivono in `tier_entitlements` (tabella-config). NB: oggi `src/hooks/useFeatureAccess.ts` gestisce ancora code-side i limiti di consumo (tier legacy free/basic/pro) — il rewiring sugli entitlement DB è una fetta successiva.
+- **Tier + entitlement config-driven:** `profiles.tier` {premium, monthly}; le feature abilitate vivono in `tier_entitlements` (tabella-config). NB: oggi `src/hooks/useFeatureAccess.ts` gestisce ancora code-side limiti di consumo + gate booleani (tier legacy free/basic/pro) — il rewiring sugli entitlement DB è una fetta successiva.
 - **Metodo = dato:** parametri-metodo (Tabella RPE, split, zoneMap…) in `method_config` (metodo di Nicolò = profilo n.1), mai costanti sparse nel codice.
 - **Storia immutabile:** ciclo bozza mutabile → rilascio immutabile (mai sovrascritto) → esecuzione (log) → analisi (solo da log+rilasci). `consents` e `audit_log` sono **append-only**: MAI UPDATE/DELETE, nemmeno da migrazione futura.
 - **Consenso-salute = cancello:** `consents` registra il consenso art. 9 GDPR; è il prerequisito che il gate §0 del CORE (fette cliniche) verifica prima di agire.
@@ -142,7 +142,7 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 | ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | [`methodology/00-CORE.md`](.claude/methodology/00-CORE.md)                         | Sempre. Mindset, decision tree, git, hooks, glossary.           |
 | [`methodology/01-COACH-PLATFORM.md`](.claude/methodology/01-COACH-PLATFORM.md)     | Coach web+mobile (Aura, routes, Stripe, AI).                    |
-| [`methodology/02-ATHLETE-APP.md`](.claude/methodology/02-ATHLETE-APP.md)           | Athlete PWA mobile (`.theme-athlete`, offline, Wake Lock).      |
+| [`methodology/02-ATHLETE-APP.md`](.claude/methodology/02-ATHLETE-APP.md)           | Athlete app mobile-only (`.theme-athlete`; PWA rimossa — v. §1). |
 | [`methodology/03-BACKEND-SUPABASE.md`](.claude/methodology/03-BACKEND-SUPABASE.md) | Supabase di proprietà + edge functions + CLI deploy + security. |
 | [`methodology/04-DESIGN-TO-CODE.md`](.claude/methodology/04-DESIGN-TO-CODE.md)     | Implementazione design da handoff Claude Design.                |
 | [`methodology/05-DEAD-CODE-AUDIT.md`](.claude/methodology/05-DEAD-CODE-AUDIT.md)   | Routine audit codice morto (knip, depcheck, grep).              |
