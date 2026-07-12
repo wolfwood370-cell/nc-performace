@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO; non usare come piano.**
+> Vedi `docs/stato-repo-2026-07-12.md` §2.
+
 # D10 — Guard auth route Coach (gap diffuso + fix centralizzato)
 
 > Cowork, 2026-06-14. Finding emerso dai test E2E (D9) e dalla diagnosi di Claude Code. Ambito: frontend access-control. **Nessun problema RLS** (verificato).

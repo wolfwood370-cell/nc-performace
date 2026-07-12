@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO; non usare come piano.**
+> Vedi `docs/stato-repo-2026-07-12.md` §2.
+
 # D7 — Setup login Google (coach + atleti su invito)
 
 > Generato da Cowork, 2026-06-14. Progetto Supabase ref `xgxtplqlewpqjzghvbke`.

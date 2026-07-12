@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO; non usare come piano.**
+> Vedi `docs/stato-repo-2026-07-12.md` §2.
+
 # D2 — Contratto di migrazione 6 funzioni AI → OpenAI diretto
 
 > Reference **verificata con fonti correnti (giugno 2026)** · generata da Cowork.

@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO; non usare come piano.**
+> Vedi `docs/stato-repo-2026-07-12.md` §2. (Nota 2026-07-12: la fn è oggi il motore deterministico del metodo, non più gpt-5.2.)
+
 # D11 — Piano: cablare `generate-program` nella UI coach
 
 > Stato: la edge function `generate-program` (gpt-5.2) è **deployata e validata live** (smoke 2026-06-15) ma **non è invocata da nessun punto del frontend**. Questo doc è il piano per cablarla. Esecuzione = **Claude Code** (codice + commit su branch). Mappa prodotta da esplorazione read-only (Cowork, 2026-06-15).

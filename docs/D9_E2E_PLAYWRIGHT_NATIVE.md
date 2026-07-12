@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO; non usare come piano.**
+> Vedi `docs/stato-repo-2026-07-12.md` §2.
+
 # D9 — E2E: config Playwright nativa (rimozione residuo Lovable)
 
 > Cowork, 2026-06-14. Spec + prompt per Claude Code. Emerso dall'audit (flag #1).
