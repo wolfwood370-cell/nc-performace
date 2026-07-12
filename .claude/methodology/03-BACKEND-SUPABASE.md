@@ -20,6 +20,7 @@
 9. [Realtime subscriptions](#9-realtime)
 10. [Logging + observability](#10-logging)
 11. [Anti-pattern backend](#11-antipatterns)
+12. [Modello-dato F0 (fondamenta — schema/RLS)](#12-modello-f0)
 
 ---
 
@@ -456,10 +457,10 @@ serve(async (req) => {
     return new Response("invalid signature", { status: 400 });
   }
 
-  // 1. Idempotency check via UNIQUE constraint
+  // 1. Idempotency check via UNIQUE constraint (schema F0: §12)
   const { error: insertError } = await supabase
     .from("stripe_events")
-    .insert({ event_id: event.id, type: event.type });
+    .insert({ stripe_event_id: event.id, type: event.type, payload: event });
   if (insertError?.code === "23505") {
     return new Response("already processed", { status: 200 }); // ← duplicate, OK
   }
@@ -495,7 +496,7 @@ serve(async (req) => {
 | Subscription mai attivata nel DB          | Webhook ricevuto ma write fail (RLS)                        | Verifica service role key in edge fn                             |
 | Customer Portal redirect fail             | Domain non whitelistato in Stripe Settings                  | Aggiungi domain in Stripe → Settings → Billing → Customer Portal |
 | Bundle ha publishable key staging in prod | `VITE_STRIPE_PUBLISHABLE_KEY` non rebildato dopo env change | Rebuild/redeploy del FE dopo il cambio env                       |
-| Duplicate subscription creation           | No idempotency check                                        | Aggiungi UNIQUE constraint su `stripe_events.event_id`           |
+| Duplicate subscription creation           | No idempotency check                                        | UNIQUE su `stripe_events.stripe_event_id` (già nello schema F0)  |
 
 <a id="7-ai"></a>
 
@@ -693,3 +694,27 @@ console.error("Webhook", { body: req.body, headers: req.headers });
 | Hardcoded prompt AI in TS                                         | Edit richiede deploy                   |
 | Migration con `DROP COLUMN` senza backup                          | Data loss                              |
 | Cascade delete via SQL trigger invece di RPC atomic               | Partial state on fail                  |
+
+<a id="12-modello-f0"></a>
+
+## 12. Modello-dato F0 (fondamenta — schema/RLS)
+
+Le 6 aggiunte green-field della fetta F0 (`supabase/migrations/20260712150000..150005_f0_*.sql`), tutte **deny-by-default** dal primo commit: RLS on, zero policy = zero accesso; esistono SOLO le policy elencate qui sotto.
+
+| Oggetto                                                          | Cosa                                                                                                                                                                                                   | RLS                                                                              |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `profiles.coaching_mode` enum {coached, autonomous}              | modalità del cliente; il gate §0 del CORE la legge per scegliere il percorso di rilascio. ≠ `mode` body-param di `generate-program` (new\|continue)                                                    | eredita `profiles`                                                               |
+| `profiles.tier` enum {premium, monthly}                          | tier commerciale; ≠ `subscription_tier` legacy (text, non toccata)                                                                                                                                     | eredita `profiles`                                                               |
+| `tier_entitlements` (tier, feature, enabled)                     | mappa entitlement come config-dato (seed nella migration); il rewiring FE è una fetta successiva — oggi `useFeatureAccess.ts` gestisce solo limiti di consumo hard-coded su tier legacy free/basic/pro | SELECT `authenticated`; scrittura solo Cowork/migrazione                         |
+| `consents` (append-only)                                         | registro consensi granulare (art. 9 GDPR); stato attuale = riga più recente per (athlete_id, consent_type); FK `ON DELETE CASCADE` verso `profiles`                                                    | INSERT/SELECT own; SELECT coach via `is_coach_of_athlete`; **mai** UPDATE/DELETE |
+| `audit_log` (append-only)                                        | log azioni a prova di manomissione client; `actor_id` `ON DELETE SET NULL` (il log sopravvive alla cancellazione account, attore anonimizzato)                                                         | SELECT own/coach; INSERT solo service-role; **mai** UPDATE/DELETE                |
+| `stripe_events` (idempotenza)                                    | realizza il pattern idempotenza-webhook di §6.1; la cabla F3                                                                                                                                           | **zero policy** (solo service-role)                                              |
+| `method_config` (profile_name, version, config jsonb, is_active) | scaffolding config-driven (metodo di Nicolò = profilo n.1); indice unico parziale = max 1 versione attiva per profilo; il contenuto lo applica Cowork via connettore, mai hard-coded                   | SELECT `authenticated` dove `is_active`; scrittura solo Cowork                   |
+
+**Accesso-coach:** sempre l'helper esistente `public.is_coach_of_athlete(athlete_id)` (SECURITY DEFINER — §5.1), NON un `EXISTS` inline. Nota: esiste anche `is_my_athlete` (quasi-duplicato) → consolidamento = fetta hardening.
+
+**Pattern policy F0 (da riusare sulle tabelle future):** una sola SELECT permissive combinata own-or-coach per (tabella, ruolo) — non aggrava il finding advisor `multiple_permissive_policies` — e `(SELECT auth.uid())` nelle comparazioni dirette — non aggrava `auth_rls_initplan`.
+
+### 12.1 `daily_readiness` — 3° write-path dell'anello atleta (esistente; F0 lo documenta, non lo tocca)
+
+Oltre a `workout_logs` + `exercise_logs`, l'anello atleta scrive **`daily_readiness`**: check-in giornaliero (UNIQUE `athlete_id,date`; upsert da `src/hooks/athlete/useAthleteReadinessHooks.ts` — usato da `DailyCheckin.tsx` — e da `useOfflineSync.ts`) con readiness `score`, sonno/stress/energia/umore/fatica/digestione, `body_weight`, `has_pain` + `soreness_map` (jsonb per muscolo). Letto da: dashboard coach (alert `low_readiness`, soglie 45/50 in `useCoachDashboardMetrics`/`useCoachData`), risk overview, analytics (`body_weight`), health-profile (`has_pain`/`soreness_map`). **`has_pain`/`soreness_map` = input naturale della cattura-sicurezza per-ciclo dell'anello Autonomo** (gate §0 del CORE). Debiti nominati (fetta allenamento-autonomo): niente `updated_at` (la conflict-resolution offline usa `created_at`) e `score` placeholder-85 scritto da `DailyCheckin.tsx`.

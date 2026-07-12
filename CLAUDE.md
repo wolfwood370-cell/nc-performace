@@ -33,10 +33,10 @@ corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowo
 
 ## 2. Dual interface (CRITICAL)
 
-| Ambito             | Target                        | Tema               | Token namespace                                                                                                  |
-| ------------------ | ----------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **Coach Platform** | Web-first (responsive mobile) | Aura Health System | `bg-primary`, `bg-surface-container-*`, `text-on-surface-variant`, `font-display`, `rounded-3xl`, `rounded-full` |
-| **Athlete App**    | Mobile-only PWA               | `.theme-athlete`   | `var(--nc-primary)`, `var(--nc-ink)`, `var(--nc-muted)`, `var(--nc-track)`                                       |
+| Ambito             | Target                            | Tema               | Token namespace                                                                                                  |
+| ------------------ | --------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Coach Platform** | Web-first (responsive mobile)     | Aura Health System | `bg-primary`, `bg-surface-container-*`, `text-on-surface-variant`, `font-display`, `rounded-3xl`, `rounded-full` |
+| **Athlete App**    | Mobile-only (PWA rimossa — v. §1) | `.theme-athlete`   | `var(--nc-primary)`, `var(--nc-ink)`, `var(--nc-muted)`, `var(--nc-track)`                                       |
 
 **Mai mescolare**: un componente in `src/components/coach/**` NON usa `.theme-athlete` vars, e viceversa.
 
@@ -44,7 +44,7 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 
 ---
 
-## 3. Le 10 leggi
+## 3. Le 11 leggi
 
 1. **Misura prima di agire**: `wc -l` o `Grep` mirato. Mai indovinare.
 2. **Atomic changes**: 1 commit = 1 intervento logico.
@@ -57,6 +57,20 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude <noreply@anthropic.com>` sempre.
 10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` (usa `src/lib/logger.ts`).
 11. **Security = ownership condivisa (DB di proprietà)**: non esiste più il Lovable Security Agent. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping e advisor Supabase sono responsabilità **condivisa**: tu (Claude Code) = **codice sicuro + `/security-review` ai milestone**; **Cowork** = advisors/RLS/review del DB via connettore. Tu puoi proporre migration/policy come **FILE** in `supabase/migrations/`, ma **non applichi sul DB** (niente MCP Supabase in Code): l'applicazione la esegue **Cowork col benestare di Nicolò**. Operazioni potenzialmente distruttive → **STOP & ASK** (§5). Vedi `methodology/03-BACKEND-SUPABASE.md §0`.
+
+---
+
+## Modello (fondamenta F0)
+
+> Indice snello del modello-dato introdotto dalla fetta F0 (CORE v2.1); dettaglio esteso in `methodology/03-BACKEND-SUPABASE.md §12`.
+
+- **Due modalità, un motore:** `profiles.coaching_mode` {coached, autonomous} — cambia solo CHI rilascia il programma, non il motore. ≠ `mode` (body-param di `generate-program`: new|continue).
+- **Tier + entitlement config-driven:** `profiles.tier` {premium, monthly}; le feature abilitate vivono in `tier_entitlements` (tabella-config). NB: oggi `src/hooks/useFeatureAccess.ts` gestisce ancora code-side i limiti di consumo (tier legacy free/basic/pro) — il rewiring sugli entitlement DB è una fetta successiva.
+- **Metodo = dato:** parametri-metodo (Tabella RPE, split, zoneMap…) in `method_config` (metodo di Nicolò = profilo n.1), mai costanti sparse nel codice.
+- **Storia immutabile:** ciclo bozza mutabile → rilascio immutabile (mai sovrascritto) → esecuzione (log) → analisi (solo da log+rilasci). `consents` e `audit_log` sono **append-only**: MAI UPDATE/DELETE, nemmeno da migrazione futura.
+- **Consenso-salute = cancello:** `consents` registra il consenso art. 9 GDPR; è il prerequisito che il gate §0 del CORE (fette cliniche) verifica prima di agire.
+- **Anello atleta = 3 scritture:** `daily_readiness` (check-in prontezza, porta `has_pain`+`soreness_map`) + `workout_logs` + `exercise_logs`.
+- **Sicurezza:** ogni tabella nuova deny-by-default (RLS on, zero policy = zero accesso); accesso-coach via helper `is_coach_of_athlete(athlete_id)`.
 
 ---
 
@@ -146,7 +160,7 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 
 ## 8. Tu, agente AI
 
-Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgres/Edge/RLS) + PWA offline-first.
+Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgres/Edge/RLS).
 
 **Modalità default**: safest-path autonoma. Stop & ask solo per i casi in §5.
 

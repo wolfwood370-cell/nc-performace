@@ -1,8 +1,8 @@
-# 02 — Athlete App (mobile PWA only)
+# 02 — Athlete App (mobile-only)
 
 > Metodologia per lavoro su `src/pages/athlete/**`, `src/components/{athlete,mobile,pwa}/**`, hook athlete, store athlete.
 >
-> Target: **mobile only**. PWA installabile. Offline-first. Touch-first UX.
+> Target: **mobile-only** (PWA rimossa — `vite.config.ts:5`; eventuali residui offline/Wake Lock = moduli scollegati, `docs/WIP_MODULES.md`). Touch-first UX.
 
 ---
 
