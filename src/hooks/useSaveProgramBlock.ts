@@ -61,13 +61,14 @@
  *   WITH CHECK (coach_id = auth.uid());
  * ```
  *
- * After the migration runs, regenerate `src/integrations/supabase/types.ts`.
- * Until then this hook uses a narrow local cast (see `BLOCKS_TABLE`) so it
- * compiles against the current `Database` type.
+ * The migration is applied and `program_blocks` is part of the generated
+ * `Database` type (`src/integrations/supabase/types.ts`), so the client
+ * below is fully typed.
  */
 
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { ProgramBlock } from "@/types/training";
 
 // ---------------------------------------------------------------------------
@@ -113,18 +114,6 @@ export class SaveProgramBlockError extends Error {
 // ---------------------------------------------------------------------------
 // Internals
 // ---------------------------------------------------------------------------
-
-/**
- * Narrow cast around the `program_blocks` table reference.
- *
- * Why: the migration above may not yet be reflected in the generated
- * `Database` type. Using `from('program_blocks' as never)` (or `any`) here
- * is preferable to disabling typegen across the whole client. Once the
- * types are regenerated, this helper becomes a no-op.
- */
-const programBlocksTable = () =>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (supabase as any).from("program_blocks");
 
 /** Lightweight runtime validation — catches obvious shape bugs early. */
 function validateBlock(block: ProgramBlock): void {
@@ -235,7 +224,8 @@ export function useSaveProgramBlock(): UseMutationResult<
 
       // UPSERT on `id` — same call handles both first save and subsequent
       // edits. Atomic by virtue of being a single row write.
-      const { data, error } = await programBlocksTable()
+      const { data, error } = await supabase
+        .from("program_blocks")
         .upsert(
           {
             id: blockToSave.id,
@@ -245,7 +235,10 @@ export function useSaveProgramBlock(): UseMutationResult<
             goal: blockToSave.goal,
             start_date: blockToSave.start_date,
             status,
-            data: blockToSave, // entire document goes here
+            // ProgramBlock has no string index signature, so it does not
+            // satisfy the generated `Json` type structurally; the document
+            // is JSON-serializable by construction (plain data, no methods).
+            data: blockToSave as unknown as Json, // entire document goes here
             updated_at: nowISO,
           },
           { onConflict: "id" },
