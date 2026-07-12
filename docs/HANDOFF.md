@@ -18,7 +18,7 @@
 
 ## 1. In una riga
 
-Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web + Atleta PWA) da **Lovable Cloud** a **Supabase di proprietà** (ref `xgxtplqlewpqjzghvbke`). AI→OpenAI **validata 6/6**, login Google **attivo**, invito→atleta **verificato**, fix roster + **`generate-program` cablata**. Restano: **popolare la libreria esercizi** (§4 r.8), collegare i moduli WIP, e il cutover finale del `.env`.
+Migrazione di **nc-performance-hub** (coaching dual-interface: Coach "Aura" web + Atleta PWA) da **Lovable Cloud** a **Supabase di proprietà** (ref `xgxtplqlewpqjzghvbke`). AI→OpenAI **validata 6/6**, login Google **attivo**, invito→atleta **verificato**, fix roster + **`generate-program` cablata**. Restano: collegare i moduli WIP e il cutover finale del `.env` (la libreria esercizi è stata **popolata** — 954 righe, v. Addendum §0).
 
 ## 2. Stato attuale (fattuale)
 
@@ -88,9 +88,9 @@ Tutti **trackati** (2026-06-18): `CLAUDE.md` · `COWORK.md` + `.claude/methodolo
 Prosecuzione nc-performance-hub (Lovable → Supabase mio). Leggi PRIMA docs/HANDOFF.md
 + CLAUDE.md + docs/auto-miglioramento.md + .claude/methodology/00-CORE.md.
 
-Stato: vedi §2 per lo stato fattuale (campagna D13 completa — dettagli in
-docs/D13_AUDIT_REPORT.md). Blocco vivo: la libreria esercizi è ANCORA VUOTA (SENTINEL,
-§4 r.8) → i programmi referenziano esercizi SENTINEL finché non viene popolata.
+Stato: vedi Addendum §0 (stato vivo, prevale) + §2 per lo storico (campagna D13 completa —
+dettagli in docs/D13_AUDIT_REPORT.md). Libreria esercizi POPOLATA (954 righe); branch vivi
+non mergiati: claude/zonemap-riconc (+1) e claude/invite-resend-hardening (+4).
 
 GUARDRAIL: italiano; all'inizio VERIFICA il branch e crea claude/<slug> (NON su main); MAI push
 (sincronizzo io); build gate tsc --noEmit -p tsconfig.app.json verde; commit atomici; secrets le
@@ -108,10 +108,10 @@ Esplora→pianifica e proponi il piano PRIMA di modificare.
 Prosecuzione nc-performance-hub su Cowork. Leggi PRIMA COWORK.md (corsia Cowork) + docs/HANDOFF.md
 + docs/auto-miglioramento.md.
 
-Stato: vedi §2 per lo stato fattuale (dual-agent attivo; campagna D13 completa — dettagli in
-docs/D13_AUDIT_REPORT.md). Backend ref xgxtplqlewpqjzghvbke con tabelle per lo più vuote;
-LIBRERIA ESERCIZI ANCORA VUOTA (SENTINEL); FE su .env.local (TEMP). Resume del progetto Supabase
-(free-tier pausing) prima di ogni lavoro DB.
+Stato: vedi Addendum §0 (stato vivo, prevale) + §2 per lo storico (dual-agent attivo; campagna D13
+completa — dettagli in docs/D13_AUDIT_REPORT.md). Backend ref xgxtplqlewpqjzghvbke; LIBRERIA
+ESERCIZI POPOLATA (954 righe con coach_id, verifica 2026-07-12); FE su .env.local (TEMP). Resume
+del progetto Supabase (free-tier pausing) prima di ogni lavoro DB.
 
 CORSIA COWORK (da COWORK.md): git READ-ONLY; niente scritture nel repo (i file li committa Code su
 branch); il DB è il tuo binario: apply_migration (DDL) + il FILE supabase/migrations/* lo committa
@@ -121,8 +121,8 @@ secrets/.env/Stripe/Google = Nick; security = advisors/RLS/review DB via connett
 Nick; MAI push; esplora→pianifica→proponi PRIMA di agire; a ~85% di contesto fermati e prepara
 handoff + prompt.
 
-OBIETTIVO (dimmi tu quale): (a) popolare la libreria esercizi (export Lovable → import via connettore,
-o seed curato) — sblocca il prodotto; (b) assistere estrazione .env + cleanup dei 3 stash GHD residui;
+OBIETTIVO (dimmi tu quale): (a) QA della libreria esercizi popolata (954 righe: qualità dati /
+campi metodo); (b) assistere estrazione .env + cleanup dei 3 stash GHD residui;
 (c) cutover .env/backend (D6/D4) + scollegare Lovable; (d) verifica dati/connettore sulle nuove UI D13.
 Proponimi il micro-piano e procedi.
 ```
