@@ -254,8 +254,8 @@ export function useSaveProgramBlock(): UseMutationResult<
       }
 
       return {
-        id: data.id as string,
-        updated_at: data.updated_at as string,
+        id: data.id,
+        updated_at: data.updated_at,
       };
     },
     onSuccess: (result, variables) => {
