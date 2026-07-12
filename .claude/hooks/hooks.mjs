@@ -71,7 +71,10 @@ function preToolUse(tool, input) {
 
   if (tool === "Write" || tool === "Edit" || tool === "MultiEdit") {
     const fp = String(input.file_path || "").replace(/\\/g, "/");
-    if (/(^|\/)\.env(\.[^/]+)?$/.test(fp) || /(^|\/)\.mcp\.json$/.test(fp))
+    // Carve-out: .env.example is a names-only template tracked in the repo —
+    // the guard stays intact for every real env file (.env, .env.local, ...).
+    const isEnvExample = /(^|\/)\.env\.example$/.test(fp);
+    if ((/(^|\/)\.env(\.[^/]+)?$/.test(fp) && !isEnvExample) || /(^|\/)\.mcp\.json$/.test(fp))
       block(
         "⛔ Scrittura su " +
           fp +
