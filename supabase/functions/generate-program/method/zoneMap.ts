@@ -1,7 +1,7 @@
 // method/zoneMap.ts — ponte zona-infortunio -> muscoli/pattern/posizione/famiglia (gate S0).
-// PURO e deterministico. Fonte: mappa v2 (app/mappa-zone-muscoli-pattern-bozza-2026-07-06.md).
-// Solo "spalla" e' VALIDATA sul DB (dry-run 2026-07-06); le altre 13 sono BOZZA
-// (stessa logica, non ancora dry-runnate) -> comunque meglio del match a sottostringa.
+// PURO e deterministico. v18 — fonte: §2 di 00-OS/mappa-zona-esclusione.md (riconciliata,
+// validata C6): split dorsale (lat/scapolare) / toracica (erettori, deroga mobilita') +
+// clamp del tier per-zona (ZONE_BASE) + conform-delta FASE B (polso-mano pressing, addome).
 
 import type { ExerciseRow } from "./types.ts";
 
@@ -48,8 +48,9 @@ const ALIAS: Record<string, string> = {
   neck: "cervicale",
   dorsale: "dorsale",
   dorso: "dorsale",
-  toracica: "dorsale",
-  thoracic: "dorsale",
+  toracica: "toracica",
+  thoracic: "toracica",
+  "dorso rigido": "toracica", // solo mobilita'-toracica esplicita; le ambigue restano 'dorsale'
   "schiena alta": "dorsale",
   scapola: "dorsale",
   "upper back": "dorsale",
@@ -121,7 +122,7 @@ const COARSE: Record<string, string[]> = {
     "caviglia",
     "polpaccio",
   ],
-  spine: ["cervicale", "dorsale", "lombare", "addome"],
+  spine: ["cervicale", "dorsale", "toracica", "lombare", "addome"],
   general: ["__general__"],
 };
 
@@ -145,7 +146,13 @@ const ZONE_MAP: Record<string, ZoneRule> = {
   "polso-mano": {
     muscoli: ["avambracci"],
     patternForte: [],
-    patternCautela: ["carry/locomozione", "pull verticale", "pull orizzontale"],
+    patternCautela: [
+      "push verticale",
+      "push orizzontale",
+      "carry/locomozione",
+      "pull verticale",
+      "pull orizzontale",
+    ],
   },
   cervicale: {
     muscoli: ["trapezio"],
@@ -153,9 +160,14 @@ const ZONE_MAP: Record<string, ZoneRule> = {
     patternCautela: ["carry/locomozione", "push verticale", "squat"],
   },
   dorsale: {
-    muscoli: ["trapezio", "romboidi", "erettori spinali", "gran dorsale"],
+    muscoli: ["gran dorsale", "trapezio", "romboidi"], // solo lat/scapolare
     patternForte: [],
-    patternCautela: ["pull orizzontale", "pull verticale", "hip hinge", "carry/locomozione"],
+    patternCautela: ["pull orizzontale", "pull verticale", "carry/locomozione"],
+  },
+  toracica: {
+    muscoli: ["erettori spinali"], // rachide toracico = mobilita' (deroga: ZONE_BASE ceil)
+    patternForte: [],
+    patternCautela: ["push verticale", "squat", "hip hinge"],
   },
   lombare: {
     muscoli: ["erettori spinali"],
@@ -165,7 +177,7 @@ const ZONE_MAP: Record<string, ZoneRule> = {
   addome: {
     muscoli: ["retto dell'addome", "trasverso dell'addome", "obliqui"],
     patternForte: ["core flessione", "core rotazione", "core flessione laterale"],
-    patternCautela: ["core anti-estensione", "core anti-rotazione"],
+    patternCautela: ["core anti-estensione", "core anti-rotazione", "core anti-flessione laterale"],
   },
   anca: {
     muscoli: ["grande gluteo", "medio gluteo", "ileo-psoas"],
@@ -210,6 +222,22 @@ const ZONE_MAP: Record<string, ZoneRule> = {
     famigliaForte: ["pliometrico"],
     famigliaCautela: ["ciclico"],
   },
+};
+
+/**
+ * Deroghe cliniche per-zona: `floor` forza 'aggressivo', `ceil` limita a 'moderato'.
+ * Si applica PER canonical dentro zoneExcludes (una zona grezza risolve a piu' canonici).
+ */
+const ZONE_BASE: Record<string, { floor?: ZoneTier; ceil?: ZoneTier }> = {
+  "polso-mano": { floor: "aggressivo" }, // pressing su mani: anche chronic -> aggressivo
+  toracica: { ceil: "moderato" }, // mobilita': anche in_rehab -> moderato
+};
+const clampTier = (canonical: string, tier: ZoneTier): ZoneTier => {
+  const b = ZONE_BASE[canonical];
+  if (!b) return tier;
+  if (b.floor === "aggressivo") return "aggressivo";
+  if (b.ceil === "moderato" && tier === "aggressivo") return "moderato";
+  return tier;
 };
 
 /** raw zone -> zone canoniche. []=non risolta (il chiamante applica il fallback). */
@@ -264,7 +292,8 @@ export function zoneExcludes(row: ExerciseRow, excluded: ExcludedZone[]): string
       if (canonical === "__general__") return "zona 'general': rimando / clearance";
       const rule = ZONE_MAP[canonical];
       if (!rule) continue;
-      const aggr = tier === "aggressivo";
+      const eff = clampTier(canonical, tier); // deroga per-zona (ZONE_BASE)
+      const aggr = eff === "aggressivo";
 
       if (hits(muscles, rule.muscoli)) return `zona '${canonical}': muscolo coinvolto`;
       if (hits(patterns, rule.patternForte)) return `zona '${canonical}': pattern forte`;
