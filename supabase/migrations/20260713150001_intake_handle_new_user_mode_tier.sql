@@ -10,12 +10,15 @@
 -- hardening: search_path includes pg_temp). Only the two metadata reads and
 -- the two INSERT column lists change; everything else is verbatim.
 --
--- NOTE (residual risk, accepted 2026-07-13): raw_user_meta_data is
--- client-settable on self-serve signups — same trust boundary as the
--- pre-existing coach_id attach path. The self-signup fallback branch
--- intentionally does NOT honor coaching_mode/tier (commercial fields are set
--- only through the coach invite path). Metadata-trust hardening is tracked as
--- a follow-up slice.
+-- NOTE (residual risk — rls-auditor warning 1, 2026-07-13): raw_user_meta_data
+-- is client-settable on self-serve signups. coaching_mode/tier are honored
+-- ONLY in the meta_coach_id branch — the same trust boundary as the
+-- pre-existing coach_id attach path (a self-signup that knows a coach UUID
+-- could already attach itself; it can now also claim a tier). The
+-- invite_tokens branch and the self-signup fallback intentionally do NOT
+-- honor them (the legacy token flow never sets this metadata server-side).
+-- Metadata-trust hardening (e.g. gating on admin-created users) is tracked as
+-- a follow-up slice — decision Nick.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -94,16 +97,16 @@ BEGIN
   LIMIT 1;
 
   IF invite_record IS NOT NULL THEN
+    -- Legacy token flow: coaching_mode/tier stay NULL — invite_tokens carries
+    -- neither, and metadata here would be client-supplied (untrusted).
     INSERT INTO public.profiles (
-      id, full_name, role, coach_id, coaching_mode, tier, onboarding_completed
+      id, full_name, role, coach_id, onboarding_completed
     )
     VALUES (
       NEW.id,
       COALESCE(NULLIF(safe_name, ''), invite_record.full_name),
       'athlete'::public.user_role,
       invite_record.coach_id,
-      meta_mode,
-      meta_tier,
       false
     );
 
