@@ -188,25 +188,26 @@ npx tsc --noEmit -p tsconfig.app.json
 
 ## 3. Edge functions inventario
 
-15 functions in `supabase/functions/`:
+16 functions in `supabase/functions/`:
 
-| Function                  | Category    | Auth                 | Note                                                               |
-| ------------------------- | ----------- | -------------------- | ------------------------------------------------------------------ |
-| `analyze-athlete-week`    | AI          | User (coach)         | Weekly summary athlete                                             |
-| `analyze-meal-photo`      | AI vision   | User (athlete)       | Photo → macros                                                     |
-| `ask-copilot`             | AI          | User (coach)         | Master Copilot Q&A                                                 |
-| `chat-with-coach`         | AI          | User (athlete/coach) | Chat realtime con AI assist                                        |
-| `check-achievements`      | Logic       | User (athlete)       | Verifica + assegna achievement                                     |
-| `create-checkout-session` | Stripe      | User (coach)         | Stripe Checkout URL + Origin whitelist + is_coach_of_athlete check |
-| `create-portal-session`   | Stripe      | User (coach)         | Customer Portal URL                                                |
-| `delete-athlete`          | Destructive | User (coach)         | Cascade delete via RPC                                             |
-| `forgot-password`         | Auth        | Public (rate limit)  | Magic link reset                                                   |
-| `generate-batch-checkins` | AI          | User (coach)         | Batch checkin questions                                            |
-| `generate-program`        | AI          | User (coach)         | Program da prompt                                                  |
-| `ingest-knowledge`        | AI          | User (coach)         | Aggiunge doc a RAG                                                 |
-| `invite-athlete`          | Logic       | User (coach)         | Invio invito email                                                 |
-| `send-email`              | Util        | Service (internal)   | SMTP wrapper                                                       |
-| `stripe-webhook`          | Webhook     | Stripe signature     | Sub events                                                         |
+| Function                  | Category    | Auth                 | Note                                                                                     |
+| ------------------------- | ----------- | -------------------- | ---------------------------------------------------------------------------------------- |
+| `analyze-athlete-week`    | AI          | User (coach)         | Weekly summary athlete                                                                   |
+| `analyze-meal-photo`      | AI vision   | User (athlete)       | Photo → macros                                                                           |
+| `ask-copilot`             | AI          | User (coach)         | Master Copilot Q&A                                                                       |
+| `chat-with-coach`         | AI          | User (athlete/coach) | Chat realtime con AI assist                                                              |
+| `check-achievements`      | Logic       | User (athlete)       | Verifica + assegna achievement                                                           |
+| `create-checkout-session` | Stripe      | User (coach)         | Stripe Checkout URL + Origin whitelist + is_coach_of_athlete check                       |
+| `create-portal-session`   | Stripe      | User (coach)         | Customer Portal URL                                                                      |
+| `delete-athlete`          | Destructive | User (coach)         | Cascade delete via RPC                                                                   |
+| `forgot-password`         | Auth        | Public (rate limit)  | Magic link reset                                                                         |
+| `generate-batch-checkins` | AI          | User (coach)         | Batch checkin questions                                                                  |
+| `generate-program`        | AI          | User (coach)         | Program da prompt                                                                        |
+| `ingest-knowledge`        | AI          | User (coach)         | Aggiunge doc a RAG                                                                       |
+| `invite-athlete`          | Logic       | User (coach)         | Invio invito email (+ coaching_mode/tier in user_metadata)                               |
+| `send-email`              | Util        | Service (internal)   | SMTP wrapper                                                                             |
+| `stripe-webhook`          | Webhook     | Stripe signature     | Sub events                                                                               |
+| `submit-intake`           | Logic       | User (athlete)       | Intake submit: validazione whitelist + gate deterministici + RPC privata `submit_intake` |
 
 ### 3.1 Pattern shared mancante (opportunità)
 
@@ -701,15 +702,15 @@ console.error("Webhook", { body: req.body, headers: req.headers });
 
 Le 6 aggiunte green-field della fetta F0 (`supabase/migrations/20260712150000..150005_f0_*.sql`), tutte **deny-by-default** dal primo commit: RLS on, zero policy = zero accesso; esistono SOLO le policy elencate qui sotto.
 
-| Oggetto                                                          | Cosa                                                                                                                                                                                                   | RLS                                                                              |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| `profiles.coaching_mode` enum {coached, autonomous}              | modalità del cliente; il gate §0 del CORE la legge per scegliere il percorso di rilascio. ≠ `mode` body-param di `generate-program` (new\|continue)                                                    | eredita `profiles`                                                               |
-| `profiles.tier` enum {premium, monthly}                          | tier commerciale; ≠ `subscription_tier` legacy (text, non toccata)                                                                                                                                     | eredita `profiles`                                                               |
-| `tier_entitlements` (tier, feature, enabled)                     | mappa entitlement come config-dato (seed nella migration); il rewiring FE è una fetta successiva — oggi `useFeatureAccess.ts` gestisce solo limiti di consumo + gate booleani hard-coded su tier legacy free/basic/pro | SELECT `authenticated`; scrittura solo Cowork/migrazione                         |
-| `consents` (append-only)                                         | registro consensi granulare (art. 9 GDPR); stato attuale = riga più recente per (athlete_id, consent_type); FK `ON DELETE CASCADE` verso `profiles`                                                    | INSERT/SELECT own; SELECT coach via `is_coach_of_athlete`; **mai** UPDATE/DELETE |
-| `audit_log` (append-only)                                        | log azioni a prova di manomissione client; `actor_id` `ON DELETE SET NULL` (il log sopravvive alla cancellazione account, attore anonimizzato)                                                         | SELECT actor-centric: own-attore o coach dell'attore via `is_coach_of_athlete(actor_id)` (righe con actor NULL = solo service-role); INSERT solo service-role; **mai** UPDATE/DELETE |
-| `stripe_events` (idempotenza)                                    | realizza il pattern idempotenza-webhook di §6.1; la cabla F3                                                                                                                                           | **zero policy** (solo service-role)                                              |
-| `method_config` (profile_name, version, config jsonb, is_active) | scaffolding config-driven (metodo di Nicolò = profilo n.1); indice unico parziale = max 1 versione attiva per profilo; il contenuto lo applica Cowork via connettore, mai hard-coded                   | SELECT `authenticated` dove `is_active`; scrittura solo Cowork                   |
+| Oggetto                                                          | Cosa                                                                                                                                                                                                                   | RLS                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `profiles.coaching_mode` enum {coached, autonomous}              | modalità del cliente; il gate §0 del CORE la legge per scegliere il percorso di rilascio. ≠ `mode` body-param di `generate-program` (new\|continue)                                                                    | eredita `profiles`                                                                                                                                                                   |
+| `profiles.tier` enum {premium, monthly}                          | tier commerciale; ≠ `subscription_tier` legacy (text, non toccata)                                                                                                                                                     | eredita `profiles`                                                                                                                                                                   |
+| `tier_entitlements` (tier, feature, enabled)                     | mappa entitlement come config-dato (seed nella migration); il rewiring FE è una fetta successiva — oggi `useFeatureAccess.ts` gestisce solo limiti di consumo + gate booleani hard-coded su tier legacy free/basic/pro | SELECT `authenticated`; scrittura solo Cowork/migrazione                                                                                                                             |
+| `consents` (append-only)                                         | registro consensi granulare (art. 9 GDPR); stato attuale = riga più recente per (athlete_id, consent_type); FK `ON DELETE CASCADE` verso `profiles`                                                                    | INSERT/SELECT own; SELECT coach via `is_coach_of_athlete`; **mai** UPDATE/DELETE                                                                                                     |
+| `audit_log` (append-only)                                        | log azioni a prova di manomissione client; `actor_id` `ON DELETE SET NULL` (il log sopravvive alla cancellazione account, attore anonimizzato)                                                                         | SELECT actor-centric: own-attore o coach dell'attore via `is_coach_of_athlete(actor_id)` (righe con actor NULL = solo service-role); INSERT solo service-role; **mai** UPDATE/DELETE |
+| `stripe_events` (idempotenza)                                    | realizza il pattern idempotenza-webhook di §6.1; la cabla F3                                                                                                                                                           | **zero policy** (solo service-role)                                                                                                                                                  |
+| `method_config` (profile_name, version, config jsonb, is_active) | scaffolding config-driven (metodo di Nicolò = profilo n.1); indice unico parziale = max 1 versione attiva per profilo; il contenuto lo applica Cowork via connettore, mai hard-coded                                   | SELECT `authenticated` dove `is_active`; scrittura solo Cowork                                                                                                                       |
 
 **Accesso-coach:** sempre l'helper esistente `public.is_coach_of_athlete(athlete_id)` (SECURITY DEFINER — §5.1), NON un `EXISTS` inline. Nota: esiste anche `is_my_athlete` (quasi-duplicato) → consolidamento = fetta hardening.
 
