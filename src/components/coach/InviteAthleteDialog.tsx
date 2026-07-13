@@ -51,6 +51,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -60,6 +67,13 @@ const inviteFormSchema = z.object({
   firstName: z.string().min(1, "Il nome è obbligatorio").max(60, "Il nome è troppo lungo"),
   lastName: z.string().min(1, "Il cognome è obbligatorio").max(60, "Il cognome è troppo lungo"),
   email: z.string().email("Indirizzo email non valido"),
+  // Machine values (F0 enums); set on the profile by handle_new_user at signup.
+  coachingMode: z.enum(["coached", "autonomous"], {
+    required_error: "Seleziona la modalità",
+  }),
+  tier: z.enum(["premium", "monthly"], {
+    required_error: "Seleziona il piano",
+  }),
 });
 
 type InviteFormData = z.infer<typeof inviteFormSchema>;
@@ -157,7 +171,13 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
       const lastName = data.lastName.trim();
 
       const { data: result, error } = await supabase.functions.invoke("invite-athlete", {
-        body: { athleteEmail, firstName, lastName },
+        body: {
+          athleteEmail,
+          firstName,
+          lastName,
+          coachingMode: data.coachingMode,
+          tier: data.tier,
+        },
       });
 
       if (error) throw new Error(await invokeErrorToMessage(error));
@@ -380,7 +400,8 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Il link è valido fino al primo utilizzo.
+                Il link è valido fino al primo utilizzo. Nota: il link manuale non imposta modalità
+                e piano — potrai impostarli in seguito dal profilo dell'atleta.
               </p>
             </div>
 
@@ -460,6 +481,58 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
                   </FormItem>
                 )}
               />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="coachingMode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Modalità</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={pending !== null}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="coached">Coached (seguito da te)</SelectItem>
+                          <SelectItem value="autonomous">Autonoma</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Piano</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        disabled={pending !== null}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="premium">Premium</SelectItem>
+                          <SelectItem value="monthly">Mensile</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <div className="flex items-center justify-between gap-3 pt-2">
                 <Button
                   type="button"
