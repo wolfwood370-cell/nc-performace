@@ -1,7 +1,7 @@
 # HANDOFF — nc-performance-hub (trasferimento sessione)
 
 > **Aggiornato:** 2026-07-12 (Claude Code, fetta riordino) — **stato vivo nell'Addendum §0 qui sotto**, che prevale su §2/§4 dove diverge; fotografia completa in `docs/stato-repo-2026-07-12.md`. Stato 2026-06-18: Migrazione Lovable→Supabase di proprietà avanzata: smoke AI 6/6, flusso invito→atleta verificato, fix cache roster, **`generate-program` cablata nella UI (D11)**, **D12 Set A pulizia dead-code ACWR fatto**, **dual-agent Code/Cowork formalizzato (`COWORK.md`, `69e8a4a`)**, **campagna autonoma D13 COMPLETA** (7 hook WIP collegati + E2E verde + audit pulito). Codice su `origin/main` (tip `2296074`).
-> **Priorità aperta (aggiornata 2026-07-12):** la ex "libreria esercizi vuota" è **SUPERATA** — `exercises` = **954 righe** sull'Hub (v. Addendum §0). Vive ora: cutover D6 `.env` + merge dei 2 branch vivi (`claude/zonemap-riconc`, `claude/invite-resend-hardening`).
+> **Priorità aperta (aggiornata 2026-07-13):** la ex "libreria esercizi vuota" è **SUPERATA** — `exercises` = **954 righe** sull'Hub (v. Addendum §0). Vive ora: cutover D6 `.env` + merge dei 2 branch vivi (`claude/zonemap-v18` — con deploy 17→18 dopo conferma-conteggi di Nick — e `claude/invite-resend-hardening`) + eliminazione senza merge di `claude/zonemap-riconc` (superseded).
 > Scopo: riprendere da una chat nuova (Cowork **o** Claude Code) senza perdere contesto. Prompt pronti in §8 (Claude Code) e §9 (Cowork).
 > ✅ **Stash-loop GitHub Desktop CHIUSO (2026-06-17):** `HANDOFF.md` + piani D11/D12 (`f6bd4b2`) e i doc di riferimento D2/D3/D7/D8/D9/D10/PRODUCT_SPEC/ROADMAP/… (recuperati dagli stash GHD, `1de3b7f`) sono ora **trackati**. Restano 3 stash GHD da droppare dopo che Nick mette al sicuro `.env` — vedi §5.
 
@@ -12,7 +12,8 @@
 - **Motore-metodo M1/M2 in `main`**: `generate-program` è deterministica (5 strati, zero AI) con **45 test Deno verdi** — `deno test --cached-only supabase/functions/generate-program/method/`.
 - **Invito nativo FATTO e primario**: la UI invoca la edge fn `invite-athlete` (`src/components/coach/InviteAthleteDialog.tsx:159`).
 - **Libreria esercizi POPOLATA**: `exercises` = **954 righe, tutte con `coach_id` valorizzato** (verifica Cowork via connettore, 2026-07-12). La condizione SENTINEL di §4 r.8 non è più lo stato normale.
-- **Branch vivi non mergiati**: `claude/zonemap-riconc` (+1 — Delta 1 zoneMap: split dorsale/toracica + clamp tier `ZONE_BASE`) · `claude/invite-resend-hardening` (+4 — hardening reinvio invito).
+- **Branch vivi non mergiati**: `claude/zonemap-v18` (+2 — **zoneMap v18**: split dorsale/toracica + clamp per-zona `ZONE_BASE` + conform-delta FASE B; **49/49 test Deno**; pushato 2026-07-13; **deploy 17→18 IN ATTESA**: Nick ri-verifica i conteggi, poi merge/deploy — prompt-file `docs/prompts/2026-07-12-zonemap-v18.md`) · `claude/invite-resend-hardening` (+4 — hardening reinvio invito).
+- **`claude/zonemap-riconc` SUPERSEDED (2026-07-13)**: bozza Delta 1 divergente dalla spec riconciliata (`mid back`→toracica, alias extra `lat`/`gran dorsale`, senza Delta D) — **eliminare senza merge** (locale + `origin/claude/zonemap-riconc`, decisione Nick): un merge post-v18 regredirebbe la spec.
 - **Debito noto (registrato, NON risolto in questa fetta)**: 1 migration correttiva out-of-band applicata sul DB senza file nel repo — DB = **129 versioni**, repo = **128 file**.
 - **Fotografia completa del repo**: `docs/stato-repo-2026-07-12.md` (ricognizione read-only, 2026-07-12).
 

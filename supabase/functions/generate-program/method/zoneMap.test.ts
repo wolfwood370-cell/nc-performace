@@ -1,7 +1,8 @@
 // Test falsificabili per zoneMap.ts — fixtures in-memory, nessun DB.
 // Coprono: tier (aggressivo/moderato), ponte muscolo/pattern/posizione/famiglia,
 // alias, bucket grossolani FMS, blocco 'general', fallback per zone non mappate,
-// determinismo. Fonte casi: spec §9 (spalla = zona VALIDATA sul DB).
+// determinismo, split dorsale/toracica + clamp per-zona ZONE_BASE (v18).
+// Fonte casi: spec §9 (spalla = zona VALIDATA sul DB) + mappa §2 riconciliata (v18).
 
 import { assertEquals } from "jsr:@std/assert@1";
 import { hasGeneralBlock, resolveZone, zoneExcludes } from "./zoneMap.ts";
@@ -228,4 +229,63 @@ Deno.test("determinismo: stesso input -> stesso output", () => {
   });
   const zones: ExcludedZone[] = [{ zone: "spalla", tier: "aggressivo" }];
   assertEquals(zoneExcludes(r, zones), zoneExcludes(r, zones));
+});
+
+// ---------------------------------------------------------------------------
+// 8. v18 — split dorsale/toracica + clamp del tier per-zona (ZONE_BASE)
+// ---------------------------------------------------------------------------
+
+Deno.test("clamp floor polso-mano: chronic (moderato) esclude il pressing su mani", () => {
+  // ZONE_BASE floor 'aggressivo': anche da chronic la cautela e' attiva (v18 Delta C+D).
+  const chronic: ExcludedZone[] = [{ zone: "polso-mano", tier: "moderato" }];
+  assertEquals(
+    excluded(row({ os_id: "v1", name: "OHP", patterns: ["push verticale"] }), chronic),
+    true,
+  );
+});
+
+Deno.test("clamp ceil toracica: in_rehab (aggressivo) tiene l'hip hinge", () => {
+  // ZONE_BASE ceil 'moderato': la cautela non scatta; toracica non ha patternForte.
+  const inRehab: ExcludedZone[] = [{ zone: "toracica", tier: "aggressivo" }];
+  assertEquals(
+    excluded(row({ os_id: "v2", name: "Stacco rumeno", patterns: ["hip hinge"] }), inRehab),
+    false,
+  );
+  // La regola toracica ESISTE e morde anche sotto il ceil: il check muscoli e'
+  // tier-indipendente (pinna che l'entry non venga rimossa: senza regola sarebbe tenuto).
+  assertEquals(
+    excluded(
+      row({ os_id: "v2b", name: "Estensioni toraciche", muscles: ["erettori spinali"] }),
+      inRehab,
+    ),
+    true,
+  );
+});
+
+Deno.test("dorsale v18: pull esclusi; hip hinge/erettori passati a toracica", () => {
+  const inRehab: ExcludedZone[] = [{ zone: "dorsale", tier: "aggressivo" }];
+  assertEquals(
+    excluded(row({ os_id: "v3", name: "Lat machine", patterns: ["pull verticale"] }), inRehab),
+    true,
+  );
+  assertEquals(
+    excluded(row({ os_id: "v4", name: "Rematore", patterns: ["pull orizzontale"] }), inRehab),
+    true,
+  );
+  // Split v18: dorsale non copre piu' hip hinge ne' erettori spinali (fallirebbe sulla v17).
+  assertEquals(
+    excluded(row({ os_id: "v5", name: "Stacco rumeno", patterns: ["hip hinge"] }), inRehab),
+    false,
+  );
+  assertEquals(
+    excluded(row({ os_id: "v6", name: "Hyperextension", muscles: ["erettori spinali"] }), inRehab),
+    false,
+  );
+});
+
+Deno.test("alias v18: espliciti -> toracica; ambigui -> dorsale (safety-first)", () => {
+  assertEquals(resolveZone("toracica"), ["toracica"]);
+  assertEquals(resolveZone("thoracic"), ["toracica"]);
+  assertEquals(resolveZone("scapola"), ["dorsale"]);
+  assertEquals(resolveZone("mid back"), ["dorsale"]);
 });
