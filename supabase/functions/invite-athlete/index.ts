@@ -21,7 +21,15 @@ interface InvitePayload {
   athleteEmail?: string;
   firstName?: string;
   lastName?: string;
+  coachingMode?: string;
+  tier?: string;
 }
+
+// Whitelists for the F0 profile fields set at invite time. Optional payload
+// fields (backwards-compatible contract): absent -> not written (NULL profile
+// columns, treated as 'coached' downstream); invalid non-empty values -> 400.
+const COACHING_MODES = ["coached", "autonomous"] as const;
+const TIERS = ["premium", "monthly"] as const;
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -134,6 +142,26 @@ serve(async (req) => {
 
     const fullName = `${firstName} ${lastName}`.trim();
 
+    let coachingMode: string | null = null;
+    if (
+      payload.coachingMode !== undefined &&
+      payload.coachingMode !== null &&
+      payload.coachingMode !== ""
+    ) {
+      if (!(COACHING_MODES as readonly string[]).includes(payload.coachingMode)) {
+        return json({ error: "Invalid `coachingMode`" }, 400);
+      }
+      coachingMode = payload.coachingMode;
+    }
+
+    let tier: string | null = null;
+    if (payload.tier !== undefined && payload.tier !== null && payload.tier !== "") {
+      if (!(TIERS as readonly string[]).includes(payload.tier)) {
+        return json({ error: "Invalid `tier`" }, 400);
+      }
+      tier = payload.tier;
+    }
+
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -150,6 +178,9 @@ serve(async (req) => {
       last_name: lastName,
       role: "athlete",
       invited_by: coachId,
+      // Read by the extended handle_new_user trigger at signup (F0 columns).
+      ...(coachingMode ? { coaching_mode: coachingMode } : {}),
+      ...(tier ? { tier } : {}),
     };
 
     // Generate the invite link WITHOUT triggering Supabase's rate-limited mailer.
@@ -194,6 +225,8 @@ serve(async (req) => {
               role: "athlete",
               coach_id: coachId,
               onboarding_completed: false,
+              ...(coachingMode ? { coaching_mode: coachingMode } : {}),
+              ...(tier ? { tier } : {}),
             });
             return json({ success: true, email: athleteEmail, attached: true }, 200);
           }
@@ -201,7 +234,13 @@ serve(async (req) => {
           if (existingProfile.role === "athlete" && !existingProfile.coach_id) {
             await supabaseAdmin
               .from("profiles")
-              .update({ coach_id: coachId, full_name: existingProfile.full_name ?? fullName })
+              .update({
+                coach_id: coachId,
+                full_name: existingProfile.full_name ?? fullName,
+                // Only set when supplied: never clobber existing values with NULL.
+                ...(coachingMode ? { coaching_mode: coachingMode } : {}),
+                ...(tier ? { tier } : {}),
+              })
               .eq("id", existing.id);
             return json({ success: true, email: athleteEmail, attached: true }, 200);
           }
