@@ -52,8 +52,18 @@ export function ConsentsStep({ form, errors, onChange }: ConsentsStepProps) {
         );
       })}
       <p className="text-xs leading-relaxed text-[var(--nc-muted)]">
-        Puoi modificare i consensi facoltativi in qualsiasi momento scrivendo al tuo coach. I dati
-        sulla salute sono trattati solo per preparare e adattare il tuo programma.
+        Puoi modificare i consensi facoltativi in qualsiasi momento scrivendo al tuo coach.
+        Trattiamo i tuoi dati secondo l&apos;
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-[var(--nc-primary)] underline"
+        >
+          Informativa sulla Privacy
+        </a>
+        . I dati sulla salute (art. 9 GDPR) sono categorie particolari di dati e sono trattati solo
+        per preparare e adattare il tuo programma.
       </p>
     </div>
   );

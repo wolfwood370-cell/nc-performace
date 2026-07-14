@@ -47,7 +47,8 @@ export const CONSENT_LABELS: Record<ConsentType, string> = {
   nutrition_advice:
     "Desidero ricevere suggerimenti alimentari a supporto dell'allenamento e mi impegno a sottoporli al mio medico",
   photos_measurements: "Autorizzo foto e misurazioni corporee per monitorare i progressi",
-  medical_sharing: "Autorizzo la condivisione dei dati col mio medico o altri professionisti",
+  medical_sharing:
+    "Autorizzo la condivisione dei miei dati sanitari con il mio medico o con altri professionisti sanitari da me indicati.",
   marketing: "Desidero ricevere comunicazioni e materiale informativo non essenziali",
 };
 
