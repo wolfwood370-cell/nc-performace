@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { INTAKE_STEPS } from "../config/intakeForm";
 import { neurotypeKey } from "../config/neurotypeItems";
 import { createEmptyIntakeState } from "../state";
-import { fieldVisible, stepErrors, visibleSteps } from "../validation";
+import { fieldError, fieldVisible, stepErrors, visibleSteps } from "../validation";
 
 const stepById = (id: string) => {
   const step = INTAKE_STEPS.find((s) => s.id === id);
@@ -100,6 +100,32 @@ describe("stepErrors", () => {
     const errors = stepErrors(stepById("infortuni"), "coached", state);
     expect(errors["injuries.0.status"]).toBeTruthy();
     expect(errors["injuries.1.zone"]).toBeUndefined();
+  });
+
+  it("number fields accept the Italian comma decimal and enforce the range", () => {
+    const state = createEmptyIntakeState();
+    const step = stepById("anagrafica");
+    const weight = step.fields!.find((f) => f.path === "anagrafica.weight_kg")!;
+    state.anagrafica.weight_kg = "82,5";
+    expect(fieldError(weight, "coached", state)).toBeNull();
+    state.anagrafica.weight_kg = "20"; // below min 30
+    expect(fieldError(weight, "coached", state)).toContain("30");
+    state.anagrafica.weight_kg = "abc";
+    expect(fieldError(weight, "coached", state)).toBe("Inserisci un numero.");
+  });
+
+  it("dates use the server isDateStr (year range 1900-2100); injury dates are checked too", () => {
+    const state = createEmptyIntakeState();
+    const step = stepById("anagrafica");
+    const birth = step.fields!.find((f) => f.path === "anagrafica.birth_date")!;
+    state.anagrafica.birth_date = "0199-01-01"; // regex-valid, year out of range
+    expect(fieldError(birth, "coached", state)).toBe("Data non valida.");
+    state.anagrafica.birth_date = "1990-04-12";
+    expect(fieldError(birth, "coached", state)).toBeNull();
+
+    state.injuries = [{ zone: "spalla", status: "chronic", injury_date: "0199-01-01", note: "" }];
+    const errors = stepErrors(stepById("infortuni"), "coached", state);
+    expect(errors["injuries.0.injury_date"]).toBe("Data non valida.");
   });
 
   it("objective is required only in autonomous", () => {

@@ -40,10 +40,8 @@ export default function IntakeForm() {
   const [attempted, setAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<SubmitOutcome | null>(null);
-  const [showResume, setShowResume] = useState(() => {
-    const s = useIntakeDraft.getState();
-    return s.savedAt !== null && s.stepIndex > 0;
-  });
+  const [showResume, setShowResume] = useState(false);
+  const claimedRef = useRef(false);
   const mainRef = useRef<HTMLElement>(null);
 
   // Fallback coached mirrors submit-intake/index.ts (legacy invite without mode).
@@ -55,6 +53,17 @@ export default function IntakeForm() {
   const errors = useMemo(() => stepErrors(step, mode, draft.form), [step, mode, draft.form]);
   const shownErrors = attempted ? errors : {};
 
+  // Bind the draft to the logged-in user FIRST (a different account on the
+  // same browser must never see the previous athlete's health answers), then
+  // decide whether to offer the resume dialog on what survived the claim.
+  useEffect(() => {
+    if (!user?.id || claimedRef.current) return;
+    claimedRef.current = true;
+    useIntakeDraft.getState().claimOwner(user.id);
+    const s = useIntakeDraft.getState();
+    if (s.savedAt !== null && s.stepIndex > 0) setShowResume(true);
+  }, [user?.id]);
+
   // Prefill the name we already know from the invite-created profile.
   const setField = draft.setField;
   useEffect(() => {
@@ -62,6 +71,12 @@ export default function IntakeForm() {
       setField("anagrafica.full_name", profile.full_name);
     }
   }, [profile?.full_name, setField]);
+
+  // Intake completed elsewhere: purge the stale local draft (art. 9) before
+  // redirecting. Skipped while an outcome screen is up (already cleared).
+  useEffect(() => {
+    if (profile?.onboarding_completed && !outcome) clearIntakeDraft();
+  }, [profile?.onboarding_completed, outcome]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
@@ -76,15 +91,23 @@ export default function IntakeForm() {
   }
   if (!user) return <Navigate to="/auth" replace />;
   if (profile?.role === "coach") return <Navigate to="/coach" replace />;
-  if (profile?.onboarding_completed) return <Navigate to="/athlete" replace />;
 
-  if (outcome && outcome.kind !== "invalidPayload" && outcome.kind !== "missingConsents") {
+  // Outcome BEFORE the onboarding_completed guard: the RPC sets the flag
+  // even for persisted routed-out cases, and useAuth refetches the profile
+  // on every auth event — the redirect must not swallow the outcome screen.
+  if (
+    outcome &&
+    outcome.kind !== "invalidPayload" &&
+    outcome.kind !== "missingConsents" &&
+    outcome.kind !== "tooLarge"
+  ) {
     return (
       <div className="theme-athlete min-h-[100dvh] bg-[var(--nc-surface)]">
         <IntakeOutcome outcome={outcome} onRetry={() => setOutcome(null)} onSignOut={signOut} />
       </div>
     );
   }
+  if (profile?.onboarding_completed) return <Navigate to="/athlete" replace />;
 
   const jumpToStep = (stepId: string | null) => {
     if (!stepId) return;
@@ -108,7 +131,16 @@ export default function IntakeForm() {
       jumpToStep("consensi");
       return;
     }
-    if (result.kind !== "error") clearIntakeDraft();
+    if (result.kind === "tooLarge") {
+      toast.error("Le risposte sono complessivamente troppo lunghe: accorcia i testi liberi.");
+      return;
+    }
+    // Clear the draft ONLY on terminal outcomes. authError and network
+    // errors keep it: nothing was persisted server-side and the outcome
+    // copy promises the answers are still on this device.
+    if (result.kind === "success" || result.kind === "routedOut" || result.kind === "alreadySubmitted") {
+      clearIntakeDraft();
+    }
     setOutcome(result);
   };
 
@@ -222,6 +254,10 @@ export default function IntakeForm() {
               type="button"
               onClick={() => {
                 clearIntakeDraft();
+                const s = useIntakeDraft.getState();
+                if (user?.id) s.claimOwner(user.id);
+                // Re-apply the prefill: the effect won't re-run (same deps).
+                if (profile?.full_name) s.setField("anagrafica.full_name", profile.full_name);
                 setShowResume(false);
               }}
               className="h-12 w-full rounded-full border border-[var(--nc-track)] text-sm font-semibold text-[var(--nc-ink)]"

@@ -131,6 +131,15 @@ export function useAuth() {
       /* ignore */
     }
 
+    // Clear the intake draft: it holds health answers (art. 9) and must not
+    // survive a logout on a shared device. Key literal pinned by
+    // src/features/intake/__tests__/config.test.ts against store.ts.
+    try {
+      localStorage.removeItem("intake_draft_v1");
+    } catch {
+      /* ignore */
+    }
+
     // Clear IndexedDB offline storage
     try {
       const dbs = await indexedDB.databases();

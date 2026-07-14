@@ -7,6 +7,7 @@
 // here weakens or replaces it (no gate/scoring logic).
 // =============================================================================
 
+import { isDateStr } from "../../../supabase/functions/submit-intake/intake/validateSpec.ts";
 import { REQUIRED_CONSENTS } from "./config/labels";
 import { appliesTo } from "./config/model";
 import type { Condition, FieldDef, ModeFilter, StepDef } from "./config/model";
@@ -72,7 +73,8 @@ export function fieldError(
     case "date": {
       const s = ((value as string) ?? "").trim();
       if (s === "") return required ? MSG_REQUIRED : null;
-      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? null : "Data non valida.";
+      // Server-side isDateStr (single-source): format + year range 1900-2100.
+      return isDateStr(s) ? null : "Data non valida.";
     }
     case "number": {
       const s = ((value as string) ?? "").trim();
@@ -135,6 +137,9 @@ export function stepErrors(
       if (!touched) return;
       if (injury.zone === "") errors[`injuries.${index}.zone`] = "Scegli la zona.";
       if (injury.status === "") errors[`injuries.${index}.status`] = "Scegli lo stato.";
+      if (injury.injury_date !== "" && !isDateStr(injury.injury_date)) {
+        errors[`injuries.${index}.injury_date`] = "Data non valida.";
+      }
     });
     return errors;
   }

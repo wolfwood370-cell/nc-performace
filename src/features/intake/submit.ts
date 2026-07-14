@@ -3,15 +3,10 @@
 // =============================================================================
 // I/O boundary of the intake form: posts the payload to the submit-intake
 // edge function and maps the response to a typed outcome the UI can RENDER.
-// No safety logic here — the server gate is authoritative.
-//
-// Response contract (submit-intake/index.ts):
-//   - gate.routedOut === true is ALWAYS dominant, regardless of `ok`: an
-//     ok:true + routedOut:true (pregnancy/DCA — data persisted, coach
-//     alerted) is NOT a success. Only the minor case comes back ok:false
-//     with reasons ["minor"] and nothing persisted.
-//   - non-2xx statuses arrive as FunctionsHttpError: the JSON body must be
-//     read from error.context (a Response), not from `data`.
+// No safety logic here — the server gate is authoritative. The pure body ->
+// outcome mapping lives in ./outcome.ts (unit-tested); this file only adds
+// the transport: non-2xx statuses arrive as FunctionsHttpError and the JSON
+// body must be read from error.context (a Response), not from `data`.
 // Art. 9 hygiene: never log payload values or gate reasons — machine error
 // codes only.
 // =============================================================================
@@ -19,29 +14,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { log } from "@/lib/logger";
 import type { IntakePayload } from "./buildPayload";
+import { outcomeFromBody } from "./outcome";
+import type { SubmitOutcome, SubmitResponseBody } from "./outcome";
 
-export interface GateInfo {
-  level: "red" | "yellow" | "green";
-  routedOut: boolean;
-  reasons: string[];
-  yellow?: string[];
-}
-
-export type SubmitOutcome =
-  | { kind: "success" }
-  | { kind: "routedOut"; reasons: string[]; persisted: boolean }
-  | { kind: "alreadySubmitted" }
-  | { kind: "invalidPayload"; field?: string }
-  | { kind: "missingConsents" }
-  | { kind: "authError" }
-  | { kind: "error" };
-
-interface SubmitResponseBody {
-  ok?: boolean;
-  gate?: GateInfo;
-  error?: string;
-  field?: string;
-}
+export { outcomeFromBody };
+export type { GateInfo, SubmitOutcome, SubmitResponseBody } from "./outcome";
 
 async function bodyFromError(error: unknown): Promise<SubmitResponseBody | null> {
   const context = (error as { context?: unknown })?.context;
@@ -66,33 +43,11 @@ export async function submitIntake(payload: IntakePayload): Promise<SubmitOutcom
     return { kind: "error" };
   }
 
-  if (!body) return { kind: "error" };
-
-  // routedOut dominates every other signal, including ok:true.
-  if (body.gate?.routedOut === true) {
-    const reasons = Array.isArray(body.gate.reasons) ? body.gate.reasons : [];
-    return { kind: "routedOut", reasons, persisted: !reasons.includes("minor") };
+  const outcome = outcomeFromBody(body);
+  if (outcome.kind === "invalidPayload") {
+    log.warn("submit-intake: invalid payload", { field: outcome.field });
+  } else if (outcome.kind === "error" && body?.error) {
+    log.error("submit-intake: unexpected error code", { code: body.error });
   }
-
-  if (body.ok === true) return { kind: "success" };
-
-  switch (body.error) {
-    case "already_submitted":
-      return { kind: "alreadySubmitted" };
-    case "invalid_payload":
-    case "invalid_json":
-    case "payload_too_large":
-      log.warn("submit-intake: invalid payload", { field: body.field });
-      return { kind: "invalidPayload", field: body.field };
-    case "missing_required_consents":
-      return { kind: "missingConsents" };
-    case "unauthorized":
-    case "profile_not_found":
-    case "athletes_only":
-    case "invalid_athlete":
-      return { kind: "authError" };
-    default:
-      log.error("submit-intake: unexpected error code", { code: body.error });
-      return { kind: "error" };
-  }
+  return outcome;
 }

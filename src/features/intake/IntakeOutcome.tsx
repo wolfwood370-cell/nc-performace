@@ -22,14 +22,18 @@ const ROUTED_OUT_FALLBACK =
   "Serve un confronto con un professionista prima di iniziare. Il tuo coach è stato avvisato.";
 
 interface IntakeOutcomeProps {
-  outcome: Exclude<SubmitOutcome, { kind: "invalidPayload" } | { kind: "missingConsents" }>;
+  outcome: Exclude<
+    SubmitOutcome,
+    { kind: "invalidPayload" } | { kind: "missingConsents" } | { kind: "tooLarge" }
+  >;
   onRetry: () => void;
   onSignOut: () => void;
 }
 
 function goToApp() {
-  // Hard reload on purpose: useAuth has no refetch, the in-memory profile
-  // still says onboarding_completed=false (same workaround as the legacy wizard).
+  // Hard reload on purpose: the in-memory profile still says
+  // onboarding_completed=false until an auth event refetches it (useAuth has
+  // no on-demand refetch) — same workaround as the legacy wizard.
   window.location.replace("/athlete");
 }
 

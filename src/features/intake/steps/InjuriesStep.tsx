@@ -95,13 +95,20 @@ export function InjuriesStep({ form, errors, onChangeForm }: InjuriesStepProps) 
               </p>
             )}
           </div>
-          <Input
-            type="date"
-            aria-label="Quando (facoltativo)"
-            value={injury.injury_date}
-            onChange={(e) => setRow(index, { injury_date: e.target.value })}
-            className="h-12"
-          />
+          <div className="space-y-1">
+            <Input
+              type="date"
+              aria-label="Quando (facoltativo)"
+              value={injury.injury_date}
+              onChange={(e) => setRow(index, { injury_date: e.target.value })}
+              className="h-12"
+            />
+            {errors[`injuries.${index}.injury_date`] && (
+              <p className="text-xs font-medium text-destructive">
+                {errors[`injuries.${index}.injury_date`]}
+              </p>
+            )}
+          </div>
           <Input
             type="text"
             aria-label="Note (facoltative)"

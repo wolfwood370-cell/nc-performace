@@ -179,4 +179,39 @@ describe("buildIntakePayload — pinned shape rules", () => {
     expect(payload.intake.logistics).toBeUndefined();
     expect(payload.intake.goals).toEqual({ main_goal: "Rimettermi in forma dopo anni di stop" });
   });
+
+  it("cycle gate is on SEX, not on data presence: maschio with a filled cycle state omits it", () => {
+    const s = coachedState(); // sex=maschio
+    s.cycle = { pregnancy: "no", cycle_status: "regolare", cycle_since: "" };
+    const payload = buildIntakePayload(s);
+    expect(payload.cycle).toBeUndefined();
+    expect(validateIntakePayload(payload, "coached").ok).toBe(true);
+  });
+
+  it("retracted pain answers suppress their stale details (art. 9 minimization)", () => {
+    const s = coachedState();
+    s.pain.pain_now = false;
+    s.pain.pain_where = "Spalla destra"; // written, then answer changed to No
+    s.pain.pain_gesture = false;
+    s.pain.pain_gesture_desc = "Panca piana";
+    s.pain.pain_gesture_zone = "spalla";
+    const pain = buildIntakePayload(s).intake.pain as Record<string, unknown>;
+    expect(pain.pain_where).toBeUndefined();
+    expect(pain.pain_gesture_desc).toBeUndefined();
+    expect(pain.pain_gesture_zone).toBeUndefined();
+  });
+
+  it("trims section-mapped and anagrafica texts pre-send (server length-check runs pre-trim)", () => {
+    const s = coachedState();
+    s.anagrafica.full_name = "  Mario Rossi  ";
+    s.anagrafica.phone = " 3331234567 ";
+    s.goals = { main_goal: "  Rimettermi in forma  " };
+    s.lifestyle = { ...s.lifestyle, work_desc: "   " }; // whitespace-only -> pruned
+    const payload = buildIntakePayload(s);
+    const anagrafica = payload.intake.anagrafica as Record<string, unknown>;
+    expect(anagrafica.full_name).toBe("Mario Rossi");
+    expect(anagrafica.phone).toBe("3331234567");
+    expect(payload.intake.goals).toEqual({ main_goal: "Rimettermi in forma" });
+    expect((payload.intake.lifestyle as Record<string, unknown>).work_desc).toBeUndefined();
+  });
 });
