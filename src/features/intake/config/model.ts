@@ -63,6 +63,8 @@ export interface StepDef {
   fields?: FieldDef[];
   visibleFor: ModeFilter;
   visibleWhen?: Condition;
+  /** neurotype kind only: 0-based page of 6 statements (5 pages total). */
+  page?: number;
 }
 
 /** Compact field factory: defaults optional + visible to both modes. */
