@@ -23,7 +23,7 @@ export function stepIdForServerField(field: string): string | null {
   if (path.startsWith("consents") || path.startsWith("consent_version")) return "consensi";
   if (path.startsWith("injuries")) return "infortuni";
   if (path.startsWith("cycle")) return "ciclo";
-  if (path.startsWith("neurotype_answers")) return "neurotipo";
+  if (path.startsWith("neurotype_answers")) return "neurotipo-1";
   for (const step of INTAKE_STEPS) {
     for (const fieldDef of step.fields ?? []) {
       if (path === fieldDef.path || path.startsWith(`${fieldDef.path}.`)) return step.id;

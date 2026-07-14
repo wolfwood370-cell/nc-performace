@@ -75,7 +75,7 @@ describe("intake config invariants", () => {
     expect(stepIdForServerField("consent_version")).toBe("consensi");
     expect(stepIdForServerField("injuries")).toBe("infortuni");
     expect(stepIdForServerField("cycle.pregnancy")).toBe("ciclo");
-    expect(stepIdForServerField("intake.neurotype_answers")).toBe("neurotipo");
+    expect(stepIdForServerField("intake.neurotype_answers")).toBe("neurotipo-1");
     expect(stepIdForServerField("intake.equipment.items")).toBe("attrezzatura");
     expect(stepIdForServerField("intake.goals")).toBe("obiettivi");
     expect(stepIdForServerField("intake.readiness")).toBe("readiness");

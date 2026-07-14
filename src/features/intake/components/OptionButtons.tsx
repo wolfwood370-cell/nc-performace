@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 export interface ChoiceOption {
   value: string;
   label: string;
+  /** Screen-reader label when the visible label alone is cryptic (e.g. "A"). */
+  ariaLabel?: string;
 }
 
 interface OptionButtonsProps {
@@ -46,6 +48,7 @@ export function OptionButtons({
             type="button"
             role="radio"
             aria-checked={selected}
+            aria-label={option.ariaLabel}
             onClick={() => onChange(option.value)}
             className={cn(
               "min-h-11 rounded-2xl border px-3 py-2 text-sm font-medium transition-colors",

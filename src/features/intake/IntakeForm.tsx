@@ -31,6 +31,7 @@ import type { CoachingMode } from "./state";
 import { ConsentsStep } from "./steps/ConsentsStep";
 import { FieldsStep } from "./steps/FieldsStep";
 import { InjuriesStep } from "./steps/InjuriesStep";
+import { NeurotypeStep } from "./steps/NeurotypeStep";
 import { stepErrors, visibleSteps } from "./validation";
 
 export default function IntakeForm() {
@@ -163,7 +164,14 @@ export default function IntakeForm() {
         {step.kind === "injuries" && (
           <InjuriesStep form={draft.form} errors={shownErrors} onChangeForm={draft.setForm} />
         )}
-        {/* kind === "neurotype" lands with the autonomous slice (tappa 3). */}
+        {step.kind === "neurotype" && (
+          <NeurotypeStep
+            page={step.page ?? 0}
+            form={draft.form}
+            errors={shownErrors}
+            onChange={draft.setField}
+          />
+        )}
         {attempted && Object.keys(errors).length > 0 && (
           <p className="mt-4 text-sm font-medium text-destructive">
             Completa i campi segnalati per continuare.

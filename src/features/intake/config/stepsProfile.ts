@@ -233,11 +233,17 @@ export const PROFILE_STEPS: StepDef[] = [
       }),
     ],
   },
-  {
-    id: "neurotipo",
-    title: "Come funzioni",
-    subtitle: "Trenta affermazioni: indica quanto ti descrive ciascuna.",
-    kind: "neurotype",
-    visibleFor: "autonomous",
-  },
+  // 5 pages of 6 statements — neutral pagination copy ("Pagina X di 5"):
+  // the pages coincide positionally with the 5 neurotype groups, which must
+  // never be suggested to the athlete (contract §B8).
+  ...Array.from({ length: 5 }, (_, page): StepDef => {
+    return {
+      id: `neurotipo-${page + 1}`,
+      title: "Come funzioni",
+      subtitle: `Pagina ${page + 1} di 5 — indica quanto ti descrive ogni affermazione.`,
+      kind: "neurotype",
+      visibleFor: "autonomous",
+      page,
+    };
+  }),
 ];
