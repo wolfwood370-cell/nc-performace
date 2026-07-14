@@ -10,8 +10,8 @@
 // Copy provenance:
 //   - PAR-Q, consents, most field labels: nc-questionnaire
 //     docs/intake-contract.md §B0-B7 verbatim (ASCII apostrophes fixed),
-//     per Nick's decision 2026-07-14 (point A/C — consents are a DRAFT that
-//     Nick approves before merge).
+//     per Nick's decision 2026-07-14 (points A/C). Consent texts APPROVED
+//     by Nick on 2026-07-14 (medical_sharing reworded by him, commit 2bb5c23).
 //   - pain/weight-loss/condition/medications texts: decided with Nick
 //     2026-07-14 (point B — condition intentionally names no example
 //     pathologies: an open list invites false "no" on a gate field).
@@ -38,7 +38,7 @@ export const CONSENT_VERSION = "hub-v1";
 
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 
-/** DRAFT legal copy (contract §B0, accents fixed) — Nick approves pre-merge. */
+/** Consent legal copy hub-v1 — testi approvati da Nick il 2026-07-14. */
 export const CONSENT_LABELS: Record<ConsentType, string> = {
   health_required:
     "Acconsento al trattamento dei miei dati relativi alla salute per la preparazione sportiva (necessario per iniziare)",

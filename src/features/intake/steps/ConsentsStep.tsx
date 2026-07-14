@@ -4,7 +4,7 @@
 // Six granular consent rows (§D: never bundled). Types/order come from the
 // server single-source (CONSENT_TYPES); the two required ones gate the whole
 // intake and are marked as such. Unchecked = not granted (explicit opt-in).
-// Legal copy is a DRAFT pending Nick's approval (see config/labels.ts).
+// Testi consenso approvati da Nick il 2026-07-14 (see config/labels.ts).
 // =============================================================================
 
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,7 +57,7 @@ export function ConsentsStep({ form, errors, onChange }: ConsentsStepProps) {
         <a
           href="/privacy"
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="font-medium text-[var(--nc-primary)] underline"
         >
           Informativa sulla Privacy

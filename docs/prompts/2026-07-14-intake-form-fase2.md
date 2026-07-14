@@ -36,7 +36,7 @@ Un atleta invitato (con `coaching_mode`/`tier` già settati dall'invito) fa logi
 
 - Build gate + vitest a ogni commit; smoke browser su dev server worktree: `/onboarding` da anonimo → redirect ad accesso senza errori console.
 - Review avversariale multi-agente di fine fetta (4 lenti: contratto, security/art.9, React/stato, refuter-test) + verificatori scettici sui finding — esiti nell'Addendum.
-- **E2E col submit reale: RIMANDATO a Nick con atleta di test** (l'invio è one-shot per atleta; il flusso autenticato non è raggiungibile da anonimo).
+- **E2E col submit reale: Nick lo chiude sul primo invito reale** (nessun atleta di test disponibile; l'invio è one-shot per atleta e il flusso autenticato non è raggiungibile da anonimo — non bloccante, decisione 2026-07-14).
 
 ## 6. Chiusura
 
@@ -50,7 +50,7 @@ Commit atomici in italiano + `Co-Authored-By: Claude <noreply@anthropic.com>`; a
 
 - **A** — Testi PAR-Q ×7: verbatim da `nc-questionnaire/docs/intake-contract.md §B2` (accenti sistemati), ordine/concetti 1:1 con `PARQ_KEYS`. NON derivati dalle chiavi.
 - **B** — Testi dolore/calo-peso/condition/medications approvati, con correzione: **`condition` senza esempi tra parentesi** (una lista su un campo-gate invita falsi "no").
-- **C** — Consensi: testi nc-questionnaire riusati come **BOZZA** `hub-v1` — **Nick li legge e approva PRIMA del merge** (marcato in `config/labels.ts`).
+- **C** — Consensi: testi nc-questionnaire riusati come bozza `hub-v1`, poi **APPROVATI tutti e 6 da Nick il 2026-07-14** (medical_sharing riformulato da lui in `2bb5c23` + nota privacy/art. 9 nello step).
 - **D** — Copy routed-out approvato (minore/gravidanza/DCA, neutro, zero punteggi).
 - **E** — **vitest** aggiunto (primo runner unit FE): solo unit, environment node, niente jsdom.
 - **F** — Tema: wrapper `.theme-athlete` + var `--nc-*`.
