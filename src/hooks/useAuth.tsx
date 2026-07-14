@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 interface Profile {
   id: string;
@@ -12,6 +13,9 @@ interface Profile {
   onboarding_completed: boolean;
   subscription_status: string | null;
   subscription_tier: string | null;
+  coaching_mode: Database["public"]["Enums"]["coaching_mode"] | null;
+  tier: Database["public"]["Enums"]["tier"] | null;
+  objective: Database["public"]["Enums"]["objective"] | null;
 }
 
 interface AuthState {

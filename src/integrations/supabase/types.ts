@@ -161,8 +161,10 @@ export type Database = {
           contraceptive_type: string | null
           created_at: string
           cycle_length_days: number
+          cycle_status: string | null
           id: string
           last_period_start_date: string | null
+          pregnancy: string | null
           updated_at: string
         }
         Insert: {
@@ -171,8 +173,10 @@ export type Database = {
           contraceptive_type?: string | null
           created_at?: string
           cycle_length_days?: number
+          cycle_status?: string | null
           id?: string
           last_period_start_date?: string | null
+          pregnancy?: string | null
           updated_at?: string
         }
         Update: {
@@ -181,8 +185,10 @@ export type Database = {
           contraceptive_type?: string | null
           created_at?: string
           cycle_length_days?: number
+          cycle_status?: string | null
           id?: string
           last_period_start_date?: string | null
+          pregnancy?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -280,6 +286,54 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -639,6 +693,51 @@ export type Database = {
           {
             foreignKeyName: "coach_products_coach_id_fkey"
             columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consents: {
+        Row: {
+          athlete_id: string
+          consent_type: Database["public"]["Enums"]["consent_type"]
+          created_at: string
+          granted: boolean
+          id: string
+          source: string | null
+          version: string
+        }
+        Insert: {
+          athlete_id: string
+          consent_type: Database["public"]["Enums"]["consent_type"]
+          created_at?: string
+          granted: boolean
+          id?: string
+          source?: string | null
+          version: string
+        }
+        Update: {
+          athlete_id?: string
+          consent_type?: Database["public"]["Enums"]["consent_type"]
+          created_at?: string
+          granted?: boolean
+          id?: string
+          source?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consents_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "consents_athlete_id_fkey"
+            columns: ["athlete_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1706,6 +1805,33 @@ export type Database = {
           },
         ]
       }
+      method_config: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          profile_name: string
+          version: number
+        }
+        Insert: {
+          config: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          profile_name: string
+          version: number
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          profile_name?: string
+          version?: number
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1921,6 +2047,7 @@ export type Database = {
           brand_color: string | null
           calibration_requirements: string[]
           coach_id: string | null
+          coaching_mode: Database["public"]["Enums"]["coaching_mode"] | null
           created_at: string
           current_period_end: string | null
           experience_level: string | null
@@ -1931,6 +2058,7 @@ export type Database = {
           logo_url: string | null
           medical_clearance_required: boolean
           neurotype: string | null
+          objective: Database["public"]["Enums"]["objective"] | null
           onboarding_completed: boolean
           onboarding_data: Json | null
           one_rm_data: Json | null
@@ -1942,6 +2070,7 @@ export type Database = {
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           subscription_tier: string | null
           tax_code: string | null
+          tier: Database["public"]["Enums"]["tier"] | null
           updated_at: string
         }
         Insert: {
@@ -1951,6 +2080,7 @@ export type Database = {
           brand_color?: string | null
           calibration_requirements?: string[]
           coach_id?: string | null
+          coaching_mode?: Database["public"]["Enums"]["coaching_mode"] | null
           created_at?: string
           current_period_end?: string | null
           experience_level?: string | null
@@ -1961,6 +2091,7 @@ export type Database = {
           logo_url?: string | null
           medical_clearance_required?: boolean
           neurotype?: string | null
+          objective?: Database["public"]["Enums"]["objective"] | null
           onboarding_completed?: boolean
           onboarding_data?: Json | null
           one_rm_data?: Json | null
@@ -1972,6 +2103,7 @@ export type Database = {
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_tier?: string | null
           tax_code?: string | null
+          tier?: Database["public"]["Enums"]["tier"] | null
           updated_at?: string
         }
         Update: {
@@ -1981,6 +2113,7 @@ export type Database = {
           brand_color?: string | null
           calibration_requirements?: string[]
           coach_id?: string | null
+          coaching_mode?: Database["public"]["Enums"]["coaching_mode"] | null
           created_at?: string
           current_period_end?: string | null
           experience_level?: string | null
@@ -1991,6 +2124,7 @@ export type Database = {
           logo_url?: string | null
           medical_clearance_required?: boolean
           neurotype?: string | null
+          objective?: Database["public"]["Enums"]["objective"] | null
           onboarding_completed?: boolean
           onboarding_data?: Json | null
           one_rm_data?: Json | null
@@ -2002,6 +2136,7 @@ export type Database = {
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           subscription_tier?: string | null
           tax_code?: string | null
+          tier?: Database["public"]["Enums"]["tier"] | null
           updated_at?: string
         }
         Relationships: [
@@ -2354,6 +2489,33 @@ export type Database = {
           },
         ]
       }
+      stripe_events: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          stripe_event_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          stripe_event_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          stripe_event_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
       support_tickets: {
         Row: {
           category: Database["public"]["Enums"]["ticket_category"]
@@ -2381,6 +2543,24 @@ export type Database = {
           metadata?: Json | null
           status?: Database["public"]["Enums"]["ticket_status"]
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      tier_entitlements: {
+        Row: {
+          enabled: boolean
+          feature: Database["public"]["Enums"]["entitlement_feature"]
+          tier: Database["public"]["Enums"]["tier"]
+        }
+        Insert: {
+          enabled?: boolean
+          feature: Database["public"]["Enums"]["entitlement_feature"]
+          tier: Database["public"]["Enums"]["tier"]
+        }
+        Update: {
+          enabled?: boolean
+          feature?: Database["public"]["Enums"]["entitlement_feature"]
+          tier?: Database["public"]["Enums"]["tier"]
         }
         Relationships: []
       }
@@ -2966,6 +3146,10 @@ export type Database = {
         Args: { _other_user_id: string; _user_id: string }
         Returns: boolean
       }
+      submit_intake: {
+        Args: { p_athlete_id: string; p_computed: Json; p_payload: Json }
+        Returns: Json
+      }
     }
     Enums: {
       billing_sub_status:
@@ -2985,8 +3169,26 @@ export type Database = {
         | "quadrupedia"
         | "decubito laterale"
       checkin_status: "pending" | "approved" | "sent" | "skipped"
+      coaching_mode: "coached" | "autonomous"
+      consent_type:
+        | "health_required"
+        | "nutrition_advice"
+        | "photos_measurements"
+        | "medical_sharing"
+        | "marketing"
+        | "non_medical_disclaimer"
+        | "ai_processing"
       content_type: "video" | "pdf" | "link" | "text" | "ai_knowledge"
       cycle_phase: "menstrual" | "follicular" | "ovulatory" | "luteal"
+      entitlement_feature:
+        | "training_autonomous"
+        | "training_coached"
+        | "nutrition"
+        | "coach_messaging"
+        | "fms"
+        | "calendar"
+        | "gamification"
+        | "cycle_optimization"
       execution_mode: "grind" | "balistico" | "isometrico"
       exercise_family: "forza" | "pliometrico" | "ciclico"
       fatigue_cost: "basso" | "medio" | "alto" | "scalabile"
@@ -3000,6 +3202,15 @@ export type Database = {
         | "jerk"
         | "alzata-completa"
       meal_time: "breakfast" | "lunch" | "dinner" | "snack"
+      objective:
+        | "estetica"
+        | "dimagrimento"
+        | "forza"
+        | "powerlifting"
+        | "performance_sport"
+        | "resistenza"
+        | "generale"
+        | "altro"
       phase_focus_type:
         | "strength"
         | "hypertrophy"
@@ -3014,6 +3225,7 @@ export type Database = {
       technical_complexity: "bassa" | "media" | "alta"
       ticket_category: "bug" | "feature_request" | "billing" | "other"
       ticket_status: "new" | "in_progress" | "resolved" | "closed"
+      tier: "premium" | "monthly"
       user_role: "coach" | "athlete"
       workout_log_status: "scheduled" | "completed" | "missed" | "in_progress"
       workout_status: "pending" | "in_progress" | "completed" | "skipped"
@@ -3163,8 +3375,28 @@ export const Constants = {
         "decubito laterale",
       ],
       checkin_status: ["pending", "approved", "sent", "skipped"],
+      coaching_mode: ["coached", "autonomous"],
+      consent_type: [
+        "health_required",
+        "nutrition_advice",
+        "photos_measurements",
+        "medical_sharing",
+        "marketing",
+        "non_medical_disclaimer",
+        "ai_processing",
+      ],
       content_type: ["video", "pdf", "link", "text", "ai_knowledge"],
       cycle_phase: ["menstrual", "follicular", "ovulatory", "luteal"],
+      entitlement_feature: [
+        "training_autonomous",
+        "training_coached",
+        "nutrition",
+        "coach_messaging",
+        "fms",
+        "calendar",
+        "gamification",
+        "cycle_optimization",
+      ],
       execution_mode: ["grind", "balistico", "isometrico"],
       exercise_family: ["forza", "pliometrico", "ciclico"],
       fatigue_cost: ["basso", "medio", "alto", "scalabile"],
@@ -3179,6 +3411,16 @@ export const Constants = {
         "alzata-completa",
       ],
       meal_time: ["breakfast", "lunch", "dinner", "snack"],
+      objective: [
+        "estetica",
+        "dimagrimento",
+        "forza",
+        "powerlifting",
+        "performance_sport",
+        "resistenza",
+        "generale",
+        "altro",
+      ],
       phase_focus_type: [
         "strength",
         "hypertrophy",
@@ -3194,6 +3436,7 @@ export const Constants = {
       technical_complexity: ["bassa", "media", "alta"],
       ticket_category: ["bug", "feature_request", "billing", "other"],
       ticket_status: ["new", "in_progress", "resolved", "closed"],
+      tier: ["premium", "monthly"],
       user_role: ["coach", "athlete"],
       workout_log_status: ["scheduled", "completed", "missed", "in_progress"],
       workout_status: ["pending", "in_progress", "completed", "skipped"],
