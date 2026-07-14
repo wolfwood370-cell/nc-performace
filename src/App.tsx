@@ -33,7 +33,7 @@ const CoachCheckinInbox = lazy(() => import("./pages/coach/CoachCheckinInbox"));
 const FmsScreening = lazy(() => import("./pages/coach/FmsScreening"));
 const KnowledgeBase = lazy(() => import("./pages/coach/KnowledgeBase"));
 const MasterCopilot = lazy(() => import("./pages/coach/MasterCopilot"));
-const OnboardingWizard = lazy(() => import("./pages/onboarding/OnboardingWizard"));
+const IntakeForm = lazy(() => import("./features/intake/IntakeForm"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
@@ -350,8 +350,8 @@ const App = () => (
                 }
               />
 
-              {/* Onboarding */}
-              <Route path="/onboarding" element={<OnboardingWizard />} />
+              {/* Onboarding — intake config-driven, submit via edge fn (Fase 2) */}
+              <Route path="/onboarding" element={<IntakeForm />} />
 
               {/* Legal */}
               <Route path="/privacy" element={<PrivacyPolicy />} />
