@@ -12,27 +12,18 @@
 // resolution mechanism yet: any yellow (or a yellow-carrying red snapshot)
 // STOPS, because no coach reviews an autonomous athlete silently.
 
-import { safetyGate, GATE_CLEARANCE_REASON } from "../../_shared/method/assembleWeek.ts";
+import { GATE_CLEARANCE_REASON, safetyGate } from "../../_shared/method/assembleWeek.ts";
+import { missingReleaseConsents, REQUIRED_RELEASE_CONSENTS } from "./consents.ts";
+import type { ConsentRow } from "./consents.ts";
 
-/**
- * Consents required BEFORE an automated release (art. 22 GDPR — CORE §6
- * requires explicit consent for the autonomous automated decision).
- * ai_processing exists in the DB enum but is still parked in the intake
- * collection (validateSpec.ts CONSENT_TYPES): un-parking it is a declared
- * GO-LIVE blocker of this slice, tracked in HANDOFF.
- */
-export const REQUIRED_RELEASE_CONSENTS = [
-  "health_required",
-  "non_medical_disclaimer",
-  "ai_processing",
-] as const;
-
-/** Raw ledger row (consents table): current state = latest row per type. */
-export interface ConsentRow {
-  consent_type: string;
-  granted: boolean;
-  created_at: string;
-}
+// Consent rules live in consents.ts (import-free single source shared with
+// the FE); re-exported here so gate consumers keep a single entry point.
+export {
+  missingReleaseConsents,
+  REQUIRED_RELEASE_CONSENTS,
+  resolveConsentState,
+} from "./consents.ts";
+export type { ConsentRow } from "./consents.ts";
 
 export type StopReason =
   | "intake_incompleto"
@@ -113,21 +104,6 @@ export function stopFor(reason: StopReason): StopDecision {
   };
 }
 
-/**
- * Current consent state from the append-only ledger: latest row per type wins
- * (ISO timestamps compare lexicographically). Missing type = not granted.
- */
-export function resolveConsentState(rows: ConsentRow[]): Map<string, boolean> {
-  const latest = new Map<string, { granted: boolean; created_at: string }>();
-  for (const row of rows) {
-    const prev = latest.get(row.consent_type);
-    if (!prev || row.created_at >= prev.created_at) {
-      latest.set(row.consent_type, { granted: row.granted, created_at: row.created_at });
-    }
-  }
-  return new Map([...latest.entries()].map(([type, s]) => [type, s.granted]));
-}
-
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -164,9 +140,8 @@ export interface DecideGateInput {
 export function decideGate(input: DecideGateInput): GateDecision {
   // 1) Consent gate (art. 22) — BEFORE any clinical evaluation.
   const required = input.requiredConsents ?? REQUIRED_RELEASE_CONSENTS;
-  const state = resolveConsentState(input.consentRows);
-  const missing = required.filter((type) => state.get(type) !== true);
-  if (missing.length > 0) return { outcome: "consent_required", missing: [...missing] };
+  const missing = missingReleaseConsents(input.consentRows, required);
+  if (missing.length > 0) return { outcome: "consent_required", missing };
 
   // 2) Intake snapshot must exist and be well-formed (deny-by-default).
   const safety = parseSafetyBlock(input.safety);
