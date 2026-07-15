@@ -50,7 +50,8 @@ export function applyConservativeFirstBlock(program: AiProgramResult): AiProgram
       ...day,
       exercises: day.exercises.map((ex) => ({
         ...ex,
-        sets: Math.max(CONSERVATIVE_MIN_SETS, ex.sets - 1),
+        // Never INCREASE volume: at or below the floor the prescription stays.
+        sets: ex.sets <= CONSERVATIVE_MIN_SETS ? ex.sets : ex.sets - 1,
       })),
     })),
     rationale:

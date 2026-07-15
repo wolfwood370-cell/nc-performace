@@ -110,7 +110,17 @@ Deno.test("resolveConsentState: parità di timestamp -> vince l'ultima riga lett
 Deno.test("intake incompleto: safety assente/malformato -> STOP medium senza referral", () => {
   for (const safety of [null, undefined, {}, { level: 42 }, { level: "verde" }, "green"]) {
     const result = decideGate(input({ safety }));
-    assertEquals(result, stopFor("intake_incompleto"), JSON.stringify(safety));
+    // Literal pin (not stopFor: it reads the same catalog it would verify).
+    assertEquals(
+      result,
+      {
+        outcome: "stop",
+        reason: "intake_incompleto",
+        severity: "medium",
+        medicalReferral: false,
+      },
+      JSON.stringify(safety),
+    );
   }
 });
 

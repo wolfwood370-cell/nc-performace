@@ -72,6 +72,33 @@ Deno.test("applyConservativeFirstBlock: -1 set con pavimento 2; reps/rpe/load in
   assertEquals(program.rationale.includes("Primo blocco conservativo"), false);
 });
 
+Deno.test(
+  "applyConservativeFirstBlock: mai un aumento — sets al/di sotto del pavimento invariati",
+  () => {
+    // Mutation guard (review 2026-07-15): a bare Math.max(2, sets-1) would RAISE
+    // a 1-set prescription to 2 — the conservative block may only shrink.
+    const ex = (sets: number) => ({
+      exercise_id: "fx",
+      name: "X",
+      sets,
+      reps: "8",
+      load: "RPE 8",
+      rpe: 8,
+      rest_seconds: 60,
+      notes: "n",
+    });
+    const program = {
+      days: [{ day_index: 0, day_name: "Giorno 1", focus: "f", exercises: [ex(3), ex(2), ex(1)] }],
+      rationale: "r",
+    };
+    const result = applyConservativeFirstBlock(program);
+    assertEquals(
+      result.days[0].exercises.map((e) => e.sets),
+      [2, 2, 1],
+    );
+  },
+);
+
 // --- program document ------------------------------------------------------------
 
 Deno.test("buildProgramDocument: ID stabili posizionali, version 1, contenuto preservato", () => {
