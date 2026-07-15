@@ -7,7 +7,9 @@
 //      (role=athlete AND coaching_mode='autonomous' AND onboarding_completed);
 //   2. idempotency: an existing release -> 409, never a re-roll;
 //   3. runs the PURE gate (release/decide.ts): consent art. 22 (3 types) ->
-//      full clinical sequence -> traffic light -> general zone;
+//      full clinical sequence -> traffic light -> general zone; a missing
+//      consent returns { consentRequired } plus a BEST-EFFORT audit_log row
+//      (art. 22 trail — an audit failure never hides the consent prompt);
 //   4. on STOP: guaranteed escalation (coach_alerts with a non-null recipient,
 //      SAFETY_NET_COACH_ID as fallback) + audit_log, then an EXPLICIT blocking
 //      response — a failed alert insert is a 5xx, never a silent success;
@@ -24,7 +26,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { assembleWeek, buildExcludedZones } from "../_shared/method/assembleWeek.ts";
 import { hasGeneralBlock } from "../_shared/method/zoneMap.ts";
-import { buildStopAlert, decideGate, stopFor } from "./release/decide.ts";
+import { buildConsentBlockedAudit, buildStopAlert, decideGate, stopFor } from "./release/decide.ts";
 import type { ConsentRow, StopDecision } from "./release/decide.ts";
 import { goalForObjective } from "./release/objectiveDriver.ts";
 import { parseIntakeInputs } from "./release/intakeInputs.ts";
@@ -258,6 +260,18 @@ serve(async (req) => {
     });
 
     if (decision.outcome === "consent_required") {
+      // Art. 22 compliance trail: prove the automated release was refused for
+      // missing consent. Best-effort by design: no escalation rides on this
+      // row and an audit hiccup must never hide the consent prompt (unlike
+      // STOPs, where fail-loud protects alertRaised).
+      const { error: auditError } = await admin
+        .from("audit_log")
+        .insert(buildConsentBlockedAudit(user.id, decision.missing));
+      if (auditError) {
+        console.error("[release-autonomous-program] consent audit insert failed", {
+          code: auditError.code,
+        });
+      }
       return json({ ok: false, consentRequired: true, missing: decision.missing }, 200);
     }
     if (decision.outcome === "stop") {

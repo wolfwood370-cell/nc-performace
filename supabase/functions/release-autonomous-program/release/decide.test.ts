@@ -4,6 +4,7 @@
 
 import { assertEquals } from "jsr:@std/assert@1";
 import {
+  buildConsentBlockedAudit,
   buildStopAlert,
   decideGate,
   parseSafetyBlock,
@@ -96,6 +97,25 @@ Deno.test(
     assertEquals(result.outcome, "consent_required");
   },
 );
+
+Deno.test("buildConsentBlockedAudit: riga audit_log letterale (colonne reali, art. 22)", () => {
+  // Literal pin of the persisted row — index.ts inserts it as-is, no remapping.
+  const athleteId = "11111111-2222-3333-4444-555555555555";
+  assertEquals(buildConsentBlockedAudit(athleteId, ["ai_processing"]), {
+    actor_id: athleteId,
+    actor_role: "athlete",
+    action: "autonomous_release_consent_blocked",
+    entity_type: "profile",
+    entity_id: athleteId,
+    metadata: { missing: ["ai_processing"] },
+  });
+  // metadata is NOT NULL in schema: even an empty list stays an object, and
+  // the full missing list flows through untouched (required-list order).
+  assertEquals(buildConsentBlockedAudit(athleteId, []).metadata, { missing: [] });
+  assertEquals(buildConsentBlockedAudit(athleteId, [...REQUIRED_RELEASE_CONSENTS]).metadata, {
+    missing: ["health_required", "non_medical_disclaimer", "ai_processing"],
+  });
+});
 
 Deno.test("resolveConsentState: parità di timestamp -> vince l'ultima riga letta", () => {
   const state = resolveConsentState([

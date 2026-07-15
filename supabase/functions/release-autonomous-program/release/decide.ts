@@ -184,3 +184,30 @@ export function buildStopAlert(
     message: spec.alertMessage(name),
   };
 }
+
+/**
+ * Audit row for a consent-refused automated release (art. 22 compliance
+ * trail) — maps onto the REAL audit_log columns; metadata is NOT NULL in
+ * schema, so it is always an object here. index.ts inserts this row AS-IS
+ * (no remapping) so the unit pin covers the exact persisted shape.
+ */
+export function buildConsentBlockedAudit(
+  athleteId: string,
+  missing: string[],
+): {
+  actor_id: string;
+  actor_role: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  metadata: { missing: string[] };
+} {
+  return {
+    actor_id: athleteId,
+    actor_role: "athlete",
+    action: "autonomous_release_consent_blocked",
+    entity_type: "profile",
+    entity_id: athleteId,
+    metadata: { missing },
+  };
+}
