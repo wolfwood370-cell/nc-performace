@@ -31,8 +31,13 @@
 // App.tsx as /athlete/training). The BottomNavBar from the layout
 // remains visible — that's intentional, the tab IS Training.
 //
-// All sub-components are inline. All data is mock; backend wiring lands
-// in the follow-up commit.
+// Data: the workout comes from the athlete's REAL program release
+// (program_releases via useProgramRelease — RLS select-own). Weekday i shows
+// program day i (Mon -> Giorno 1); beyond the program length the day is rest.
+// Without a release the page derives its state: consent required / pending
+// review / generate CTA (autonomous) or waiting-for-coach (coached). The edge
+// function stays the authoritative gate; no clinical detail is shown (art. 9).
+// The weekly-load glance card is still mock (separate slice).
 // =============================================================================
 
 import { useMemo, useState } from "react";
@@ -40,23 +45,29 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Activity,
   BarChart3,
-  CalendarClock,
-  CheckCircle2,
   ChevronRight,
   ChevronsUpDown,
-  Clock,
+  Dumbbell,
+  Hourglass,
+  Moon,
   MoreHorizontal,
   Play,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
   Zap,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
-import { useAthleteReadinessStore } from "@/stores/useAthleteReadinessStore";
 import { useDailyReadinessQuery } from "@/hooks/athlete/useAthleteReadinessHooks";
-import type {
-  ExerciseType,
-  PreviewExercise,
-} from "@/pages/athlete/ExercisePreview";
+import {
+  useAthleteGateStatusQuery,
+  useLatestReleaseQuery,
+  useRequestReleaseMutation,
+} from "@/hooks/athlete/useProgramRelease";
+import { dayForWeekday, sessionRpeTarget } from "@/lib/program/releaseView";
+import type { ReleaseDayView, ReleaseExerciseView } from "@/lib/program/releaseView";
 
 // =============================================================================
 // Date helpers — pure functions, kept here so they're co-located with
@@ -85,122 +96,9 @@ function compareDays(a: Date, b: Date): number {
 }
 
 // =============================================================================
-// Domain types & mocks
+// Domain types
 // =============================================================================
 type View = "diario" | "metriche";
-
-interface Exercise {
-  id: string;
-  /** Optional letter code: "A1", "B1" — only on main-session exercises. */
-  code?: string;
-  name: string;
-  /** Free-form scheme string: "4 Serie × 6-8 Reps" or "60s". This is the
-   *  display text rendered ON the training hub card. The structured
-   *  fields below are what flows to the ExercisePreview when the user
-   *  taps the card — they're what the preview's variants bind to. */
-  scheme: string;
-  /** Drives which ExercisePreview variant renders on tap. */
-  type: ExerciseType;
-  sets?: number;
-  reps?: string;
-  weightKg?: number;
-  rpe?: number;
-}
-
-interface Phase {
-  id: "movement_prep" | "main_session" | "cooldown";
-  /** Italian phase name */
-  name: string;
-  /** When true the exercises render with a primary left-border accent. */
-  emphasised: boolean;
-  exercises: Exercise[];
-}
-
-const TODAY_WORKOUT: {
-  badge: string;
-  title: string;
-  durationMin: number;
-  rpeTarget: number;
-  phases: Phase[];
-} = {
-  badge: "Main Workout",
-  title: "Lower Body Power & Hypertrophy",
-  durationMin: 60,
-  rpeTarget: 8,
-  phases: [
-    {
-      id: "movement_prep",
-      name: "Movement Prep",
-      emphasised: false,
-      exercises: [
-        {
-          id: "1",
-          name: "90/90 Stretch",
-          scheme: "2 min",
-          type: "isometric",
-          sets: 2,
-          reps: "2 min",
-        },
-        {
-          id: "2",
-          name: "RKC Front Plank",
-          scheme: "60s",
-          type: "isometric",
-          sets: 3,
-          reps: "60s",
-        },
-        {
-          id: "3",
-          name: "Bird Dog",
-          scheme: "10 reps",
-          type: "standard",
-          sets: 2,
-          reps: "10",
-        },
-      ],
-    },
-    {
-      id: "main_session",
-      name: "Main Session",
-      emphasised: true,
-      exercises: [
-        {
-          id: "a1",
-          code: "A1",
-          name: "Barbell Back Squat",
-          scheme: "4 Serie × 6-8 Reps",
-          type: "standard",
-          sets: 4,
-          reps: "6-8",
-          weightKg: 100,
-          rpe: 8,
-        },
-        {
-          id: "b1",
-          code: "B1",
-          name: "Romanian Deadlift",
-          scheme: "3 Serie × 10 Reps",
-          type: "standard",
-          sets: 3,
-          reps: "10",
-          weightKg: 80,
-          rpe: 8,
-        },
-        {
-          id: "c1",
-          code: "C1",
-          name: "Bulgarian Split Squat",
-          scheme: "3 Serie × 12 Reps",
-          type: "standard",
-          sets: 3,
-          reps: "12",
-          weightKg: 24,
-          rpe: 7,
-        },
-      ],
-    },
-  ],
-};
 
 const WEEKLY_LOAD = {
   totalKg: 12_450,
@@ -265,13 +163,7 @@ function PageHeader() {
 // =============================================================================
 // ViewSwitcher — pill segmented control between Diario & Metriche.
 // =============================================================================
-function ViewSwitcher({
-  view,
-  onChange,
-}: {
-  view: View;
-  onChange: (next: View) => void;
-}) {
+function ViewSwitcher({ view, onChange }: { view: View; onChange: (next: View) => void }) {
   const tabs: { id: View; label: string }[] = [
     { id: "diario", label: "Diario" },
     { id: "metriche", label: "Metriche" },
@@ -369,44 +261,24 @@ function WeekStrip({
 }
 
 // =============================================================================
-// RestDayCard / FuturePlanCard — empty states for non-today selections.
+// StateCard — shared empty/status surface for every non-workout state
+// (rest day, consent required, pending review, coached waiting, generate CTA).
+// No clinical detail ever renders here (art. 9): generic copy only.
 // =============================================================================
-function RestDayCard({ date }: { date: Date }) {
+function StateCard({
+  icon,
+  title,
+  body,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  children?: React.ReactNode;
+}) {
   return (
     <section
-      aria-label="Allenamento completato"
-      className={cn(
-        "rounded-3xl p-8",
-        "bg-white/70 backdrop-blur-xl border border-[#c0c7d0]/30",
-        "flex flex-col items-center justify-center text-center gap-3",
-        "min-h-[200px]",
-      )}
-    >
-      <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-        <CheckCircle2
-          className="h-6 w-6 text-emerald-600"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      </div>
-      <p className="font-display text-base font-semibold text-on-surface">
-        Allenamento completato
-      </p>
-      <p className="text-sm text-on-surface-variant max-w-[280px]">
-        {date.toLocaleDateString("it-IT", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        })}
-      </p>
-    </section>
-  );
-}
-
-function FuturePlanCard({ date }: { date: Date }) {
-  return (
-    <section
-      aria-label="Allenamento pianificato"
+      aria-label={title}
       className={cn(
         "rounded-3xl p-8",
         "bg-white/70 backdrop-blur-xl border border-[#c0c7d0]/30",
@@ -415,31 +287,56 @@ function FuturePlanCard({ date }: { date: Date }) {
       )}
     >
       <div className="h-12 w-12 rounded-full bg-brand-container/10 flex items-center justify-center">
-        <CalendarClock
-          className="h-6 w-6 text-brand-container"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
+        {icon}
       </div>
-      <p className="font-display text-base font-semibold text-on-surface">
-        Pianificato
-      </p>
-      <p className="text-sm text-on-surface-variant max-w-[280px]">
-        {date.toLocaleDateString("it-IT", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        })}{" "}
-        · Apri quando il giorno arriva.
-      </p>
+      <p className="font-display text-base font-semibold text-on-surface">{title}</p>
+      <p className="text-sm text-on-surface-variant max-w-[280px]">{body}</p>
+      {children}
     </section>
+  );
+}
+
+const stateIconClass = "h-6 w-6 text-brand-container";
+
+/** Autonomous athlete, clean gate, no release yet: the generate CTA. */
+function GenerateProgramCard({
+  onGenerate,
+  isPending,
+}: {
+  onGenerate: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <StateCard
+      icon={<Sparkles className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+      title="Il tuo programma ti aspetta"
+      body="Genera la tua prima settimana di allenamento: il motore la costruisce dai dati del tuo intake."
+    >
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={isPending}
+        className={cn(
+          "mt-2 px-6 py-3 rounded-full",
+          "bg-brand-container text-white",
+          "font-display text-sm font-bold uppercase tracking-widest",
+          "shadow-[0_10px_30px_rgba(34,111,163,0.35)]",
+          "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
+          "disabled:opacity-60 disabled:pointer-events-none",
+        )}
+      >
+        {isPending ? "Generazione in corso…" : "Genera il mio programma"}
+      </button>
+    </StateCard>
   );
 }
 
 // =============================================================================
 // HeroWorkoutCard — glass card, left brand border, badge + title + meta.
+// Fed by the release day: focus as title, exercise count + mean RPE as meta.
 // =============================================================================
-function HeroWorkoutCard() {
+function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
+  const rpeTarget = sessionRpeTarget(day);
   return (
     <section
       aria-label="Allenamento principale di oggi"
@@ -458,24 +355,22 @@ function HeroWorkoutCard() {
       />
       <div className="relative z-10 flex flex-col gap-4">
         <span className="self-start font-sans text-[10px] font-semibold tracking-widest uppercase text-brand-container bg-brand-container/10 px-2 py-1 rounded-full">
-          {TODAY_WORKOUT.badge}
+          {day.dayName}
         </span>
         <h2 className="font-display text-xl font-semibold leading-tight text-on-surface">
-          {TODAY_WORKOUT.title}
+          {day.focus}
         </h2>
         <div className="flex flex-wrap items-center gap-4 text-on-surface-variant">
           <div className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            <span className="font-sans text-xs font-semibold">
-              {TODAY_WORKOUT.durationMin} min stimati
-            </span>
+            <Dumbbell className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+            <span className="font-sans text-xs font-semibold">{day.exercises.length} esercizi</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Zap className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-            <span className="font-sans text-xs font-semibold">
-              RPE target: {TODAY_WORKOUT.rpeTarget}
-            </span>
-          </div>
+          {rpeTarget !== null && (
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+              <span className="font-sans text-xs font-semibold">RPE target: {rpeTarget}</span>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -502,18 +397,12 @@ function GlanceCards() {
   // READINESS mock until the day's check-in is submitted, so the card
   // never shows "—%" out of context.
   const displayScore =
-    isReadinessCompletedToday && dailyScore !== null
-      ? dailyScore
-      : READINESS.scorePercent;
-  const displayLabel = isReadinessCompletedToday
-    ? READINESS.label
-    : "Da registrare";
+    isReadinessCompletedToday && dailyScore !== null ? dailyScore : READINESS.scorePercent;
+  const displayLabel = isReadinessCompletedToday ? READINESS.label : "Da registrare";
 
   const handleOpenAnalytics = () => navigate("/athlete/analytics");
   const handleOpenReadiness = () => {
-    navigate(
-      isReadinessCompletedToday ? "/athlete/readiness" : "/athlete/daily-checkin",
-    );
+    navigate(isReadinessCompletedToday ? "/athlete/readiness" : "/athlete/daily-checkin");
   };
 
   return (
@@ -554,9 +443,7 @@ function GlanceCards() {
               key={i}
               className={cn(
                 "flex-1 rounded-t-sm",
-                i === WEEKLY_LOAD.daily.length - 1
-                  ? "bg-brand-container"
-                  : "bg-brand-container/40",
+                i === WEEKLY_LOAD.daily.length - 1 ? "bg-brand-container" : "bg-brand-container/40",
               )}
               style={{ height: `${h}%` }}
             />
@@ -571,9 +458,7 @@ function GlanceCards() {
         type="button"
         onClick={handleOpenReadiness}
         aria-label={
-          isReadinessCompletedToday
-            ? "Apri analisi prontezza"
-            : "Registra la prontezza di oggi"
+          isReadinessCompletedToday ? "Apri analisi prontezza" : "Registra la prontezza di oggi"
         }
         className={cn(
           "rounded-3xl p-5 text-left",
@@ -593,9 +478,7 @@ function GlanceCards() {
         <p className="font-display text-xl font-bold text-on-surface leading-none">
           {displayLabel}
         </p>
-        <span
-          className="self-start px-2 py-0.5 rounded-full bg-brand-container/10 text-brand-container font-sans text-[10px] font-bold tabular-nums"
-        >
+        <span className="self-start px-2 py-0.5 rounded-full bg-brand-container/10 text-brand-container font-sans text-[10px] font-bold tabular-nums">
           {displayScore}% Score
         </span>
       </button>
@@ -612,21 +495,8 @@ function MiniReadinessRing({ percent }: { percent: number }) {
   const safe = Math.max(0, Math.min(100, percent));
   const offset = circumference * (1 - safe / 100);
   return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 36 36"
-      className="-rotate-90"
-      aria-hidden="true"
-    >
-      <circle
-        cx="18"
-        cy="18"
-        r={r}
-        fill="none"
-        stroke="#c5e7ff"
-        strokeWidth="4"
-      />
+    <svg width="24" height="24" viewBox="0 0 36 36" className="-rotate-90" aria-hidden="true">
+      <circle cx="18" cy="18" r={r} fill="none" stroke="#c5e7ff" strokeWidth="4" />
       <circle
         cx="18"
         cy="18"
@@ -673,9 +543,9 @@ function ExerciseCard({
   emphasised,
   onSelect,
 }: {
-  exercise: Exercise;
+  exercise: ReleaseExerciseView;
   emphasised: boolean;
-  onSelect: (ex: Exercise) => void;
+  onSelect: (ex: ReleaseExerciseView) => void;
 }) {
   return (
     <button
@@ -692,24 +562,17 @@ function ExerciseCard({
       )}
     >
       {emphasised && (
-        <div
-          aria-hidden="true"
-          className="absolute left-0 top-0 bottom-0 w-1 bg-brand-container"
-        />
+        <div aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1 bg-brand-container" />
       )}
       <div className={cn("flex items-start justify-between gap-3", emphasised && "pl-2")}>
         <div className="flex-1 min-w-0">
           <p className="font-display text-sm font-semibold text-on-surface leading-snug">
             {exercise.code && (
-              <span className="text-brand-container font-bold mr-1.5">
-                {exercise.code}.
-              </span>
+              <span className="text-brand-container font-bold mr-1.5">{exercise.code}.</span>
             )}
             {exercise.name}
           </p>
-          <p className="mt-1 font-sans text-xs text-on-surface-variant">
-            {exercise.scheme}
-          </p>
+          <p className="mt-1 font-sans text-xs text-on-surface-variant">{exercise.scheme}</p>
         </div>
         <span
           aria-hidden="true"
@@ -722,17 +585,21 @@ function ExerciseCard({
   );
 }
 
+/**
+ * Release days carry a single main-session phase (the functional warm-up is
+ * the coach's/rationale's note, not structured data — see buildRationale).
+ */
 function WorkoutBlueprint({
+  day,
   onSelectExercise,
 }: {
-  onSelectExercise: (ex: Exercise) => void;
+  day: ReleaseDayView;
+  onSelectExercise: (ex: ReleaseExerciseView) => void;
 }) {
   return (
     <section aria-label="Struttura allenamento" className="flex flex-col gap-5">
       <div className="flex items-center justify-between px-1">
-        <h2 className="font-display text-lg font-bold text-on-surface">
-          Fasi dell'Allenamento
-        </h2>
+        <h2 className="font-display text-lg font-bold text-on-surface">Fasi dell'Allenamento</h2>
         <ChevronsUpDown
           className="h-4 w-4 text-on-surface-variant"
           strokeWidth={2}
@@ -740,22 +607,15 @@ function WorkoutBlueprint({
         />
       </div>
 
-      {TODAY_WORKOUT.phases.map((phase, idx) => (
-        <div key={phase.id} className="flex flex-col gap-3">
-          <PhaseHeader index={idx + 1} name={phase.name} />
-          {/* Indented vertical guide rail */}
-          <div className="flex flex-col gap-2 pl-4 ml-3 border-l-2 border-surface-container">
-            {phase.exercises.map((ex) => (
-              <ExerciseCard
-                key={ex.id}
-                exercise={ex}
-                emphasised={phase.emphasised}
-                onSelect={onSelectExercise}
-              />
-            ))}
-          </div>
+      <div className="flex flex-col gap-3">
+        <PhaseHeader index={1} name="Main Session" />
+        {/* Indented vertical guide rail */}
+        <div className="flex flex-col gap-2 pl-4 ml-3 border-l-2 border-surface-container">
+          {day.exercises.map((ex) => (
+            <ExerciseCard key={ex.id} exercise={ex} emphasised onSelect={onSelectExercise} />
+          ))}
         </div>
-      ))}
+      </div>
     </section>
   );
 }
@@ -776,18 +636,13 @@ function MetricheView() {
       )}
     >
       <div className="h-12 w-12 rounded-full bg-brand-container/10 flex items-center justify-center">
-        <Activity
-          className="h-6 w-6 text-brand-container"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
+        <Activity className="h-6 w-6 text-brand-container" strokeWidth={1.75} aria-hidden="true" />
       </div>
       <p className="font-display text-base font-semibold text-on-surface">
         Le tue metriche in arrivo
       </p>
       <p className="text-sm text-on-surface-variant max-w-[280px]">
-        Volume, intensità e progressione settimanale saranno qui dopo le prime
-        sessioni completate.
+        Volume, intensità e progressione settimanale saranno qui dopo le prime sessioni completate.
       </p>
       <Link
         to="/athlete/readiness"
@@ -828,15 +683,147 @@ function StickyStartCTA({ onStart }: { onStart: () => void }) {
             "hover:brightness-110",
           )}
         >
-          <Play
-            className="h-5 w-5 fill-white"
-            strokeWidth={0}
-            aria-hidden="true"
-          />
+          <Play className="h-5 w-5 fill-white" strokeWidth={0} aria-hidden="true" />
           Inizia Sessione
         </button>
       </div>
     </div>
+  );
+}
+
+// =============================================================================
+// DiarioView — the release-driven diary content (extracted so all hooks stay
+// unconditional at the top of the page component — hook-order law).
+// =============================================================================
+function DiarioView({
+  selectedDate,
+  isToday,
+  onSelectExercise,
+  onStartSession,
+}: {
+  selectedDate: Date;
+  isToday: boolean;
+  onSelectExercise: (ex: ReleaseExerciseView) => void;
+  onStartSession: () => void;
+}) {
+  const releaseQuery = useLatestReleaseQuery();
+  const gateQuery = useAthleteGateStatusQuery();
+  const requestRelease = useRequestReleaseMutation();
+
+  const handleGenerate = () => {
+    requestRelease.mutate(undefined, {
+      onSuccess: (res) => {
+        if (res.ok) {
+          toast.success("Programma generato", {
+            description: "La tua prima settimana è pronta.",
+          });
+        } else if (res.consentRequired) {
+          toast.info("Consenso richiesto", {
+            description: "Manca un consenso necessario al rilascio automatico.",
+          });
+        } else if (res.gate) {
+          toast.info("Programma in attesa di revisione", {
+            description: "Il tuo coach è stato avvisato: riceverai il programma dopo la revisione.",
+          });
+        } else if (res.alreadyActive) {
+          toast.info("Hai già un programma attivo");
+        } else {
+          toast.error("Generazione non riuscita", { description: "Riprova più tardi." });
+        }
+      },
+      onError: () => toast.error("Generazione non riuscita", { description: "Riprova più tardi." }),
+    });
+  };
+
+  if (releaseQuery.isPending || gateQuery.isPending) {
+    return (
+      <StateCard
+        icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+        title="Caricamento"
+        body="Sto recuperando il tuo programma…"
+      />
+    );
+  }
+
+  const program = releaseQuery.data?.program ?? null;
+
+  if (releaseQuery.data && program) {
+    // Weekday i (Mon-based) -> program day i; beyond the plan -> rest day.
+    const mondayIdx = (selectedDate.getDay() + 6) % 7;
+    const sessionForDay = dayForWeekday(program, mondayIdx);
+    if (!sessionForDay) {
+      return (
+        <>
+          <StateCard
+            icon={<Moon className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+            title="Giorno di riposo"
+            body="Nessuna seduta in programma: recupero anche questo è allenamento."
+          />
+          <GlanceCards />
+        </>
+      );
+    }
+    return (
+      <>
+        <HeroWorkoutCard day={sessionForDay} />
+        <GlanceCards />
+        <WorkoutBlueprint day={sessionForDay} onSelectExercise={onSelectExercise} />
+        {isToday && <StickyStartCTA onStart={onStartSession} />}
+      </>
+    );
+  }
+
+  if (releaseQuery.data && !program) {
+    // A release exists but its document doesn't parse: never render garbage.
+    return (
+      <StateCard
+        icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+        title="Programma non disponibile"
+        body="Il programma non è leggibile su questo dispositivo: contatta il tuo coach."
+      />
+    );
+  }
+
+  const gate = gateQuery.data;
+  if (gate?.coachingMode === "autonomous") {
+    if (gate.missingConsents.length > 0) {
+      return (
+        <StateCard
+          icon={<ShieldCheck className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+          title="Consenso richiesto"
+          body="Per il rilascio automatico del programma serve un consenso che non risulta ancora concesso. Contatta il tuo coach per completarlo."
+        />
+      );
+    }
+    if (gate.pendingReview) {
+      return (
+        <StateCard
+          icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+          title="Programma in attesa di revisione"
+          body="Il tuo intake è in revisione: riceverai il programma appena approvato."
+        />
+      );
+    }
+    if (gate.onboardingCompleted) {
+      return (
+        <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />
+      );
+    }
+    return (
+      <StateCard
+        icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+        title="Completa l'intake"
+        body="Il tuo programma arriva dopo il questionario iniziale: completalo per iniziare."
+      />
+    );
+  }
+
+  return (
+    <StateCard
+      icon={<UsersRound className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+      title="In attesa del coach"
+      body="Il tuo coach sta preparando il tuo programma: lo troverai qui appena rilasciato."
+    />
   );
 }
 
@@ -867,18 +854,25 @@ export default function AthleteTraining() {
    *  exercise via route state so the preview page can hydrate without
    *  re-fetching. The preview component will read it from
    *  `useLocation().state` once it is updated to consume real data. */
-  const handleSelectExercise = (exercise: Exercise) => {
-    navigate("/athlete/exercise-preview", { state: { exercise } });
+  const handleSelectExercise = (exercise: ReleaseExerciseView) => {
+    navigate("/athlete/exercise-preview", {
+      state: {
+        exercise: {
+          id: exercise.id,
+          code: exercise.code,
+          name: exercise.name,
+          scheme: exercise.scheme,
+          type: "standard",
+          sets: exercise.sets,
+          reps: exercise.reps,
+          rpe: exercise.rpe,
+        },
+      },
+    });
   };
 
-  // Day classification — drives both the conditional content (workout
-  // vs empty state) and whether the sticky "Inizia Sessione" CTA is
-  // rendered at all. Calling the start CTA on a past / future day
-  // would be confusing.
   const today = new Date();
-  const dayDelta = compareDays(selectedDate, today);
-  const isToday = dayDelta === 0;
-  const isPast = dayDelta < 0;
+  const isToday = compareDays(selectedDate, today) === 0;
 
   return (
     <>
@@ -890,25 +884,16 @@ export default function AthleteTraining() {
         <WeekStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} />
 
         {view === "diario" ? (
-          isToday ? (
-            <>
-              <HeroWorkoutCard />
-              <GlanceCards />
-              <WorkoutBlueprint onSelectExercise={handleSelectExercise} />
-            </>
-          ) : isPast ? (
-            <RestDayCard date={selectedDate} />
-          ) : (
-            <FuturePlanCard date={selectedDate} />
-          )
+          <DiarioView
+            selectedDate={selectedDate}
+            isToday={isToday}
+            onSelectExercise={handleSelectExercise}
+            onStartSession={handleStart}
+          />
         ) : (
           <MetricheView />
         )}
       </div>
-
-      {/* Sticky CTA only makes sense for today. Past/future days have
-          their own state cards above; the CTA would be a dead button. */}
-      {view === "diario" && isToday && <StickyStartCTA onStart={handleStart} />}
     </>
   );
 }
