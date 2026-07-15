@@ -2370,6 +2370,70 @@ export type Database = {
           },
         ]
       }
+      program_releases: {
+        Row: {
+          athlete_id: string
+          coaching_mode: string
+          config_version: string
+          created_at: string
+          id: string
+          program_document: Json
+          released_at: string
+          released_by: string
+          safety_context: Json
+          schema_version: number
+          supersedes_id: string | null
+        }
+        Insert: {
+          athlete_id: string
+          coaching_mode: string
+          config_version: string
+          created_at?: string
+          id?: string
+          program_document: Json
+          released_at?: string
+          released_by: string
+          safety_context: Json
+          schema_version: number
+          supersedes_id?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          coaching_mode?: string
+          config_version?: string
+          created_at?: string
+          id?: string
+          program_document?: Json
+          released_at?: string
+          released_by?: string
+          safety_context?: Json
+          schema_version?: number
+          supersedes_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_releases_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "program_releases_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_releases_supersedes_same_athlete_fk"
+            columns: ["supersedes_id", "athlete_id"]
+            isOneToOne: false
+            referencedRelation: "program_releases"
+            referencedColumns: ["id", "athlete_id"]
+          },
+        ]
+      }
       program_weeks: {
         Row: {
           created_at: string
