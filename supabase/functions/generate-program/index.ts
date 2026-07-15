@@ -5,9 +5,9 @@ import {
   buildExcludedZones,
   NO_CANDIDATES_ERROR,
   safetyGate,
-} from "./method/assembleWeek.ts";
-import type { CandidateRow } from "./method/assembleWeek.ts";
-import { hasGeneralBlock } from "./method/zoneMap.ts";
+} from "../_shared/method/assembleWeek.ts";
+import type { CandidateRow } from "../_shared/method/assembleWeek.ts";
+import { hasGeneralBlock } from "../_shared/method/zoneMap.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
