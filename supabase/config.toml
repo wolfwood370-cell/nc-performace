@@ -51,6 +51,9 @@ verify_jwt = true
 [functions.delete-athlete]
 verify_jwt = true
 
+[functions.release-autonomous-program]
+verify_jwt = true
+
 # -- Public endpoints (intentionally unauthenticated at the gateway) ---------
 
 [functions.stripe-webhook]
