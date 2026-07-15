@@ -1,0 +1,447 @@
+[
+  {
+    "name": "forza-4d-1A-oneRm-zona-anca",
+    "result": {
+      "days": [
+        {
+          "day_index": 0,
+          "day_name": "Giorno 1 · Lower A",
+          "focus": "Forza · Lower A",
+          "exercises": [
+            {
+              "exercise_id": "fx-core-ae-1",
+              "name": "Plank",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 1,
+          "day_name": "Giorno 2 · Upper A",
+          "focus": "Forza · Upper A",
+          "exercises": [
+            {
+              "exercise_id": "fx-push-h-1",
+              "name": "Bench Press",
+              "sets": 4,
+              "reps": "4",
+              "load": "86.2%",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-pull-h-1",
+              "name": "Barbell Row",
+              "sets": 4,
+              "reps": "4",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-push-v-1",
+              "name": "Overhead Press",
+              "sets": 3,
+              "reps": "6",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 150,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 2,
+          "day_name": "Giorno 3 · Lower B",
+          "focus": "Forza · Lower B",
+          "exercises": [
+            {
+              "exercise_id": "fx-core-ar-1",
+              "name": "Pallof Press",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 3,
+          "day_name": "Giorno 4 · Upper B",
+          "focus": "Forza · Upper B",
+          "exercises": [
+            {
+              "exercise_id": "fx-pull-v-1",
+              "name": "Pull-Up",
+              "sets": 4,
+              "reps": "4",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-push-v-1",
+              "name": "Overhead Press",
+              "sets": 4,
+              "reps": "4",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-pull-h-1",
+              "name": "Barbell Row",
+              "sets": 3,
+              "reps": "6",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 150,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        }
+      ],
+      "rationale": "Settimana forza su 4 giorni (Lower/Upper x2), assemblata in modo deterministico col metodo: RPE-primary, %1RM dalla Tabella quando esiste un 1RM registrato. Riscaldamento funzionale a inizio seduta a cura del coach. Neurotipo 1A (Competitivo - intensita e leadership): recuperi allungati e stesso gesto sulle esposizioni ripetute. Zone escluse dal gate di sicurezza: anca. Slot senza candidati in libreria (saltati): Lower A: squat; Lower A: hip hinge; Lower A: lunge; Lower B: hip hinge; Lower B: squat; Lower B: lunge."
+    }
+  },
+  {
+    "name": "ipertrofia-3d-2B-default",
+    "result": {
+      "days": [
+        {
+          "day_index": 0,
+          "day_name": "Giorno 1 · Full Body 1",
+          "focus": "Ipertrofia · Full Body 1",
+          "exercises": [
+            {
+              "exercise_id": "fx-squat-2",
+              "name": "Goblet Squat",
+              "sets": 3,
+              "reps": "8",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 105,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-push-h-1",
+              "name": "Bench Press",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-pull-h-1",
+              "name": "Barbell Row",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-core-ae-1",
+              "name": "Plank",
+              "sets": 3,
+              "reps": "15",
+              "load": "RPE 9",
+              "rpe": 9,
+              "rest_seconds": 30,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 1,
+          "day_name": "Giorno 2 · Full Body 2",
+          "focus": "Ipertrofia · Full Body 2",
+          "exercises": [
+            {
+              "exercise_id": "fx-hinge-1",
+              "name": "Romanian Deadlift",
+              "sets": 3,
+              "reps": "8",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 105,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-push-v-1",
+              "name": "Overhead Press",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-pull-v-1",
+              "name": "Pull-Up",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-core-ar-1",
+              "name": "Pallof Press",
+              "sets": 3,
+              "reps": "15",
+              "load": "RPE 9",
+              "rpe": 9,
+              "rest_seconds": 30,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 2,
+          "day_name": "Giorno 3 · Full Body 3",
+          "focus": "Ipertrofia · Full Body 3",
+          "exercises": [
+            {
+              "exercise_id": "fx-squat-1",
+              "name": "Back Squat",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-hinge-2",
+              "name": "Kettlebell Swing",
+              "sets": 3,
+              "reps": "12",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 60,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            },
+            {
+              "exercise_id": "fx-push-h-2",
+              "name": "Push-Up",
+              "sets": 3,
+              "reps": "8",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 105,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-pull-h-2",
+              "name": "Dumbbell Row",
+              "sets": 3,
+              "reps": "8",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 105,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "15",
+              "load": "RPE 9",
+              "rpe": 9,
+              "rest_seconds": 30,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        }
+      ],
+      "rationale": "Settimana ipertrofia su 3 giorni (Full Body x3), assemblata in modo deterministico col metodo: RPE-primary, %1RM dalla Tabella quando esiste un 1RM registrato. Riscaldamento funzionale a inizio seduta a cura del coach. Neurotipo 2B (Emotivo - abitudinario, cerca connessione): recuperi accorciati e varianti ruotate sulle esposizioni ripetute."
+    }
+  },
+  {
+    "name": "forza-6d-3-spalla-aggressivo-equip-limitato",
+    "result": {
+      "days": [
+        {
+          "day_index": 0,
+          "day_name": "Giorno 1 · Push",
+          "focus": "Forza · Push",
+          "exercises": [
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            },
+            {
+              "exercise_id": "fx-core-ae-1",
+              "name": "Plank",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 1,
+          "day_name": "Giorno 2 · Pull",
+          "focus": "Forza · Pull",
+          "exercises": [
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 2,
+          "day_name": "Giorno 3 · Legs",
+          "focus": "Forza · Legs",
+          "exercises": [
+            {
+              "exercise_id": "fx-squat-2",
+              "name": "Goblet Squat",
+              "sets": 4,
+              "reps": "4",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-lunge-1",
+              "name": "Walking Lunge",
+              "sets": 3,
+              "reps": "6",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 150,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            }
+          ]
+        },
+        {
+          "day_index": 3,
+          "day_name": "Giorno 4 · Push",
+          "focus": "Forza · Push",
+          "exercises": [
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            },
+            {
+              "exercise_id": "fx-core-ae-1",
+              "name": "Plank",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 4,
+          "day_name": "Giorno 5 · Pull",
+          "focus": "Forza · Pull",
+          "exercises": [
+            {
+              "exercise_id": "fx-iso-1",
+              "name": "Biceps Curl",
+              "sets": 3,
+              "reps": "10",
+              "load": "RPE 8",
+              "rpe": 8,
+              "rest_seconds": 90,
+              "notes": "Accessorio: controllo ed esecuzione pulita, recuperi brevi."
+            }
+          ]
+        },
+        {
+          "day_index": 5,
+          "day_name": "Giorno 6 · Legs",
+          "focus": "Forza · Legs",
+          "exercises": [
+            {
+              "exercise_id": "fx-squat-2",
+              "name": "Goblet Squat",
+              "sets": 4,
+              "reps": "4",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 210,
+              "notes": "Alzata principale: tecnica prima del carico, fermati all'RPE target."
+            },
+            {
+              "exercise_id": "fx-lunge-1",
+              "name": "Walking Lunge",
+              "sets": 3,
+              "reps": "6",
+              "load": "RPE 7",
+              "rpe": 7,
+              "rest_seconds": 150,
+              "notes": "Complementare: qualità costante, stesso buffer su ogni serie."
+            }
+          ]
+        }
+      ],
+      "rationale": "Settimana forza su 6 giorni (Push/Pull/Legs x2), assemblata in modo deterministico col metodo: RPE-primary, %1RM dalla Tabella quando esiste un 1RM registrato. Riscaldamento funzionale a inizio seduta a cura del coach. Neurotipo 3 (Analitico - ansioso, pianificatore): recuperi allungati e stesso gesto sulle esposizioni ripetute. Zone escluse dal gate di sicurezza: spalla. Slot senza candidati in libreria (saltati): Push: push orizzontale; Push: push verticale; Pull: pull verticale; Pull: pull orizzontale; Pull: hip hinge; Legs: hip hinge; Legs: core anti-rotazione; Push: push orizzontale; Push: push verticale; Pull: pull verticale; Pull: pull orizzontale; Pull: hip hinge; Legs: hip hinge; Legs: core anti-rotazione. Modalità progressione: l'autoregolazione a settimane (RTS) modulerà i numeri dai dati registrati."
+    }
+  }
+]
