@@ -69,17 +69,32 @@ async function respondStop(
     return json({ ok: false, error: "escalation_failed" }, 500);
   }
   const alert = buildStopAlert(stop.reason, athleteName);
-  const { error: alertError } = await admin.from("coach_alerts").insert({
-    coach_id: recipient,
-    athlete_id: athleteId,
-    type: alert.type,
-    severity: alert.severity,
-    message: alert.message,
-    link: `/coach/athletes/${athleteId}`,
-  });
-  if (alertError) {
-    console.error("[release-autonomous-program] alert insert failed", { code: alertError.code });
-    return json({ ok: false, error: "escalation_failed" }, 500);
+  // Dedupe (review 2026-07-15): while an autonomous_gate_stop alert is still
+  // undismissed, repeated attempts must not flood the coach — the live alert
+  // IS the guaranteed escalation (alertRaised stays truthful). Once the coach
+  // dismisses it, a new attempt raises a fresh one. On lookup failure we fall
+  // through to insert: a duplicate beats a lost escalation.
+  const { data: liveAlert, error: liveAlertError } = await admin
+    .from("coach_alerts")
+    .select("id")
+    .eq("athlete_id", athleteId)
+    .eq("type", alert.type)
+    .eq("dismissed", false)
+    .limit(1);
+  const alreadyEscalated = !liveAlertError && (liveAlert?.length ?? 0) > 0;
+  if (!alreadyEscalated) {
+    const { error: alertError } = await admin.from("coach_alerts").insert({
+      coach_id: recipient,
+      athlete_id: athleteId,
+      type: alert.type,
+      severity: alert.severity,
+      message: alert.message,
+      link: `/coach/athletes/${athleteId}`,
+    });
+    if (alertError) {
+      console.error("[release-autonomous-program] alert insert failed", { code: alertError.code });
+      return json({ ok: false, error: "escalation_failed" }, 500);
+    }
   }
   const { error: auditError } = await admin.from("audit_log").insert({
     actor_id: athleteId,
