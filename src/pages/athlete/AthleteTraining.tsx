@@ -54,6 +54,7 @@ import {
   Play,
   ShieldCheck,
   Sparkles,
+  TriangleAlert,
   UsersRound,
   Zap,
 } from "lucide-react";
@@ -745,6 +746,34 @@ function DiarioView({
     );
   }
 
+  // A failed query must never masquerade as a real state (e.g. an autonomous
+  // athlete with a released program shown as "waiting for the coach").
+  if (releaseQuery.isError || gateQuery.isError) {
+    return (
+      <StateCard
+        icon={<TriangleAlert className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+        title="Errore di caricamento"
+        body="Non riesco a recuperare il tuo programma. Controlla la connessione e riprova."
+      >
+        <button
+          type="button"
+          onClick={() => {
+            void releaseQuery.refetch();
+            void gateQuery.refetch();
+          }}
+          className={cn(
+            "mt-2 px-6 py-3 rounded-full",
+            "bg-brand-container text-white",
+            "font-display text-sm font-bold uppercase tracking-widest",
+            "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
+          )}
+        >
+          Riprova
+        </button>
+      </StateCard>
+    );
+  }
+
   const program = releaseQuery.data?.program ?? null;
 
   if (releaseQuery.data && program) {
@@ -786,6 +815,17 @@ function DiarioView({
 
   const gate = gateQuery.data;
   if (gate?.coachingMode === "autonomous") {
+    // Onboarding first: without the intake, "pending review" or "consent
+    // required" would mislabel a simply-incomplete questionnaire.
+    if (!gate.onboardingCompleted) {
+      return (
+        <StateCard
+          icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+          title="Completa l'intake"
+          body="Il tuo programma arriva dopo il questionario iniziale: completalo per iniziare."
+        />
+      );
+    }
     if (gate.missingConsents.length > 0) {
       return (
         <StateCard
@@ -804,18 +844,7 @@ function DiarioView({
         />
       );
     }
-    if (gate.onboardingCompleted) {
-      return (
-        <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />
-      );
-    }
-    return (
-      <StateCard
-        icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
-        title="Completa l'intake"
-        body="Il tuo programma arriva dopo il questionario iniziale: completalo per iniziare."
-      />
-    );
+    return <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />;
   }
 
   return (

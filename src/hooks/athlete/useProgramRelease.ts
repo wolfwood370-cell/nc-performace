@@ -19,8 +19,11 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
 import { parseReleaseDocument } from "@/lib/program/releaseView";
 import type { ReleaseProgramView } from "@/lib/program/releaseView";
-import { missingReleaseConsents } from "../../../supabase/functions/release-autonomous-program/release/consents.ts";
+import { deriveGateStatus } from "@/lib/program/gateStatus";
+import type { AthleteGateStatus } from "@/lib/program/gateStatus";
 import type { ConsentRow } from "../../../supabase/functions/release-autonomous-program/release/consents.ts";
+
+export type { AthleteGateStatus } from "@/lib/program/gateStatus";
 
 export type ProgramReleaseRow = Tables<"program_releases">;
 
@@ -52,55 +55,6 @@ export function useLatestReleaseQuery() {
     },
     enabled: Boolean(user?.id),
   });
-}
-
-export interface AthleteGateStatus {
-  coachingMode: "coached" | "autonomous" | null;
-  onboardingCompleted: boolean;
-  /** Release consents not currently granted (display-only mirror of the gate). */
-  missingConsents: string[];
-  /** Structured clinical/gate signals present -> a review is pending. */
-  pendingReview: boolean;
-}
-
-const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
-/** Display-only mirror of the edge gate on the same structured fields. */
-export function deriveGateStatus(
-  profile: {
-    coaching_mode: string | null;
-    onboarding_completed: boolean | null;
-    medical_clearance_required: boolean | null;
-    red_flags: unknown;
-    onboarding_data: unknown;
-  },
-  consents: ConsentRow[],
-): AthleteGateStatus {
-  const flags = isObj(profile.red_flags) ? profile.red_flags : {};
-  const redFlagsBlocking =
-    flags.medical_clearance_required === true ||
-    (Array.isArray(flags.medical_yes_questions) && flags.medical_yes_questions.length > 0);
-  const od = isObj(profile.onboarding_data) ? profile.onboarding_data : {};
-  const intake = isObj(od.intake) ? od.intake : null;
-  const safety = intake && isObj(intake.safety) ? intake.safety : null;
-  const yellow = Array.isArray(safety?.yellow) ? safety.yellow : [];
-  const pendingReview =
-    profile.medical_clearance_required === true ||
-    redFlagsBlocking ||
-    intake === null ||
-    safety === null ||
-    safety.level !== "green" ||
-    yellow.length > 0;
-  return {
-    coachingMode:
-      profile.coaching_mode === "autonomous" || profile.coaching_mode === "coached"
-        ? profile.coaching_mode
-        : null,
-    onboardingCompleted: profile.onboarding_completed === true,
-    missingConsents: missingReleaseConsents(consents),
-    pendingReview,
-  };
 }
 
 /** Gate status for the current athlete (profile own-select + consents own-select). */
