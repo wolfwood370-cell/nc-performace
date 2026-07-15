@@ -4,7 +4,7 @@
 // If zoneMap.ts adds/renames/removes a zone, this test breaks.
 
 import { assertEquals, assertFalse } from "jsr:@std/assert@1";
-import { resolveZone } from "../../generate-program/method/zoneMap.ts";
+import { resolveZone } from "../../_shared/method/zoneMap.ts";
 import { CANONICAL_ZONES, INJURY_STATUSES, isCanonicalZone, isInjuryStatus } from "./zones.ts";
 
 Deno.test("le zone canoniche sono 15 (zoneMap v18: split dorsale/toracica)", () => {

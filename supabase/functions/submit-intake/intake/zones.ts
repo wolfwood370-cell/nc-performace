@@ -1,6 +1,6 @@
 // Canonical body zones for the intake injury selector and the pain-gesture
 // region capture. MUST stay 1:1 with the ZONE_MAP keys in
-// ../../generate-program/method/zoneMap.ts (single source, v18 = 15 zones).
+// ../../_shared/method/zoneMap.ts (single source, v18 = 15 zones).
 // ZONE_MAP itself is not exported; zones.test.ts guards parity by asserting
 // that every zone listed here resolves to itself via resolveZone().
 
