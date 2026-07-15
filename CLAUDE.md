@@ -25,7 +25,7 @@ corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowo
 
 **PWA**: RIMOSSA — Service Worker eliminato (`vite.config.ts:5`); i residui offline/Wake Lock sono moduli scollegati (`docs/WIP_MODULES.md`). L'app atleta resta mobile-only, ma NON assumere SW/offline attivi.
 
-**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`) · 45 test unit Deno del motore-metodo: `deno test --cached-only supabase/functions/generate-program/method/`.
+**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`) · test unit Deno: motore-metodo (50, incl. characterization byte-identico) in `supabase/functions/_shared/method/` — **estratto da `generate-program/method/` il 2026-07-15** — + rilascio autonomo (35) in `supabase/functions/release-autonomous-program/release/` + intake (54) in `supabase/functions/submit-intake/intake/`: `npx deno test --no-lock <path>` · vitest FE (`npm test`, incl. parità col builder del release e mirror↔gate).
 
 **Quality**: Husky + lint-staged + prettier al commit.
 
@@ -138,14 +138,14 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 
 ## 7. File di metodologia
 
-| File                                                                               | Quando                                                          |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| [`methodology/00-CORE.md`](.claude/methodology/00-CORE.md)                         | Sempre. Mindset, decision tree, git, hooks, glossary.           |
-| [`methodology/01-COACH-PLATFORM.md`](.claude/methodology/01-COACH-PLATFORM.md)     | Coach web+mobile (Aura, routes, Stripe, AI).                    |
+| File                                                                               | Quando                                                           |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`methodology/00-CORE.md`](.claude/methodology/00-CORE.md)                         | Sempre. Mindset, decision tree, git, hooks, glossary.            |
+| [`methodology/01-COACH-PLATFORM.md`](.claude/methodology/01-COACH-PLATFORM.md)     | Coach web+mobile (Aura, routes, Stripe, AI).                     |
 | [`methodology/02-ATHLETE-APP.md`](.claude/methodology/02-ATHLETE-APP.md)           | Athlete app mobile-only (`.theme-athlete`; PWA rimossa — v. §1). |
-| [`methodology/03-BACKEND-SUPABASE.md`](.claude/methodology/03-BACKEND-SUPABASE.md) | Supabase di proprietà + edge functions + CLI deploy + security. |
-| [`methodology/04-DESIGN-TO-CODE.md`](.claude/methodology/04-DESIGN-TO-CODE.md)     | Implementazione design da handoff Claude Design.                |
-| [`methodology/05-DEAD-CODE-AUDIT.md`](.claude/methodology/05-DEAD-CODE-AUDIT.md)   | Routine audit codice morto (knip, depcheck, grep).              |
+| [`methodology/03-BACKEND-SUPABASE.md`](.claude/methodology/03-BACKEND-SUPABASE.md) | Supabase di proprietà + edge functions + CLI deploy + security.  |
+| [`methodology/04-DESIGN-TO-CODE.md`](.claude/methodology/04-DESIGN-TO-CODE.md)     | Implementazione design da handoff Claude Design.                 |
+| [`methodology/05-DEAD-CODE-AUDIT.md`](.claude/methodology/05-DEAD-CODE-AUDIT.md)   | Routine audit codice morto (knip, depcheck, grep).               |
 
 **Altri file di processo (fuori da `methodology/`):**
 
