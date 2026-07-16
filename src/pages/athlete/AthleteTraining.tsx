@@ -61,10 +61,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
+import { ConsentPromptDialog } from "@/components/athlete/ConsentPromptDialog";
 import { useDailyReadinessQuery } from "@/hooks/athlete/useAthleteReadinessHooks";
 import {
   useAthleteGateStatusQuery,
   useLatestReleaseQuery,
+  useRecordConsentMutation,
   useRequestReleaseMutation,
 } from "@/hooks/athlete/useProgramRelease";
 import { dayForWeekday, sessionRpeTarget } from "@/lib/program/releaseView";
@@ -710,6 +712,8 @@ function DiarioView({
   const releaseQuery = useLatestReleaseQuery();
   const gateQuery = useAthleteGateStatusQuery();
   const requestRelease = useRequestReleaseMutation();
+  const recordConsent = useRecordConsentMutation();
+  const [consentPromptOpen, setConsentPromptOpen] = useState(false);
 
   const handleGenerate = () => {
     requestRelease.mutate(undefined, {
@@ -719,9 +723,16 @@ function DiarioView({
             description: "La tua prima settimana è pronta.",
           });
         } else if (res.consentRequired) {
-          toast.info("Consenso richiesto", {
-            description: "Manca un consenso necessario al rilascio automatico.",
-          });
+          if (res.missing?.includes("ai_processing")) {
+            // Self-serviceable: the in-app prompt collects the grant and
+            // retries. The edge function stays the authoritative gate.
+            setConsentPromptOpen(true);
+          } else {
+            toast.info("Consenso richiesto", {
+              description:
+                "Manca un consenso necessario al rilascio automatico. Contatta il tuo coach.",
+            });
+          }
         } else if (res.gate) {
           toast.info("Programma in attesa di revisione", {
             description: "Il tuo coach è stato avvisato: riceverai il programma dopo la revisione.",
@@ -735,6 +746,38 @@ function DiarioView({
       onError: () => toast.error("Generazione non riuscita", { description: "Riprova più tardi." }),
     });
   };
+
+  /** Grant intent from the prompt: record server-side, then retry the release. */
+  const handleConsentConfirm = () => {
+    recordConsent.mutate(undefined, {
+      onSuccess: () => {
+        setConsentPromptOpen(false);
+        handleGenerate();
+      },
+      onError: () =>
+        toast.error("Consenso non registrato", {
+          description: "Non sono riuscito a salvare il consenso. Riprova più tardi.",
+        }),
+    });
+  };
+
+  /** "Not now": no silent dead end — the card below keeps the path open. */
+  const handleConsentCancel = () => {
+    setConsentPromptOpen(false);
+    toast.info("Consenso non concesso", {
+      description:
+        "Senza questo consenso il programma autonomo non può essere rilasciato. Puoi concederlo in qualsiasi momento da questa pagina.",
+    });
+  };
+
+  const consentPrompt = (
+    <ConsentPromptDialog
+      open={consentPromptOpen}
+      isPending={recordConsent.isPending || requestRelease.isPending}
+      onConfirm={handleConsentConfirm}
+      onCancel={handleConsentCancel}
+    />
+  );
 
   if (releaseQuery.isPending || gateQuery.isPending) {
     return (
@@ -827,12 +870,38 @@ function DiarioView({
       );
     }
     if (gate.missingConsents.length > 0) {
+      // Self-serviceable only when ai_processing is the sole missing consent:
+      // the intake-gate consents stay a coach-mediated path.
+      const selfServiceable = gate.missingConsents.every((c) => c === "ai_processing");
       return (
-        <StateCard
-          icon={<ShieldCheck className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
-          title="Consenso richiesto"
-          body="Per il rilascio automatico del programma serve un consenso che non risulta ancora concesso. Contatta il tuo coach per completarlo."
-        />
+        <>
+          <StateCard
+            icon={<ShieldCheck className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+            title="Consenso richiesto"
+            body={
+              selfServiceable
+                ? "Per generare il programma in autonomia serve il tuo consenso al trattamento automatizzato. Senza, il rilascio resta fermo: puoi concederlo qui sotto."
+                : "Per il rilascio automatico del programma serve un consenso che non risulta ancora concesso. Contatta il tuo coach per completarlo."
+            }
+          >
+            {selfServiceable && (
+              <button
+                type="button"
+                onClick={() => setConsentPromptOpen(true)}
+                className={cn(
+                  "mt-2 px-6 py-3 rounded-full",
+                  "bg-brand-container text-white",
+                  "font-display text-sm font-bold uppercase tracking-widest",
+                  "shadow-[0_10px_30px_rgba(34,111,163,0.35)]",
+                  "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
+                )}
+              >
+                Rivedi e acconsenti
+              </button>
+            )}
+          </StateCard>
+          {consentPrompt}
+        </>
       );
     }
     if (gate.pendingReview) {
@@ -844,7 +913,14 @@ function DiarioView({
         />
       );
     }
-    return <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />;
+    return (
+      <>
+        <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />
+        {/* Mounted here too: the authoritative gate can ask for the consent
+            even when the mirror looks clean (post-invoke consentRequired). */}
+        {consentPrompt}
+      </>
+    );
   }
 
   return (
