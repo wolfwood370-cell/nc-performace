@@ -116,6 +116,10 @@ describe("buildIntakePayload — pinned shape rules", () => {
     expect(rows.find((r) => r.type === "health_required")?.granted).toBe(true);
   });
 
+  it("consent_version sent to the server is pinned literally to the legal copy (hub-v2)", () => {
+    expect(buildIntakePayload(coachedState()).consent_version).toBe("hub-v2");
+  });
+
   it("nutrition is dropped without the nutrition_advice consent", () => {
     const s = coachedState();
     s.nutrition = { meals_desc: "3 pasti al giorno" };

@@ -11,8 +11,10 @@
 // The component is intentionally dumb (ExitWorkoutDialog pattern): no
 // business logic, callbacks only. The parent calls the record_consent RPC
 // and retries the release. Backdrop click and Escape mean "not now" — the
-// least committing intent for a consent. autoFocus sits on "Non ora" so an
-// accidental Enter can never grant consent.
+// least committing intent for a consent — but are inert while the grant is
+// in flight (isPending): a cancel racing an in-flight RPC would tell the
+// user "not granted" about a consent that IS being recorded. autoFocus sits
+// on "Non ora" so an accidental Enter can never grant consent.
 //
 // Accessibility: role="dialog" + aria-modal + aria-labelledby/describedby;
 // CTA touch targets >= 48px (py-4). Tokens: athlete Tailwind namespace
@@ -40,18 +42,18 @@ export function ConsentPromptDialog({
   onConfirm,
   onCancel,
 }: ConsentPromptDialogProps) {
-  // Escape -> "not now" (never grants).
+  // Escape -> "not now" (never grants; ignored while the RPC is in flight).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onCancel();
+        if (!isPending) onCancel();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  }, [open, isPending, onCancel]);
 
   if (!open) return null;
 
@@ -61,7 +63,7 @@ export function ConsentPromptDialog({
       aria-modal="true"
       aria-labelledby="consent-prompt-title"
       aria-describedby="consent-prompt-desc"
-      onClick={onCancel}
+      onClick={isPending ? undefined : onCancel}
       className={cn(
         "fixed inset-0 z-[60]",
         "bg-on-surface/40 backdrop-blur-[40px]",

@@ -301,6 +301,13 @@ function StateCard({
 
 const stateIconClass = "h-6 w-6 text-brand-container";
 
+/** ai_processing is the only consent the athlete can self-serve in-app: the
+ *  prompt is offered only when it is the SOLE missing one (intake-gate
+ *  consents stay coach-mediated). Shared by the mirror card and the
+ *  post-invoke consentRequired branch so the two paths cannot diverge. */
+const isSelfServiceableMissing = (missing: readonly string[]) =>
+  missing.length > 0 && missing.every((c) => c === "ai_processing");
+
 /** Autonomous athlete, clean gate, no release yet: the generate CTA. */
 function GenerateProgramCard({
   onGenerate,
@@ -723,7 +730,7 @@ function DiarioView({
             description: "La tua prima settimana è pronta.",
           });
         } else if (res.consentRequired) {
-          if (res.missing?.includes("ai_processing")) {
+          if (isSelfServiceableMissing(res.missing ?? [])) {
             // Self-serviceable: the in-app prompt collects the grant and
             // retries. The edge function stays the authoritative gate.
             setConsentPromptOpen(true);
@@ -754,10 +761,16 @@ function DiarioView({
         setConsentPromptOpen(false);
         handleGenerate();
       },
-      onError: () =>
+      onError: (err) => {
+        // PGRST202 = the RPC does not exist yet (FE live before the
+        // record_consent migration is applied): retrying can never help.
+        const rpcMissing = (err as { code?: string })?.code === "PGRST202";
         toast.error("Consenso non registrato", {
-          description: "Non sono riuscito a salvare il consenso. Riprova più tardi.",
-        }),
+          description: rpcMissing
+            ? "La registrazione del consenso non è ancora attiva: riprova più tardi o contatta il tuo coach."
+            : "Non sono riuscito a salvare il consenso. Riprova più tardi.",
+        });
+      },
     });
   };
 
@@ -779,20 +792,30 @@ function DiarioView({
     />
   );
 
+  /** Every branch mounts the dialog: an open prompt must never go orphan
+   *  (background refetch swapping the branch would hide it while the state
+   *  stays true, resurfacing it later with no user action). */
+  const withPrompt = (content: React.ReactNode) => (
+    <>
+      {content}
+      {consentPrompt}
+    </>
+  );
+
   if (releaseQuery.isPending || gateQuery.isPending) {
-    return (
+    return withPrompt(
       <StateCard
         icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
         title="Caricamento"
         body="Sto recuperando il tuo programma…"
-      />
+      />,
     );
   }
 
   // A failed query must never masquerade as a real state (e.g. an autonomous
   // athlete with a released program shown as "waiting for the coach").
   if (releaseQuery.isError || gateQuery.isError) {
-    return (
+    return withPrompt(
       <StateCard
         icon={<TriangleAlert className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
         title="Errore di caricamento"
@@ -813,7 +836,7 @@ function DiarioView({
         >
           Riprova
         </button>
-      </StateCard>
+      </StateCard>,
     );
   }
 
@@ -824,7 +847,7 @@ function DiarioView({
     const mondayIdx = (selectedDate.getDay() + 6) % 7;
     const sessionForDay = dayForWeekday(program, mondayIdx);
     if (!sessionForDay) {
-      return (
+      return withPrompt(
         <>
           <StateCard
             icon={<Moon className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
@@ -832,27 +855,27 @@ function DiarioView({
             body="Nessuna seduta in programma: recupero anche questo è allenamento."
           />
           <GlanceCards />
-        </>
+        </>,
       );
     }
-    return (
+    return withPrompt(
       <>
         <HeroWorkoutCard day={sessionForDay} />
         <GlanceCards />
         <WorkoutBlueprint day={sessionForDay} onSelectExercise={onSelectExercise} />
         {isToday && <StickyStartCTA onStart={onStartSession} />}
-      </>
+      </>,
     );
   }
 
   if (releaseQuery.data && !program) {
     // A release exists but its document doesn't parse: never render garbage.
-    return (
+    return withPrompt(
       <StateCard
         icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
         title="Programma non disponibile"
         body="Il programma non è leggibile su questo dispositivo: contatta il tuo coach."
-      />
+      />,
     );
   }
 
@@ -861,74 +884,67 @@ function DiarioView({
     // Onboarding first: without the intake, "pending review" or "consent
     // required" would mislabel a simply-incomplete questionnaire.
     if (!gate.onboardingCompleted) {
-      return (
+      return withPrompt(
         <StateCard
           icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
           title="Completa l'intake"
           body="Il tuo programma arriva dopo il questionario iniziale: completalo per iniziare."
-        />
+        />,
       );
     }
     if (gate.missingConsents.length > 0) {
-      // Self-serviceable only when ai_processing is the sole missing consent:
-      // the intake-gate consents stay a coach-mediated path.
-      const selfServiceable = gate.missingConsents.every((c) => c === "ai_processing");
-      return (
-        <>
-          <StateCard
-            icon={<ShieldCheck className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
-            title="Consenso richiesto"
-            body={
-              selfServiceable
-                ? "Per generare il programma in autonomia serve il tuo consenso al trattamento automatizzato. Senza, il rilascio resta fermo: puoi concederlo qui sotto."
-                : "Per il rilascio automatico del programma serve un consenso che non risulta ancora concesso. Contatta il tuo coach per completarlo."
-            }
-          >
-            {selfServiceable && (
-              <button
-                type="button"
-                onClick={() => setConsentPromptOpen(true)}
-                className={cn(
-                  "mt-2 px-6 py-3 rounded-full",
-                  "bg-brand-container text-white",
-                  "font-display text-sm font-bold uppercase tracking-widest",
-                  "shadow-[0_10px_30px_rgba(34,111,163,0.35)]",
-                  "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
-                )}
-              >
-                Rivedi e acconsenti
-              </button>
-            )}
-          </StateCard>
-          {consentPrompt}
-        </>
+      const selfServiceable = isSelfServiceableMissing(gate.missingConsents);
+      return withPrompt(
+        <StateCard
+          icon={<ShieldCheck className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
+          title="Consenso richiesto"
+          body={
+            selfServiceable
+              ? "Per generare il programma in autonomia serve il tuo consenso al trattamento automatizzato. Senza, il rilascio resta fermo: puoi concederlo qui sotto."
+              : "Per il rilascio automatico del programma serve un consenso che non risulta ancora concesso. Contatta il tuo coach per completarlo."
+          }
+        >
+          {selfServiceable && (
+            <button
+              type="button"
+              onClick={() => setConsentPromptOpen(true)}
+              className={cn(
+                "mt-2 px-6 py-3 rounded-full",
+                "bg-brand-container text-white",
+                "font-display text-sm font-bold uppercase tracking-widest",
+                "shadow-[0_10px_30px_rgba(34,111,163,0.35)]",
+                "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
+              )}
+            >
+              Rivedi e acconsenti
+            </button>
+          )}
+        </StateCard>,
       );
     }
     if (gate.pendingReview) {
-      return (
+      return withPrompt(
         <StateCard
           icon={<Hourglass className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
           title="Programma in attesa di revisione"
           body="Il tuo intake è in revisione: riceverai il programma appena approvato."
-        />
+        />,
       );
     }
-    return (
-      <>
-        <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />
-        {/* Mounted here too: the authoritative gate can ask for the consent
-            even when the mirror looks clean (post-invoke consentRequired). */}
-        {consentPrompt}
-      </>
+    // The authoritative gate can still ask for the consent even when the
+    // mirror looks clean (post-invoke consentRequired) — the prompt is
+    // mounted by withPrompt like everywhere else.
+    return withPrompt(
+      <GenerateProgramCard onGenerate={handleGenerate} isPending={requestRelease.isPending} />,
     );
   }
 
-  return (
+  return withPrompt(
     <StateCard
       icon={<UsersRound className={stateIconClass} strokeWidth={1.75} aria-hidden="true" />}
       title="In attesa del coach"
       body="Il tuo coach sta preparando il tuo programma: lo troverai qui appena rilasciato."
-    />
+    />,
   );
 }
 
