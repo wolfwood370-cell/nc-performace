@@ -46,8 +46,9 @@ function coachedBody(): Body {
       { type: "photos_measurements", granted: false },
       { type: "medical_sharing", granted: false },
       { type: "marketing", granted: false },
+      { type: "ai_processing", granted: false },
     ],
-    consent_version: "hub-v1",
+    consent_version: "hub-v2",
     injuries: [],
   };
 }
@@ -76,7 +77,7 @@ Deno.test("coached minimo valido -> ok; chiavi sconosciute droppate dal record",
   assertFalse("admin" in (res.data.intakeRecord.anagrafica as Record<string, unknown>));
   assertEquals(res.data.extract.sex, "maschio");
   assertEquals(res.data.extract.stressLevel, "medio");
-  assertEquals(res.data.consentVersion, "hub-v1");
+  assertEquals(res.data.consentVersion, "hub-v2");
 });
 
 Deno.test("schema_version diversa da 1 -> invalid_payload", () => {
@@ -94,7 +95,7 @@ Deno.test("cancello consensi: senza health_required+disclaimer NON si prosegue",
   assert(!res.ok && res.error === "missing_required_consents");
 });
 
-Deno.test("consensi: servono esattamente 6 righe, una per tipo", () => {
+Deno.test("consensi: servono esattamente 7 righe, una per tipo", () => {
   const body = coachedBody();
   (body.consents as unknown[]).pop();
   assertFalse(validateIntakePayload(body, "coached").ok);

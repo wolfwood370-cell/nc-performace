@@ -47,6 +47,7 @@ function coachedState(): IntakeFormState {
     photos_measurements: false,
     medical_sharing: false,
     marketing: false,
+    ai_processing: false,
   };
   return s;
 }
@@ -79,6 +80,15 @@ describe("buildIntakePayload — parity with the server validator", () => {
   it("a coached payload does NOT pass autonomous validation (per-mode contract)", () => {
     const result = validateIntakePayload(buildIntakePayload(coachedState()), "autonomous");
     expect(result.ok).toBe(false);
+  });
+
+  it("ai_processing not granted stays opt-in: the intake payload is still valid", () => {
+    const s = autonomousState(); // ai_processing: false in the fixture
+    const payload = buildIntakePayload(s);
+    const rows = payload.consents;
+    expect(rows).toHaveLength(CONSENT_TYPES.length);
+    expect(rows.find((r) => r.type === "ai_processing")?.granted).toBe(false);
+    expect(validateIntakePayload(payload, "autonomous").ok).toBe(true);
   });
 
   it("missing required consents is rejected by the validator", () => {
