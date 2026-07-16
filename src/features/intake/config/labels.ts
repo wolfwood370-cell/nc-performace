@@ -34,11 +34,14 @@ export { CANONICAL_ZONES, CONSENT_TYPES, ENUMS, INJURY_STATUSES, OBJECTIVES, PAR
 export type { ParqKey };
 
 /** Bumped together with the legal copy (Fase 1 decision, Addendum r.133). */
-export const CONSENT_VERSION = "hub-v1";
+export const CONSENT_VERSION = "hub-v2";
 
 export type ConsentType = (typeof CONSENT_TYPES)[number];
 
-/** Consent legal copy hub-v1 — testi approvati da Nick il 2026-07-14. */
+/**
+ * Consent legal copy hub-v2 — the first 6 texts were approved by Nick on
+ * 2026-07-14 (hub-v1); ai_processing is a DRAFT pending legal validation (G9).
+ */
 export const CONSENT_LABELS: Record<ConsentType, string> = {
   health_required:
     "Acconsento al trattamento dei miei dati relativi alla salute per la preparazione sportiva (necessario per iniziare)",
@@ -50,6 +53,9 @@ export const CONSENT_LABELS: Record<ConsentType, string> = {
   medical_sharing:
     "Autorizzo la condivisione dei miei dati sanitari con il mio medico o con altri professionisti sanitari da me indicati.",
   marketing: "Desidero ricevere comunicazioni e materiale informativo non essenziali",
+  // DRAFT — pending legal validation (G9)
+  ai_processing:
+    "Acconsento al trattamento automatizzato dei miei dati, compresi quelli sulla salute, per generare e adattare automaticamente il mio programma nella modalità autonoma, senza revisione individuale del coach (art. 22 GDPR). Posso chiedere l'intervento umano del coach o revocare il consenso in qualsiasi momento.",
 };
 
 /** The two consents the server gate requires as true (validateParts.ts). */

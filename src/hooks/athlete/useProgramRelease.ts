@@ -134,3 +134,32 @@ export function useRequestReleaseMutation() {
     },
   });
 }
+
+/**
+ * Grants the ai_processing consent via the server-authoritative RPC
+ * record_consent (identity = auth.uid(), type whitelisted, version and
+ * source pinned server-side — migration 20260716170000). On success the
+ * gate-mirror query is invalidated so "consent required" re-derives; the
+ * caller retries the release. Grant-only: revocation goes through the coach.
+ */
+export function useRecordConsentMutation() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      // record_consent is not in the generated types yet: types.ts is
+      // regenerated only after the migration is applied (law #7). Drop the
+      // casts with the post-apply regen.
+      const { data, error } = await supabase.rpc(
+        "record_consent" as never,
+        { p_type: "ai_processing" } as never,
+      );
+      if (error) throw error;
+      const res = data as unknown as { ok: boolean; error?: string } | null;
+      if (!res?.ok) throw new Error(res?.error ?? "record_consent_failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: gateStatusKey(user?.id) });
+    },
+  });
+}

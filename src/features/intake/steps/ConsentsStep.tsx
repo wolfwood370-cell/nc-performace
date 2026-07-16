@@ -1,10 +1,11 @@
 // =============================================================================
 // src/features/intake/steps/ConsentsStep.tsx
 // =============================================================================
-// Six granular consent rows (§D: never bundled). Types/order come from the
+// Seven granular consent rows (§D: never bundled). Types/order come from the
 // server single-source (CONSENT_TYPES); the two required ones gate the whole
 // intake and are marked as such. Unchecked = not granted (explicit opt-in).
-// Testi consenso approvati da Nick il 2026-07-14 (see config/labels.ts).
+// Testi consenso approvati da Nick il 2026-07-14; ai_processing e' DRAFT
+// pending legal validation — G9 (see config/labels.ts).
 // =============================================================================
 
 import { Checkbox } from "@/components/ui/checkbox";

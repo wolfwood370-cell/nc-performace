@@ -24,7 +24,7 @@ export const ENUMS: Record<string, readonly string[]> = {
   cycle_status: ["regolare", "irregolare", "assente_3m", "menopausa", "contraccezione_ormonale"],
 };
 
-/** The 6 consent types collected at intake (ai_processing is parked — CORE §6). */
+/** The 7 consent types collected at intake (ai_processing un-parked 2026-07-16). */
 export const CONSENT_TYPES = [
   "health_required",
   "non_medical_disclaimer",
@@ -32,6 +32,7 @@ export const CONSENT_TYPES = [
   "photos_measurements",
   "medical_sharing",
   "marketing",
+  "ai_processing",
 ] as const;
 
 export interface Invalid {

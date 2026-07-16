@@ -53,10 +53,22 @@ describe("intake config invariants", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it("PAR-Q labels cover the 7 server keys; consents labels cover the 6 types; zones the 15", () => {
+  it("PAR-Q labels cover the 7 server keys; consents labels cover the 7 types; zones the 15", () => {
     expect(new Set(Object.keys(PARQ_LABELS))).toEqual(new Set(PARQ_KEYS));
     expect(new Set(Object.keys(CONSENT_LABELS))).toEqual(new Set(CONSENT_TYPES));
     expect(new Set(Object.keys(ZONE_LABELS))).toEqual(new Set(CANONICAL_ZONES));
+  });
+
+  it("the CONSENT_TYPES order is pinned literally (index-based tests + positional rows)", () => {
+    expect([...CONSENT_TYPES]).toEqual([
+      "health_required",
+      "non_medical_disclaimer",
+      "nutrition_advice",
+      "photos_measurements",
+      "medical_sharing",
+      "marketing",
+      "ai_processing",
+    ]);
   });
 
   it("neurotype: 30 items, 5 pages of 6, scale A-E", () => {

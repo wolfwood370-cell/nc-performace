@@ -47,6 +47,7 @@ function coachedState(): IntakeFormState {
     photos_measurements: false,
     medical_sharing: false,
     marketing: false,
+    ai_processing: false,
   };
   return s;
 }
@@ -81,6 +82,15 @@ describe("buildIntakePayload — parity with the server validator", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("ai_processing not granted stays opt-in: the intake payload is still valid", () => {
+    const s = autonomousState(); // ai_processing: false in the fixture
+    const payload = buildIntakePayload(s);
+    const rows = payload.consents;
+    expect(rows).toHaveLength(CONSENT_TYPES.length);
+    expect(rows.find((r) => r.type === "ai_processing")?.granted).toBe(false);
+    expect(validateIntakePayload(payload, "autonomous").ok).toBe(true);
+  });
+
   it("missing required consents is rejected by the validator", () => {
     const s = coachedState();
     s.consents.health_required = false;
@@ -104,6 +114,10 @@ describe("buildIntakePayload — pinned shape rules", () => {
     expect(rows.map((r) => r.type)).toEqual([...CONSENT_TYPES]);
     expect(rows.find((r) => r.type === "marketing")?.granted).toBe(false);
     expect(rows.find((r) => r.type === "health_required")?.granted).toBe(true);
+  });
+
+  it("consent_version sent to the server is pinned literally to the legal copy (hub-v2)", () => {
+    expect(buildIntakePayload(coachedState()).consent_version).toBe("hub-v2");
   });
 
   it("nutrition is dropped without the nutrition_advice consent", () => {
