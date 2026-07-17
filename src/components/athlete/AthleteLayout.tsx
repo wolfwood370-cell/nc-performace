@@ -10,24 +10,27 @@
 //   - Ultra-rounded corners on widgets (24–32px)
 //   - Bottom nav as a "frosted" floating bar with backdrop blur
 //
-// Scope right now is Training + Readiness only — nutrition is intentionally
-// omitted from the nav per the current product brief. The route shape is:
+// Scope: Training + Readiness for every athlete; the Nutrizione tab appears
+// only when the athlete's tier carries the 'nutrition' entitlement (decision
+// Nick 2026-07-17 — supersedes the earlier "exactly two nav items" brief).
+// Hiding the tab is UX: the route stays defended by
+// RequireNutritionEntitlement + own-row RLS. The route shape is:
 //
 //   /athlete            → Oggi          (Home icon)
 //   /athlete/training   → Allenamenti   (Dumbbell icon)
+//   /athlete/nutrition  → Nutrizione    (Salad icon, entitlement-gated)
 //   /athlete/profile    → Profilo       (top-right header avatar)
 //
-// Profile lives on the header (not the bottom bar) because (a) the brief
-// asked for exactly two nav items and (b) it matches the reference HTML's
-// header treatment.
+// Profile lives on the header (not the bottom bar) to match the reference
+// HTML's header treatment.
 //
-// No Supabase wiring here — this is the deterministic UI scaffold; data
-// hooks land in a follow-up commit.
+// The only data wiring here is the entitlement read for the Nutrizione tab.
 // =============================================================================
 
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, Dumbbell } from "lucide-react";
+import { Home, Dumbbell, Salad } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNutritionEntitlement } from "@/features/nutrition/useNutritionEntitlement";
 
 interface NavItem {
   to: string;
@@ -42,7 +45,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/athlete/training", label: "Allenamenti", icon: Dumbbell },
 ];
 
+/** Appended only when the tier has the 'nutrition' entitlement. */
+const NUTRITION_NAV_ITEM: NavItem = { to: "/athlete/nutrition", label: "Nutrizione", icon: Salad };
+
 function AthleteLayout() {
+  const { entitled: nutritionEntitled } = useNutritionEntitlement();
+  const navItems = nutritionEntitled ? [...NAV_ITEMS, NUTRITION_NAV_ITEM] : NAV_ITEMS;
   return (
     <div className="min-h-[100dvh] bg-surface text-on-surface font-sans antialiased flex flex-col">
       {/*
@@ -70,7 +78,7 @@ function AthleteLayout() {
           "shadow-[0_-10px_40px_rgba(80,118,142,0.08)]",
         )}
       >
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+        {navItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

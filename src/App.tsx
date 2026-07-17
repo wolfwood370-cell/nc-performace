@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SubscriptionGuard } from "@/components/auth/SubscriptionGuard";
 import { ProtectedCoachRoute } from "@/components/auth/ProtectedCoachRoute";
 import { ProtectedAthleteRoute } from "@/components/auth/ProtectedAthleteRoute";
+import { RequireNutritionEntitlement } from "@/features/nutrition/RequireNutritionEntitlement";
 import { SwUpdatePrompt } from "@/components/pwa/SwUpdatePrompt";
 import { CelebrationOverlay } from "@/components/celebration/Confetti";
 
@@ -38,7 +39,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
 
-// Athlete App — fresh scaffold (Training + Readiness only; no nutrition).
+// Athlete App — Training + Readiness + Nutrizione (entitlement-gated).
 const AthleteLayout = lazy(() => import("./components/athlete/AthleteLayout"));
 const AthleteDashboard = lazy(() => import("./pages/athlete/AthleteDashboard"));
 const AthleteTraining = lazy(() => import("./pages/athlete/AthleteTraining"));
@@ -53,6 +54,7 @@ const PostWorkoutDebrief = lazy(() => import("./pages/athlete/PostWorkoutDebrief
 const TrainingAnalytics = lazy(() => import("./pages/athlete/TrainingAnalytics"));
 const AcwrAnalysis = lazy(() => import("./pages/athlete/AcwrAnalysis"));
 const DailyReadiness = lazy(() => import("./pages/athlete/DailyReadiness"));
+const AthleteNutrition = lazy(() => import("./features/nutrition/AthleteNutrition"));
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
@@ -242,6 +244,16 @@ const App = () => (
                 <Route index element={<AthleteDashboard />} />
                 <Route path="training" element={<AthleteTraining />} />
                 <Route path="profile" element={<AthleteProfile />} />
+                {/* Read-only nutrition target — entitlement-gated (silent
+                    redirect to /athlete when the tier lacks 'nutrition'). */}
+                <Route
+                  path="nutrition"
+                  element={
+                    <RequireNutritionEntitlement>
+                      <AthleteNutrition />
+                    </RequireNutritionEntitlement>
+                  }
+                />
               </Route>
 
               {/* Daily Check-in — sibling of the layout, NOT a child, because
