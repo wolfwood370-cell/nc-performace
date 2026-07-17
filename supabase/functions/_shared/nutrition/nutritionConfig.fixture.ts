@@ -1,5 +1,5 @@
 // Test fixture: parsed NutritionConfig with the REAL nicolo_nutrition values
-// (v1 seed + the six v2 fields with the values proposed to Nick, including
+// (v1 seed + the seven v2 fields with the values proposed to Nick, including
 // exercise_kcal_per_day_estimate = 300 — his explicit LEA correction). Tests
 // override single fields to keep hand-computed pins small.
 
@@ -36,6 +36,7 @@ export function testConfig(overrides: Partial<NutritionConfig> = {}): NutritionC
     weight_noise_scale_kg: 1,
     min_trend_span_days: 7,
     release_chain_max_gap_days: 14,
+    weigh_in_target_interval_days: 3,
     ...overrides,
   };
 }
@@ -76,6 +77,7 @@ export function rawConfig(): { nutrition: Record<string, unknown> } {
       weight_noise_scale_kg: 1,
       min_trend_span_days: 7,
       release_chain_max_gap_days: 14,
+      weigh_in_target_interval_days: 3,
     },
   };
 }

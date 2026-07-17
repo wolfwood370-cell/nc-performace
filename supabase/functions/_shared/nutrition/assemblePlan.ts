@@ -25,7 +25,7 @@ import {
   buildWeightSeries,
   daysBetween,
   latestBodyFatWithin,
-  latestWeightBefore,
+  latestWeightEntryBefore,
   latestWeightOnOrBefore,
   weightTrend,
 } from "./dailySeries.ts";
@@ -59,7 +59,9 @@ function countNonNull(series: Array<number | null>): number {
 }
 
 function isKnownStrategy(value: string, input: NutritionEngineInput): value is StrategyType {
-  return value in input.config.macro_split_by_strategy;
+  // Object.hasOwn, not `in`: a strategy_type like "constructor" must never
+  // resolve through the prototype chain (hardening, review 2026-07-17).
+  return Object.hasOwn(input.config.macro_split_by_strategy, value);
 }
 
 /** Earliest date across logs and measurements (history length anchor). */
@@ -89,15 +91,32 @@ export function assembleNutritionPlan(input: NutritionEngineInput): NutritionOut
     a.released_at < b.released_at ? 1 : a.released_at > b.released_at ? -1 : 0,
   );
 
-  // Strategy: cold start FORCES maintain (task: baseline before any diet).
-  const coldStart = input.activePlan == null;
+  // Cold start = no active plan AND no history: a missing plan with a live
+  // chain must NOT re-baseline (it would bypass cap/escalation and wipe the
+  // learned expenditure — review 2026-07-17, invariant 4). The chain steers.
+  const coldStart = input.activePlan == null && releases.length === 0;
+  const chainDoc = releases.length > 0 ? readReleaseDocument(releases[0].nutrition_document) : null;
+
+  // Strategy: active plan wins; cold start FORCES maintain (task: baseline
+  // before any diet); plan gone but chain alive → last released strategy.
   let strategy: StrategyType = "maintain";
-  if (!coldStart) {
-    const declared = (input.activePlan as ActivePlanSnapshot).strategy_type;
+  if (input.activePlan != null) {
+    const declared = input.activePlan.strategy_type;
     if (!isKnownStrategy(declared, input)) {
       return { status: "escalation", reasons: [`strategia sconosciuta: ${declared}`], audit: null };
     }
     strategy = declared;
+  } else if (!coldStart) {
+    if (chainDoc == null) {
+      // Chain exists but its latest document is unreadable and there is no
+      // plan: no safe prev target/strategy to anchor the guardrails — bell.
+      return {
+        status: "escalation",
+        reasons: ["piano attivo assente e ultimo rilascio illeggibile: nessun ancoraggio sicuro"],
+        audit: null,
+      };
+    }
+    strategy = chainDoc.strategy;
   }
 
   // Last known weight — without one there is nothing to compute from.
@@ -111,9 +130,12 @@ export function assembleNutritionPlan(input: NutritionEngineInput): NutritionOut
   const startIso = addDays(today, -windowDays);
   const intakeSeries = buildIntakeSeries(logs, startIso, endIso);
   const weightSeries = buildWeightSeries(measurements, startIso, endIso);
-  const seedKg = latestWeightBefore(measurements, startIso);
+  const seedEntry = latestWeightEntryBefore(measurements, startIso);
+  const seed = seedEntry
+    ? { kg: seedEntry.kg, offsetDays: Math.max(1, daysBetween(seedEntry.date, startIso)) }
+    : null;
   const alpha = alphaFromHalfLife(cfg.weight_trend_half_life_days);
-  const trend = weightTrend(weightSeries, alpha, seedKg, cfg.min_trend_span_days);
+  const trend = weightTrend(weightSeries, alpha, seed, cfg.min_trend_span_days);
 
   // Smoothed weight for deltas/floor/macros when the trend exists; the raw
   // last measurement otherwise (and always at cold start).
@@ -122,7 +144,16 @@ export function assembleNutritionPlan(input: NutritionEngineInput): NutritionOut
   const loggedDaysInWindow = countNonNull(intakeSeries);
   const loggedDaysLast7 = countNonNull(buildIntakeSeries(logs, addDays(today, -7), endIso));
 
-  const historyStart = earliestDataDate(input);
+  // True account-history anchor when the I/O layer provides it (the fetch
+  // horizon is the window + one seed row: without historyStartIso the length
+  // saturates around window+seed and a min_history > that would silently
+  // become unreachable — review 2026-07-17).
+  const earliestInInputs = earliestDataDate(input);
+  const historyStart =
+    input.historyStartIso != null &&
+    (earliestInInputs == null || input.historyStartIso < earliestInInputs)
+      ? input.historyStartIso
+      : earliestInInputs;
   const historyDays = historyStart == null ? 0 : Math.max(0, daysBetween(historyStart, today));
   const confidence = computeConfidence({
     loggedDays: loggedDaysInWindow,
@@ -152,10 +183,12 @@ export function assembleNutritionPlan(input: NutritionEngineInput): NutritionOut
   }
 
   // ------------------------------------------------------------ weekly update
-  const activePlan = input.activePlan as ActivePlanSnapshot;
-  const prevDoc = releases.length > 0 ? readReleaseDocument(releases[0].nutrition_document) : null;
+  // By construction here: either the active plan exists, or chainDoc does
+  // (plan-null + unreadable chain already escalated above).
+  const prevDoc = chainDoc;
   const expenditurePrev = prevDoc?.expenditure_estimate ?? baselineExpenditure(weightForCalcs, cfg);
-  const prevTarget = prevDoc?.daily_calories ?? activePlan.daily_calories;
+  const prevTarget =
+    prevDoc?.daily_calories ?? (input.activePlan as ActivePlanSnapshot).daily_calories;
   const prevStrategy: StrategyType = prevDoc?.strategy ?? strategy;
 
   const fallbackMode = loggedDaysLast7 < cfg.min_logged_days_per_rolling_7;

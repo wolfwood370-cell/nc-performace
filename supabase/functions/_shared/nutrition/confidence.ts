@@ -29,7 +29,9 @@ export function computeConfidence(args: {
 
   let weightTrendSnr = 0;
   if (trend) {
-    const weighTargetDays = windowDays / 3; // full credit at ~1 weigh-in every 3 days
+    // Full credit at 1 weigh-in every weigh_in_target_interval_days (config,
+    // review fix: was a hard-coded /3 — method numbers are Nick's to tune).
+    const weighTargetDays = windowDays / cfg.weigh_in_target_interval_days;
     const density = clamp01(weighTargetDays > 0 ? trend.weighDays / weighTargetDays : 1);
     const noisePenalty = 1 / (1 + trend.noiseKg / cfg.weight_noise_scale_kg);
     weightTrendSnr = clamp01(density * noisePenalty);

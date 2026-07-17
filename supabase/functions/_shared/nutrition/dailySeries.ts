@@ -42,9 +42,15 @@ export function buildIntakeSeries(
   return series;
 }
 
+/** A weight is usable only if finite and strictly positive (0/negative rows
+ * are data corruption: they would produce a 0-kcal "suggestion"). */
+function isUsableKg(w: number | null): w is number {
+  return w != null && Number.isFinite(w) && w > 0;
+}
+
 /**
  * Daily weight series over [startIso, endIso] inclusive. Value = arithmetic
- * mean of the day's non-null weight_kg measurements; null when unmeasured.
+ * mean of the day's usable weight_kg measurements; null when unmeasured.
  */
 export function buildWeightSeries(
   measurements: BodyMeasurementRow[],
@@ -55,7 +61,7 @@ export function buildWeightSeries(
   const sums = new Array<number>(Math.max(0, len)).fill(0);
   const counts = new Array<number>(Math.max(0, len)).fill(0);
   for (const row of measurements) {
-    if (row.weight_kg == null || !Number.isFinite(row.weight_kg)) continue;
+    if (!isUsableKg(row.weight_kg)) continue;
     const idx = daysBetween(startIso, row.date);
     if (idx < 0 || idx >= sums.length) continue;
     sums[idx] += row.weight_kg;
@@ -64,32 +70,32 @@ export function buildWeightSeries(
   return sums.map((sum, i) => (counts[i] > 0 ? sum / counts[i] : null));
 }
 
-/** Latest non-null weight measured on or before dayIso, with its date. */
+/** Latest usable weight measured on or before dayIso, with its date. */
 export function latestWeightOnOrBefore(
   measurements: BodyMeasurementRow[],
   dayIso: string,
 ): { date: string; kg: number } | null {
   let best: { date: string; kg: number } | null = null;
   for (const row of measurements) {
-    if (row.weight_kg == null || !Number.isFinite(row.weight_kg)) continue;
+    if (!isUsableKg(row.weight_kg)) continue;
     if (row.date > dayIso) continue;
     if (!best || row.date >= best.date) best = { date: row.date, kg: row.weight_kg };
   }
   return best;
 }
 
-/** Latest non-null weight strictly BEFORE dayIso (EMA seed). */
-export function latestWeightBefore(
+/** Latest usable weight strictly BEFORE dayIso (EMA seed), with its date. */
+export function latestWeightEntryBefore(
   measurements: BodyMeasurementRow[],
   dayIso: string,
-): number | null {
+): { date: string; kg: number } | null {
   let best: { date: string; kg: number } | null = null;
   for (const row of measurements) {
-    if (row.weight_kg == null || !Number.isFinite(row.weight_kg)) continue;
+    if (!isUsableKg(row.weight_kg)) continue;
     if (row.date >= dayIso) continue;
     if (!best || row.date >= best.date) best = { date: row.date, kg: row.weight_kg };
   }
-  return best ? best.kg : null;
+  return best;
 }
 
 /** Latest non-null body-fat % within [startIso, endIso] (stale bf ⇒ null). */
@@ -112,11 +118,22 @@ export function alphaFromHalfLife(halfLifeDays: number): number {
   return 1 - Math.pow(2, -1 / halfLifeDays);
 }
 
+/** Pre-window EMA seed: the value AND how many days before the window start
+ * it was measured — a stale seed must spread its delta over the TRUE elapsed
+ * days, or months of change get attributed to the window span. */
+export interface TrendSeed {
+  kg: number;
+  /** daysBetween(seed date, window start), always >= 1. */
+  offsetDays: number;
+}
+
 /**
  * Gap-aware EMA weight trend over a daily series.
- * - seedKg (latest measurement BEFORE the window) defines the EMA from index
- *   0; its virtual index is −1, so the first in-window observation at index k
- *   updates with an effective gap of k+1 days.
+ * - The seed (latest measurement BEFORE the window) sits at its REAL virtual
+ *   index −offsetDays: the first in-window observation at index k updates
+ *   with an effective gap of k+offsetDays calendar days, and the span runs
+ *   from the seed's true date — a tracking pause is never compressed into
+ *   the window (it would inflate obsKgPerWeek and fire spurious gates).
  * - On an observation after a gap of g days: alphaEff = 1 − (1−alpha)^g.
  * - Days without observation carry the EMA forward unchanged.
  * Returns null when observations (seed included) < 2 or the observed span is
@@ -125,13 +142,14 @@ export function alphaFromHalfLife(halfLifeDays: number): number {
 export function weightTrend(
   series: Array<number | null>,
   alpha: number,
-  seedKg: number | null,
+  seed: TrendSeed | null,
   minSpanDays: number,
 ): WeightTrend | null {
+  const seedKg = seed?.kg ?? null;
   let ema: number | null = seedKg;
   let emaStart: number | null = seedKg;
-  let firstDefinedIdx: number | null = seedKg != null ? 0 : null;
-  let prevObsIdx: number | null = seedKg != null ? -1 : null;
+  let firstDefinedIdx: number | null = seed != null ? -seed.offsetDays : null;
+  let prevObsIdx: number | null = seed != null ? -seed.offsetDays : null;
   let lastObsIdx: number | null = null;
   let weighDays = 0;
   let noiseSum = 0;

@@ -106,19 +106,26 @@ async function raiseAlert(
   return true;
 }
 
-/** Blocking gate: alert (fail-loud) + best-effort audit + explicit response. */
+/** Blocking gate: alert (fail-loud) + best-effort audit + explicit response.
+ * `extra` lands in the audit metadata — e.g. the candidate document the
+ * engine attached, so the coach can inspect what WOULD have been released. */
 async function respondGate(
   admin: SupabaseClient,
   athlete: AthleteRow,
   reason: NutritionGateReason,
   detail?: string,
+  extra?: Record<string, unknown>,
 ): Promise<SingleResult> {
   const content = alertForGate(reason, athlete.full_name ?? "Atleta", detail);
   if (content) {
     const raised = await raiseAlert(admin, athlete, content);
     if (!raised) return { status: "error", error: "escalation_failed" };
   }
-  await insertAudit(admin, athlete.id, "nutrition_target_blocked", { reason });
+  await insertAudit(admin, athlete.id, "nutrition_target_blocked", {
+    reason,
+    ...(detail ? { detail } : {}),
+    ...(extra ?? {}),
+  });
   return { status: "gate", reason };
 }
 
@@ -173,14 +180,19 @@ export async function processAthlete(
     previousReleases: inputs.previousReleases,
     logs: inputs.logs,
     measurements: inputs.measurements,
+    historyStartIso: inputs.historyStartIso,
   });
 
   if (outcome.status === "no_baseline_data") return { status: "no_baseline_data" };
   if (outcome.status === "escalation") {
-    return respondGate(admin, athlete, "anomalous_adjustment", outcome.reasons.join("; "));
+    return respondGate(admin, athlete, "anomalous_adjustment", outcome.reasons.join("; "), {
+      raw_target_kcal: outcome.audit?.rawTargetKcal ?? null,
+    });
   }
   if (outcome.status === "gated") {
-    return respondGate(admin, athlete, outcome.reason, outcome.detail);
+    return respondGate(admin, athlete, outcome.reason, outcome.detail, {
+      candidate: outcome.candidate,
+    });
   }
 
   const doc = outcome.document;
@@ -215,8 +227,11 @@ export async function processAthlete(
     consent: "granted",
     safety_capture: {
       source: "daily_readiness",
+      checkin_present: readiness != null,
       latest_date: readiness?.date ?? null,
-      has_pain: false,
+      // Faithful ledger: null when never reported — the gate only blocks on
+      // === true, but "false" must not be forged out of missing data.
+      has_pain: readiness?.has_pain ?? null,
       weekly_checkins_evaluated: false, // no safety fields today (declared)
     },
     config_profile: "nicolo_nutrition",

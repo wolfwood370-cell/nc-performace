@@ -6,7 +6,7 @@ import {
   buildWeightSeries,
   daysBetween,
   latestBodyFatWithin,
-  latestWeightBefore,
+  latestWeightEntryBefore,
   latestWeightOnOrBefore,
   weightTrend,
 } from "./dailySeries.ts";
@@ -56,7 +56,7 @@ Deno.test("selettori ultimo-peso e bf-in-finestra", () => {
     { date: "2026-07-20", weight_kg: 79, body_fat_percentage: null },
   ];
   assertEquals(latestWeightOnOrBefore(ms, "2026-07-15"), { date: "2026-07-10", kg: 80 });
-  assertEquals(latestWeightBefore(ms, "2026-07-10"), 82);
+  assertEquals(latestWeightEntryBefore(ms, "2026-07-10"), { date: "2026-07-01", kg: 82 });
   assertEquals(latestBodyFatWithin(ms, "2026-07-05", "2026-07-15"), null); // bf del 01/07 e' fuori
   assertEquals(latestBodyFatWithin(ms, "2026-07-01", "2026-07-15"), 26);
 });
@@ -77,20 +77,46 @@ Deno.test("EMA gap-aware: gap di 3 giorni con half-life 1 → alphaEff 0.875, em
   assertEquals(trend.weighDays, 2);
 });
 
-Deno.test("seed pre-finestra: definisce l'EMA dal giorno 0 (gap virtuale k+1)", () => {
-  // seed 80 (idx virtuale -1), obs 79.5 @idx1: gap 2 → alphaEff 0.75 → 79.625
-  const trend = weightTrend([null, 79.5], 0.5, 80, 1);
+Deno.test("seed pre-finestra: definisce l'EMA dal suo indice virtuale -offsetDays", () => {
+  // seed 80 misurato 1 giorno prima della finestra (idx -1), obs 79.5 @idx1:
+  // gap 2 → alphaEff 0.75 → 79.625; span = 1-(-1) = 2
+  const trend = weightTrend([null, 79.5], 0.5, { kg: 80, offsetDays: 1 }, 1);
   if (trend == null) throw new Error("trend atteso definito");
   assertAlmostEquals(trend.emaStartKg, 80, 1e-9);
   assertAlmostEquals(trend.emaEndKg, 79.625, 1e-9);
-  assertEquals(trend.spanDays, 1);
+  assertEquals(trend.spanDays, 2);
   assertEquals(trend.weighDays, 1); // il seed non conta come pesata in finestra
 });
+
+Deno.test(
+  "seed STANTIO: il calo si spalma sui giorni di calendario reali, non sulla finestra",
+  () => {
+    // Fix review 2026-07-17: seed 80 di 60 giorni prima, poi 74 stabile per 10
+    // giorni (alpha 1): il delta -6 kg copre 69 giorni reali, NON 9 —
+    // obsKgPerWeek = -6/69*7 ≈ -0.6087, non -4.67 (che sparerebbe gate spuri).
+    const series: Array<number | null> = [74, null, null, null, null, null, null, null, null, 74];
+    const trend = weightTrend(series, 1, { kg: 80, offsetDays: 60 }, 7);
+    if (trend == null) throw new Error("trend atteso definito");
+    assertEquals(trend.spanDays, 69);
+    assertAlmostEquals(trend.deltaKg, -6, 1e-9);
+    assertAlmostEquals(trend.obsKgPerWeek, (-6 / 69) * 7, 1e-9);
+  },
+);
 
 Deno.test("trend indefinito: <2 pesate totali o span sotto il minimo → null", () => {
   assertEquals(weightTrend([80, null, null], 0.5, null, 1), null); // 1 sola pesata
   assertEquals(weightTrend([80, 79.8], 0.5, null, 7), null); // span 1 < 7
-  assertEquals(weightTrend([null, null], 0.5, 80, 1), null); // solo seed
+  assertEquals(weightTrend([null, null], 0.5, { kg: 80, offsetDays: 1 }, 1), null); // solo seed
+});
+
+Deno.test("peso 0 o negativo = riga corrotta: ignorata ovunque (mai un rilascio a 0 kcal)", () => {
+  const rows = [
+    { date: "2026-07-10", weight_kg: 0, body_fat_percentage: null },
+    { date: "2026-07-11", weight_kg: -3, body_fat_percentage: null },
+  ];
+  assertEquals(buildWeightSeries(rows, "2026-07-10", "2026-07-11"), [null, null]);
+  assertEquals(latestWeightOnOrBefore(rows, "2026-07-12"), null);
+  assertEquals(latestWeightEntryBefore(rows, "2026-07-12"), null);
 });
 
 Deno.test("obsKgPerWeek: delta -0.6 su span 6 → -0.7 kg/settimana", () => {

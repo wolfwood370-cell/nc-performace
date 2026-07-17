@@ -16,6 +16,7 @@ Deno.test("config nicolo_nutrition completo (v1+v2) → valori esatti", () => {
   assertEquals(cfg.weight_noise_scale_kg, 1);
   assertEquals(cfg.min_trend_span_days, 7);
   assertEquals(cfg.release_chain_max_gap_days, 14);
+  assertEquals(cfg.weigh_in_target_interval_days, 3);
 });
 
 const TOP_LEVEL_REQUIRED = [
@@ -44,6 +45,7 @@ const TOP_LEVEL_REQUIRED = [
   "weight_noise_scale_kg",
   "min_trend_span_days",
   "release_chain_max_gap_days",
+  "weigh_in_target_interval_days",
 ];
 
 Deno.test("ogni campo obbligatorio rimosso → NutritionConfigError col nome del campo", () => {

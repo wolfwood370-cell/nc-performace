@@ -15,7 +15,7 @@ export interface MacroSplit {
 /**
  * Parsed method_config profile `nicolo_nutrition` (jsonb root key
  * "nutrition"), flattened. Parsing is STRICT (parseConfig.ts): every field is
- * REQUIRED — the six v2 fields below are seeded by Cowork at go-live and the
+ * REQUIRED — the seven v2 fields below are seeded by Cowork at go-live and the
  * engine fails loud if any is missing. Zero method numbers live in code.
  */
 export interface NutritionConfig {
@@ -47,6 +47,9 @@ export interface NutritionConfig {
   weight_noise_scale_kg: number;
   min_trend_span_days: number;
   release_chain_max_gap_days: number;
+  /** Full weigh-in-density credit at 1 weigh-in every N days (review fix:
+   * was a hard-coded /3 — method numbers live in config). */
+  weigh_in_target_interval_days: number;
 }
 
 /** Row of public.nutrition_logs — only the columns the engine reads. */
@@ -95,6 +98,11 @@ export interface NutritionEngineInput {
   previousReleases: NutritionReleaseRow[];
   logs: NutritionLogRow[];
   measurements: BodyMeasurementRow[];
+  /** Earliest data date EVER for the athlete (logs or measurements), fetched
+   * by the I/O layer: the arrays above only cover the window + one seed row,
+   * so without this anchor the history-length confidence component saturates
+   * at ~window+seed days. Optional: absent ⇒ derived from the arrays. */
+  historyStartIso?: string | null;
 }
 
 /**

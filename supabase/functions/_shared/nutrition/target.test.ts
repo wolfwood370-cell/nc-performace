@@ -90,6 +90,20 @@ Deno.test("pavimento-macro VINCE sul cap: cut 80 kg non scende mai sotto 1416", 
   assertEquals(r.finalKcal, 1416);
   assertEquals(r.cappedBy, ["macro_floor"]);
   assertEquals(r.escalation, null);
+
+  // Pin dell'INTERAZIONE (review 2026-07-17): il cap clampa DAVVERO (raw 1400,
+  // prev 1300, capEff 78 → 1378) e POI il pavimento lo scavalca verso l'alto.
+  const capThenFloor = applyGuardrails({
+    rawTargetKcal: 1400,
+    prevTargetKcal: 1300,
+    prevStrategy: "cut",
+    strategy: "cut",
+    weightKg: 80,
+    cfg,
+  });
+  assertEquals(capThenFloor.finalKcal, 1416);
+  assertEquals(capThenFloor.cappedBy, ["weekly_pct_cap", "macro_floor"]);
+  assertEquals(capThenFloor.escalation, null); // salto 100 < 3*78
 });
 
 Deno.test("escalation: oltre 3x il cap a strategia invariata; ESENTE al cambio strategia", () => {
@@ -174,6 +188,17 @@ Deno.test("streak deficit: 12 rilasci cut settimanali → 12; 11 → 11; vuoto �
   const eleven = Array.from({ length: 11 }, (_, i) => release(7 * (i + 1), "cut"));
   assertEquals(deficitStreakWeeks(eleven, TODAY, cfg), 11);
   assertEquals(deficitStreakWeeks([], TODAY, cfg), 0);
+});
+
+Deno.test("streak: released_at valutato nel giorno Europe/Rome, non UTC", () => {
+  // 2026-07-02T22:30Z = 2026-07-03 00:30 a Roma (estate): gap da oggi = 14
+  // (tiene). Col giorno UTC sarebbe 15 → catena spezzata e streak 0.
+  const midnightEdge: NutritionReleaseRow = {
+    id: "rel-edge",
+    released_at: "2026-07-02T22:30:00Z",
+    nutrition_document: { daily_calories: 2000, expenditure_estimate: 2500, strategy: "cut" },
+  };
+  assertEquals(deficitStreakWeeks([midnightEdge], TODAY, cfg), 2); // floor(14/7)
 });
 
 Deno.test("streak: gap >14 giorni spezza la catena; un maintain in mezzo spezza", () => {

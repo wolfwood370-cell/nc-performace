@@ -7,6 +7,7 @@
 import type { CappedBy, NutritionConfig, NutritionReleaseRow, StrategyType } from "./types.ts";
 import { macroFloorKcal } from "./macros.ts";
 import { daysBetween } from "./dailySeries.ts";
+import { romeDayFromDate } from "./romeDate.ts";
 
 /** cycle_status values that halve the deficit and trigger the referral. */
 export const LIFECYCLE_CAPPED_STATUSES: readonly string[] = ["assente_3m", "menopausa"];
@@ -155,7 +156,10 @@ export function deficitStreakWeeks(
   for (const release of previousReleases) {
     const doc = readReleaseDocument(release.nutrition_document);
     if (!doc || doc.strategy !== "cut") break;
-    const releaseDay = release.released_at.slice(0, 10);
+    // Europe/Rome calendar day, same convention as todayIso: the UTC day of
+    // released_at can lag one day behind (00:00–02:00 Italian summer) and
+    // would stretch gaps / break chains spuriously (review 2026-07-17).
+    const releaseDay = romeDayFromDate(new Date(release.released_at));
     if (daysBetween(releaseDay, prevDay) > cfg.release_chain_max_gap_days) break;
     oldestDay = releaseDay;
     prevDay = releaseDay;

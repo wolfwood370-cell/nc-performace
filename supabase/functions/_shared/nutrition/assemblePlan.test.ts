@@ -335,6 +335,68 @@ Deno.test("calo involontario nel flusso completo: maintain con -0.92 kg/sett →
   assert(out.candidate.daily_calories > 0); // il candidato resta visibile al coach
 });
 
+Deno.test(
+  "piano assente ma catena viva: NON è cold start, guardrail armati, strategia dalla catena",
+  () => {
+    // Fix review 2026-07-17 (major): re-baselinizzare qui bypasserebbe cap ed
+    // escalation contro l'ultimo target rilasciato e azzererebbe il dispendio
+    // appreso. La catena guida: strategia/target/dispendio dall'ultimo rilascio.
+    const out = assembleNutritionPlan(
+      baseInput({
+        activePlan: null,
+        previousReleases: [release(7, doc(2100, 2760, "cut"))],
+        logs: [1, 2, 3, 4, 5, 6, 7].map((d) => log(d, 2760)), // evidenza = prev → dispendio fermo
+        measurements: [weight(7, 80), weight(1, 80)],
+      }),
+    );
+    if (out.status !== "released") throw new Error(`atteso released, ottenuto ${out.status}`);
+    assertEquals(out.document.cold_start, false); // ⇒ l'I/O NON inserisce nutrition_plans
+    assertEquals(out.document.strategy, "cut");
+    assertEquals(out.document.daily_calories, 2100); // 2760 - 660, salto 0 dal prev
+    assertEquals(out.audit.expenditurePrevKcal, 2760); // dispendio appreso conservato
+  },
+);
+
+Deno.test("piano assente E ultimo rilascio illeggibile → escalation (nessun ancoraggio)", () => {
+  const out = assembleNutritionPlan(
+    baseInput({
+      activePlan: null,
+      previousReleases: [release(7, { garbage: true })],
+      measurements: [weight(1, 80)],
+    }),
+  );
+  if (out.status !== "escalation") throw new Error(`atteso escalation, ottenuto ${out.status}`);
+  assert(out.reasons[0].includes("illeggibile"));
+});
+
+Deno.test("peso 0 (riga corrotta) → no_baseline_data, mai un rilascio a 0 kcal", () => {
+  const out = assembleNutritionPlan(
+    baseInput({ config: testConfig(), measurements: [weight(1, 0)] }),
+  );
+  assertEquals(out, { status: "no_baseline_data" });
+});
+
+Deno.test("historyStartIso ancora lo storico reale oltre la finestra fetchata", () => {
+  const cfg30 = testConfig({
+    expenditure_window_days: 7,
+    weight_trend_half_life_days: 1,
+    min_trend_span_days: 6,
+    min_history_days_full_confidence: 30,
+  });
+  const capped = assembleNutritionPlan(adaptiveInput({ config: cfg30 }));
+  const anchored = assembleNutritionPlan(
+    adaptiveInput({ config: cfg30, historyStartIso: addDays(TODAY, -100) }),
+  );
+  if (capped.status !== "released" || anchored.status !== "released") {
+    throw new Error("attesi entrambi released");
+  }
+  // Senza ancora: 7 giorni di storico su 30 → componente 7/30; con l'ancora
+  // il componente satura a 1 (stessi dati in finestra, confidenza piu' alta).
+  assert(anchored.audit.confidence.historyLength === 1);
+  assertAlmostEquals(capped.audit.confidence.historyLength, 7 / 30, 1e-9);
+  assert(anchored.document.confidence > capped.document.confidence);
+});
+
 Deno.test("documento precedente illeggibile → fallback su piano attivo e baseline", () => {
   const out = assembleNutritionPlan(
     adaptiveInput({

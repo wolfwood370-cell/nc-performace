@@ -169,5 +169,9 @@ export function parseNutritionConfig(raw: unknown): NutritionConfig {
       min: 7,
       integer: true,
     }),
+    weigh_in_target_interval_days: requireNumber(n, "weigh_in_target_interval_days", {
+      min: 1,
+      integer: true,
+    }),
   };
 }
