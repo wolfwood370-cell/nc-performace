@@ -1702,54 +1702,6 @@ export type Database = {
         }
         Relationships: []
       }
-      meal_logs: {
-        Row: {
-          calories: number
-          carbs: number
-          confidence_score: number | null
-          created_at: string
-          date: string
-          fats: number
-          id: string
-          meal_time: Database["public"]["Enums"]["meal_time"]
-          name: string
-          notes: string | null
-          photo_url: string | null
-          protein: number
-          user_id: string
-        }
-        Insert: {
-          calories?: number
-          carbs?: number
-          confidence_score?: number | null
-          created_at?: string
-          date?: string
-          fats?: number
-          id?: string
-          meal_time?: Database["public"]["Enums"]["meal_time"]
-          name: string
-          notes?: string | null
-          photo_url?: string | null
-          protein?: number
-          user_id: string
-        }
-        Update: {
-          calories?: number
-          carbs?: number
-          confidence_score?: number | null
-          created_at?: string
-          date?: string
-          fats?: number
-          id?: string
-          meal_time?: Database["public"]["Enums"]["meal_time"]
-          name?: string
-          notes?: string | null
-          photo_url?: string | null
-          protein?: number
-          user_id?: string
-        }
-        Relationships: []
-      }
       messages: {
         Row: {
           content: string
@@ -1927,6 +1879,7 @@ export type Database = {
           athlete_id: string
           calories: number | null
           carbs: number | null
+          confidence_score: number | null
           created_at: string
           date: string
           fats: number | null
@@ -1935,13 +1888,16 @@ export type Database = {
           meal_name: string | null
           meal_tag: string | null
           notes: string | null
+          photo_url: string | null
           protein: number | null
+          source: string
           water: number | null
         }
         Insert: {
           athlete_id: string
           calories?: number | null
           carbs?: number | null
+          confidence_score?: number | null
           created_at?: string
           date?: string
           fats?: number | null
@@ -1950,13 +1906,16 @@ export type Database = {
           meal_name?: string | null
           meal_tag?: string | null
           notes?: string | null
+          photo_url?: string | null
           protein?: number | null
+          source?: string
           water?: number | null
         }
         Update: {
           athlete_id?: string
           calories?: number | null
           carbs?: number | null
+          confidence_score?: number | null
           created_at?: string
           date?: string
           fats?: number | null
@@ -1965,7 +1924,9 @@ export type Database = {
           meal_name?: string | null
           meal_tag?: string | null
           notes?: string | null
+          photo_url?: string | null
           protein?: number | null
+          source?: string
           water?: number | null
         }
         Relationships: [
@@ -2038,6 +1999,76 @@ export type Database = {
           weekly_weight_goal?: number | null
         }
         Relationships: []
+      }
+      nutrition_releases: {
+        Row: {
+          athlete_id: string
+          coaching_mode: string
+          cold_start: boolean
+          config_version: string
+          created_at: string
+          fallback_mode: boolean
+          id: string
+          nutrition_document: Json
+          released_at: string
+          released_by: string
+          safety_context: Json
+          schema_version: number
+          supersedes_id: string | null
+        }
+        Insert: {
+          athlete_id: string
+          coaching_mode: string
+          cold_start?: boolean
+          config_version: string
+          created_at?: string
+          fallback_mode?: boolean
+          id?: string
+          nutrition_document: Json
+          released_at?: string
+          released_by: string
+          safety_context: Json
+          schema_version: number
+          supersedes_id?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          coaching_mode?: string
+          cold_start?: boolean
+          config_version?: string
+          created_at?: string
+          fallback_mode?: boolean
+          id?: string
+          nutrition_document?: Json
+          released_at?: string
+          released_by?: string
+          safety_context?: Json
+          schema_version?: number
+          supersedes_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_releases_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "nutrition_releases_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nutrition_releases_supersedes_same_athlete_fk"
+            columns: ["supersedes_id", "athlete_id"]
+            isOneToOne: false
+            referencedRelation: "nutrition_releases"
+            referencedColumns: ["id", "athlete_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -3198,6 +3229,7 @@ export type Database = {
           similarity: number
         }[]
       }
+      record_consent: { Args: { p_type: string }; Returns: Json }
       schedule_program_week: {
         Args: { p_athlete_id: string; p_start_date: string; p_week_id: string }
         Returns: number
