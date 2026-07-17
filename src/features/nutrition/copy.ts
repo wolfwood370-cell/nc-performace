@@ -57,6 +57,7 @@ export const NUTRITION_COPY = {
 
   // Hero + collapsible details
   updatedOn: (date: string) => `Aggiornato il ${date}`,
+  heroKicker: "Obiettivo di oggi",
   kcalUnit: "kcal",
   macroProtein: "Proteine",
   macroCarbs: "Carboidrati",
@@ -65,5 +66,6 @@ export const NUTRITION_COPY = {
   detailsExpenditure: "Dispendio stimato",
   detailsConfidence: "Affidabilità della stima",
   detailsLoggedDays: "Giorni registrati",
+  detailsDaysValue: (logged: number, total: number) => `${logged} su ${total}`,
   detailsWeight: "Peso di riferimento",
 } as const;
