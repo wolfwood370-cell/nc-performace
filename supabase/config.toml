@@ -54,6 +54,11 @@ verify_jwt = true
 [functions.release-autonomous-program]
 verify_jwt = true
 
+# compute-nutrition-target: service-role only — the gateway verifies the JWT
+# signature, the function then requires an exact match with the service key.
+[functions.compute-nutrition-target]
+verify_jwt = true
+
 # -- Public endpoints (intentionally unauthenticated at the gateway) ---------
 
 [functions.stripe-webhook]
