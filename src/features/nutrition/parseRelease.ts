@@ -16,6 +16,13 @@ import type {
   SafetyContextView,
 } from "./types";
 
+/** The release schema this UI build understands. Pinned by a parity test
+ *  against the engine's NUTRITION_SCHEMA_VERSION (_shared/nutrition/
+ *  assemblePlan.ts): a row from any OTHER version (e.g. a live SPA tab
+ *  across a future engine deploy) degrades to the "unreadable" state
+ *  instead of rendering re-semantized numbers as a valid target. */
+export const SUPPORTED_NUTRITION_SCHEMA_VERSION = 1;
+
 const CAPPED_BY_VALUES: readonly string[] = [
   "daily_cap",
   "weekly_pct_cap",
@@ -75,6 +82,7 @@ export function parseSafetyContext(raw: unknown): SafetyContextView {
 }
 
 export function parseRelease(row: NutritionReleaseDbRow): ParsedRelease | null {
+  if (row.schema_version !== SUPPORTED_NUTRITION_SCHEMA_VERSION) return null;
   const document = parseNutritionDocument(row.nutrition_document);
   if (!document) return null;
   return {

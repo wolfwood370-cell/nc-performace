@@ -104,6 +104,7 @@ export function describeRelease(
 
   return {
     headline: {
+      kicker: flags.inReview ? NUTRITION_COPY.heroKickerInReview : NUTRITION_COPY.heroKicker,
       kcal: Math.round(document.daily_calories),
       strategyLabel: STRATEGY_LABELS[document.strategy] ?? null,
       dateLabel: NUTRITION_COPY.updatedOn(formatItalianDate(document.computed_for_date)),
@@ -117,7 +118,8 @@ export function describeRelease(
     banners,
     details: {
       expenditureKcal: Math.round(document.expenditure_estimate),
-      confidencePct: Math.round(document.confidence * 100),
+      // Clamped 0..1 as a belt: never render an out-of-scale percentage.
+      confidencePct: Math.round(Math.min(1, Math.max(0, document.confidence)) * 100),
       loggedDays: document.logged_days,
       totalDays: document.logged_days + document.imputed_days,
       weightKg: Math.round(document.weight_kg_at_release * 10) / 10,

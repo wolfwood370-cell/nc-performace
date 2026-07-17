@@ -38,7 +38,7 @@ function MacroTile({ label, grams }: { label: string; grams: number }) {
 export function NutritionHero({ view, muted = false }: { view: ReleaseView; muted?: boolean }) {
   return (
     <section
-      aria-label="Obiettivo nutrizionale del giorno"
+      aria-label={view.headline.kicker}
       className={cn(
         "relative overflow-hidden",
         "rounded-3xl p-6",
@@ -69,7 +69,7 @@ export function NutritionHero({ view, muted = false }: { view: ReleaseView; mute
 
         <div>
           <p className="font-sans text-xs font-semibold text-on-surface-variant">
-            {NUTRITION_COPY.heroKicker}
+            {view.headline.kicker}
           </p>
           <p className="font-display text-5xl font-bold tracking-tight text-on-surface tabular-nums">
             {view.headline.kcal}

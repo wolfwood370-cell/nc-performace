@@ -14,7 +14,11 @@ import {
   describeRelease,
   formatItalianDate,
 } from "../describeRelease";
-import { parseNutritionDocument, parseSafetyContext } from "../parseRelease";
+import {
+  SUPPORTED_NUTRITION_SCHEMA_VERSION,
+  parseNutritionDocument,
+  parseSafetyContext,
+} from "../parseRelease";
 import type { NutritionDocument, NutritionReleaseDbRow, SafetyContextView } from "../types";
 
 // --- fixtures: factories with overrides (gateStatus.test.ts style) ----------
@@ -97,6 +101,22 @@ const NO_FLAGS = { coldStart: false, fallbackMode: false, inReview: false };
 describe("contratto condiviso col motore", () => {
   it("il canale-pausa è la notifica type='nutrition_review' (pin letterale)", () => {
     expect(NUTRITION_REVIEW_NOTIFICATION_TYPE).toBe("nutrition_review");
+  });
+
+  it("schema_version supportata pinnata al letterale del motore", () => {
+    // Source of truth: NUTRITION_SCHEMA_VERSION in _shared/nutrition/
+    // assemblePlan.ts:47. A direct parity import is blocked by the app lib
+    // target (the engine uses Object.hasOwn, ES2022 > app lib ES2020), so
+    // this literal pin is the falsifiable contract: bump BOTH on purpose.
+    expect(SUPPORTED_NUTRITION_SCHEMA_VERSION).toBe(1);
+  });
+
+  it("riga di schema_version diversa (anche più NUOVA, a forma identica) → unreadable, mai target valido", () => {
+    const state = deriveScreenState({
+      release: releaseRow({ schema_version: SUPPORTED_NUTRITION_SCHEMA_VERSION + 1 }),
+      unreadReviewNoticeAt: null,
+    });
+    expect(state.kind).toBe("unreadable");
   });
 });
 
@@ -320,6 +340,24 @@ describe("describeRelease — spie → copy (deterministico)", () => {
     ).toBeNull();
   });
 
+  it("kicker: 'Obiettivo di oggi' normale, 'Ultimo obiettivo' quando demotato in revisione", () => {
+    expect(describeRelease(doc(), safetyView(), NO_FLAGS).headline.kicker).toBe(
+      "Obiettivo di oggi",
+    );
+    expect(
+      describeRelease(doc(), safetyView(), { ...NO_FLAGS, inReview: true }).headline.kicker,
+    ).toBe("Ultimo obiettivo");
+  });
+
+  it("confidenza fuori scala clampata 0..1: mai percentuali oltre 100", () => {
+    expect(
+      describeRelease(doc({ confidence: 84.7 }), safetyView(), NO_FLAGS).details.confidencePct,
+    ).toBe(100);
+    expect(
+      describeRelease(doc({ confidence: -0.2 }), safetyView(), NO_FLAGS).details.confidencePct,
+    ).toBe(0);
+  });
+
   it("arrotondamenti e dettagli: confidenza 85%, peso 1 decimale, giorni 5 su 7, data italiana", () => {
     const view = describeRelease(doc({ weight_kg_at_release: 72.34 }), safetyView(), NO_FLAGS);
     expect(view.details).toEqual({
@@ -351,6 +389,7 @@ describe("describeRelease — spie → copy (deterministico)", () => {
       { coldStart: true, fallbackMode: true, inReview: true },
     );
     const allText = [
+      view.headline.kicker,
       view.headline.dateLabel,
       view.headline.strategyLabel ?? "",
       ...view.badges.map((b) => b.label),

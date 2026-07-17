@@ -77,6 +77,9 @@ export interface Banner {
  *  technical flag names must never appear inside these strings. */
 export interface ReleaseView {
   headline: {
+    /** "Obiettivo di oggi", or "Ultimo obiettivo" when demoted in review —
+     *  a paused target must never be re-labelled as today's (review finding). */
+    kicker: string;
     kcal: number;
     /** "Taglio" | "Mantieni" | "Massa"; null on an unknown strategy value. */
     strategyLabel: string | null;

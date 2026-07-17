@@ -34,10 +34,10 @@ export const NUTRITION_COPY = {
   pauseBadge: "In revisione",
   pauseLastTargetNote: "Ultimo obiettivo, in revisione: non seguirlo finché non ti ricontattiamo.",
 
-  // Unreadable document (row from another schema_version)
+  // Unreadable document (row from another schema_version, older OR newer)
   unreadableTitle: "Obiettivo in aggiornamento",
   unreadableBody:
-    "Questo obiettivo è di una versione precedente: verrà rinnovato al prossimo rilascio.",
+    "Questo obiettivo è stato creato con una versione diversa: si aggiornerà al prossimo rilascio.",
 
   // Badges + banners
   coldStartBadge: "In calibrazione",
@@ -58,6 +58,8 @@ export const NUTRITION_COPY = {
   // Hero + collapsible details
   updatedOn: (date: string) => `Aggiornato il ${date}`,
   heroKicker: "Obiettivo di oggi",
+  /** Kicker of the DEMOTED hero under a safety pause: never claim "today". */
+  heroKickerInReview: "Ultimo obiettivo",
   kcalUnit: "kcal",
   macroProtein: "Proteine",
   macroCarbs: "Carboidrati",
