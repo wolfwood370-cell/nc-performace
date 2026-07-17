@@ -3,6 +3,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import OpenAI from "https://deno.land/x/openai@v4.69.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { romeDayFromDate } from "../_shared/nutrition/romeDate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -254,7 +255,36 @@ serve(async (req: Request) => {
 
     const analysis = validateAnalysis(parsed);
 
-    return new Response(JSON.stringify(analysis), {
+    // Best-effort persistence into nutrition_logs UNDER THE ATHLETE'S JWT
+    // (supabaseUser + RLS insert-own — no service role: least privilege).
+    // The analysis is the product and the AI cost is already spent: an insert
+    // failure never turns the response into an error, it only flips
+    // `persisted` so the client can fall back to manual logging.
+    // `date` is the Europe/Rome calendar day: the DB default (CURRENT_DATE,
+    // UTC) would file a 00:30 Italian meal under the previous day.
+    let persisted = false;
+    const { error: insertError } = await supabaseUser.from("nutrition_logs").insert({
+      athlete_id: user.id,
+      date: romeDayFromDate(new Date()),
+      meal_name: analysis.mealName,
+      calories: analysis.calories,
+      protein: analysis.protein,
+      carbs: analysis.carbs,
+      fats: analysis.fats,
+      source: "photo_ai",
+      confidence_score: analysis.confidenceScore, // 1-100 int, same scale as the response
+      photo_url: null, // Storage upload is out of scope for this slice
+    });
+    if (insertError) {
+      console.error("[analyze-meal-photo] nutrition_logs insert failed", {
+        code: insertError.code,
+      });
+    } else {
+      persisted = true;
+    }
+
+    // Response contract: unchanged fields + ADDITIVE `persisted` only.
+    return new Response(JSON.stringify({ ...analysis, persisted }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
