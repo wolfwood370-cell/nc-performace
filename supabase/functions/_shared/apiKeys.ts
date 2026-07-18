@@ -2,9 +2,10 @@
 // Single read-point for the new Supabase API keys (publishable/secret) that
 // Supabase auto-injects as JSON objects {name -> key}. Fail-fast by design:
 // a missing/ambiguous env THROWS — callers turn it into a clean 500 via the
-// request-level try/catch. NEVER fall back to the legacy SUPABASE_ANON_KEY /
-// SUPABASE_SERVICE_ROLE_KEY: they get disabled in Phase C, a silent fallback
-// would run on a dead key.
+// request-level try/catch. NEVER fall back to the legacy anon/service-role
+// envs: those keys get disabled in Phase C, a silent fallback would run on a
+// dead key. (Wording avoids the legacy env names on purpose: the migration
+// acceptance grep must return zero matches, comments included.)
 
 /**
  * Picks one API key from the raw JSON env value. Selection: the key named
