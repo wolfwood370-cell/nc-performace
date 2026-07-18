@@ -206,19 +206,24 @@ export async function processAthlete(
   });
 
   if (outcome.status === "no_baseline_data") return { status: "no_baseline_data" };
-  const latestReleasedAt = inputs.previousReleases[0]?.released_at ?? null;
+  // Guard anchor = the ABSOLUTE latest release (the UI pause predicate). The
+  // fetched chain is windowed by chainHorizon, so an empty chain must fall
+  // back to the dedicated lookup before anchoring on the 1970 floor. Lazy:
+  // evaluated only on the blocking branches, never on a clean release.
+  const engineAnchor = async () =>
+    inputs.previousReleases[0]?.released_at ?? (await fetchLatestReleasedAt(admin, athlete.id));
   if (outcome.status === "escalation") {
     return respondGate(
       admin,
       athlete,
       "anomalous_adjustment",
-      latestReleasedAt,
+      await engineAnchor(),
       outcome.reasons.join("; "),
       { raw_target_kcal: outcome.audit?.rawTargetKcal ?? null },
     );
   }
   if (outcome.status === "gated") {
-    return respondGate(admin, athlete, outcome.reason, latestReleasedAt, outcome.detail, {
+    return respondGate(admin, athlete, outcome.reason, await engineAnchor(), outcome.detail, {
       candidate: outcome.candidate,
     });
   }

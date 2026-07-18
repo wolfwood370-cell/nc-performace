@@ -40,7 +40,10 @@ function fakeAdmin(queue: CannedResult[]) {
           return builder;
         },
         limit: () => builder,
-        order: () => builder,
+        order: (col: string, opts?: { ascending?: boolean }) => {
+          write.filters[`order:${col}`] = opts?.ascending ?? null;
+          return builder;
+        },
         maybeSingle: () => builder,
         eq: (col: string, val: unknown) => {
           write.filters[col] = val;
@@ -146,6 +149,15 @@ Deno.test("fetchLatestReleasedAt: release presente → released_at; nessuna → 
     await fetchLatestReleasedAt(withRelease.client, "ath-1"),
     "2026-07-10T08:00:00Z",
   );
+  // The query shape is load-bearing: own athlete only, LATEST first — an
+  // ascending order would anchor on the OLDEST release and silently re-open
+  // the stale-unread suppression on the safety branch.
+  assertEquals(withRelease.lookups, [
+    {
+      table: "nutrition_releases",
+      filters: { athlete_id: "ath-1", "order:released_at": false },
+    },
+  ]);
   const noRelease = fakeAdmin([{ data: null, error: null }]);
   assertEquals(await fetchLatestReleasedAt(noRelease.client, "ath-1"), null);
 });

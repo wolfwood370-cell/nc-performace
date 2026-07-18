@@ -185,7 +185,12 @@ Deno.test("gate anomalous_adjustment (escalation motore): notifica atleta emessa
     daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
     // Unknown strategy in the active plan → engine escalation (assemblePlan pin).
     nutrition_plans: [{ data: [{ daily_calories: 2000, strategy_type: "recomp" }] }],
-    nutrition_releases: [{ data: [] }],
+    // Windowed chain empty → the anchor must FALL BACK to the absolute-latest
+    // lookup (fetchLatestReleasedAt), not to the 1970 floor.
+    nutrition_releases: [
+      { data: [] },
+      { data: { released_at: `${addDays(TODAY, -30)}T08:00:00Z` } },
+    ],
     nutrition_logs: [{ data: [] }, { data: [] }],
     body_measurements: [{ data: [weight(1, 80)] }, { data: [] }, { data: [weight(1, 80)] }],
     athlete_cycle_settings: [{ data: null }],
@@ -199,9 +204,11 @@ Deno.test("gate anomalous_adjustment (escalation motore): notifica atleta emessa
     writes.map((w) => `${w.table}:${w.op}`),
     ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
   );
-  // Empty release chain → null anchor → COALESCE floor, pinned end-to-end.
+  // Threading pin (escalation branch): windowed chain empty → the anchor is
+  // the fallback absolute-latest released_at, matching the UI predicate even
+  // beyond chainHorizon (a null hardcoded at this call site must fail here).
   const guardLookup = lookups.filter((l) => l.table === "notifications")[0];
-  assertEquals(guardLookup.filters["gt:created_at"], "1970-01-01T00:00:00Z");
+  assertEquals(guardLookup.filters["gt:created_at"], `${addDays(TODAY, -30)}T08:00:00Z`);
 });
 
 Deno.test(
