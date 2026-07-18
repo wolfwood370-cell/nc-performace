@@ -8,6 +8,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,10 +77,9 @@ serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RESEND_API_KEY) {
+    if (!SUPABASE_URL || !RESEND_API_KEY) {
       console.error("forgot-password: missing env vars");
       return json({ error: "Server misconfigured" }, 500);
     }
@@ -104,7 +104,7 @@ serve(async (req) => {
         ? payload.redirectTo
         : undefined;
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    const supabaseAdmin = createClient(SUPABASE_URL, secretKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

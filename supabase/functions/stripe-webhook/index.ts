@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { secretKey } from "../_shared/apiKeys.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const d = details ? ` - ${JSON.stringify(details)}` : "";
@@ -12,7 +13,7 @@ async function syncProfileFromSubscription(
   adminClient: ReturnType<typeof createClient>,
   stripe: Stripe,
   subscriptionId: string,
-  overrideStatus?: string
+  overrideStatus?: string,
 ) {
   // Find the athlete_subscription row to get athlete_id
   const { data: subRow } = await adminClient
@@ -71,10 +72,7 @@ serve(async (req) => {
 
     logStep("Event received", { type: event.type, id: event.id });
 
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", secretKey());
 
     switch (event.type) {
       // ── Checkout completed ─────────────────────────────────────
@@ -82,7 +80,8 @@ serve(async (req) => {
         const session = event.data.object as Stripe.Checkout.Session;
         const athleteId = session.metadata?.athlete_id;
         const planId = session.metadata?.plan_id;
-        const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+        const subscriptionId =
+          typeof session.subscription === "string" ? session.subscription : null;
         const customerId = typeof session.customer === "string" ? session.customer : null;
 
         logStep("checkout.session.completed", { athleteId, planId, subscriptionId });
@@ -152,7 +151,8 @@ serve(async (req) => {
       // ── Invoice paid (renewal) ─────────────────────────────────
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null;
+        const subscriptionId =
+          typeof invoice.subscription === "string" ? invoice.subscription : null;
         if (!subscriptionId) break;
 
         const { data: subRecord } = await adminClient
@@ -183,7 +183,8 @@ serve(async (req) => {
       // ── Invoice payment failed (card declined) ────────────────
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : null;
+        const subscriptionId =
+          typeof invoice.subscription === "string" ? invoice.subscription : null;
         if (!subscriptionId) break;
 
         const { data: subRecord } = await adminClient
@@ -234,7 +235,11 @@ serve(async (req) => {
           .eq("stripe_subscription_id", subId)
           .maybeSingle();
 
-        if (updRecord && updRecord.status === mappedStatus && updRecord.current_period_end === periodEnd) {
+        if (
+          updRecord &&
+          updRecord.status === mappedStatus &&
+          updRecord.current_period_end === periodEnd
+        ) {
           logStep("Idempotent skip: subscription already up to date", { subId, mappedStatus });
           break;
         }

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,11 +58,11 @@ serve(async (req) => {
     if (!authHeader) throw new Error("No authorization header");
     const token = authHeader.replace("Bearer ", "");
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } },
-    );
+    // Key swap only: this client still does BOTH user-auth validation and
+    // privileged reads (registered least-privilege debt, out of this slice).
+    const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", secretKey(), {
+      auth: { persistSession: false },
+    });
 
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Auth error: ${userError.message}`);
