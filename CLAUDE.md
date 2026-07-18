@@ -25,7 +25,7 @@ corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowo
 
 **PWA**: RIMOSSA — Service Worker eliminato (`vite.config.ts:5`); i residui offline/Wake Lock sono moduli scollegati (`docs/WIP_MODULES.md`). L'app atleta resta mobile-only, ma NON assumere SW/offline attivi.
 
-**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`) · test unit Deno: motore-metodo (50, incl. characterization byte-identico) in `supabase/functions/_shared/method/` — **estratto da `generate-program/method/` il 2026-07-15** — + rilascio autonomo (35) in `supabase/functions/release-autonomous-program/release/` + intake (54) in `supabase/functions/submit-intake/intake/`: `npx deno test --no-lock <path>` · vitest FE (`npm test`, incl. parità col builder del release e mirror↔gate).
+**Testing**: Playwright E2E (coverage gap — vedi `methodology/05-DEAD-CODE-AUDIT.md`) · test unit Deno: motore-metodo (50, incl. characterization byte-identico) in `supabase/functions/_shared/method/` — **estratto da `generate-program/method/` il 2026-07-15** — + rilascio autonomo (36) in `supabase/functions/release-autonomous-program/release/` + intake (52) in `supabase/functions/submit-intake/intake/`: `npx deno test --no-lock <path>` · vitest FE (`npm test`, incl. parità col builder del release e mirror↔gate).
 
 **Quality**: Husky + lint-staged + prettier al commit.
 
