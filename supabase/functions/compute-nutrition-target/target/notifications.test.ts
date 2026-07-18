@@ -19,16 +19,22 @@ interface RecordedWrite {
   filters: Record<string, unknown>;
 }
 
-/** Chainable/thenable stub: each from() consumes the next canned result. */
+/** Chainable/thenable stub: each from() consumes the next canned result.
+ * select() chains are recorded in `lookups` (filters filled by later eq()
+ * calls via shared reference) so guard-lookup filters can be pinned too. */
 function fakeAdmin(queue: CannedResult[]) {
   const writes: RecordedWrite[] = [];
+  const lookups: Array<{ table: string; filters: Record<string, unknown> }> = [];
   const client = {
     from(table: string) {
       const res = queue.shift() ?? { data: [], error: null };
       const write: RecordedWrite = { table, op: "insert", values: undefined, filters: {} };
       // deno-lint-ignore no-explicit-any
       const builder: any = {
-        select: () => builder,
+        select: () => {
+          lookups.push({ table, filters: write.filters });
+          return builder;
+        },
         limit: () => builder,
         eq: (col: string, val: unknown) => {
           write.filters[col] = val;
@@ -55,7 +61,7 @@ function fakeAdmin(queue: CannedResult[]) {
       return builder;
     },
   };
-  return { client: client as unknown as SupabaseClient, writes };
+  return { client: client as unknown as SupabaseClient, writes, lookups };
 }
 
 Deno.test("notify: nessuna non-letta → 1 insert con la shape letterale del contratto", async () => {
@@ -79,9 +85,18 @@ Deno.test("notify: nessuna non-letta → 1 insert con la shape letterale del con
 });
 
 Deno.test("notify: la guardia trova una non-letta → 0 insert (niente spam)", async () => {
-  const { client, writes } = fakeAdmin([{ data: [{ id: "n1" }], error: null }]);
+  const { client, writes, lookups } = fakeAdmin([{ data: [{ id: "n1" }], error: null }]);
   await notifyAthleteReview(client, "ath-1");
   assertEquals(writes.length, 0);
+  // The guard's discriminant is load-bearing: user_id (no cross-athlete
+  // suppression), literal type, and read=false (a row already marked read by
+  // the clean-release clear must NOT keep suppressing future pauses).
+  assertEquals(lookups, [
+    {
+      table: "notifications",
+      filters: { user_id: "ath-1", type: "nutrition_review", read: false },
+    },
+  ]);
 });
 
 Deno.test("notify: lookup in errore → si procede con l'insert (doppione < pausa persa)", async () => {

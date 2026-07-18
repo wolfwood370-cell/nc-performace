@@ -95,8 +95,8 @@ function log(daysAgo: number, calories: number) {
   return { date: addDays(TODAY, -daysAgo), calories };
 }
 
-function weight(daysAgo: number, kg: number) {
-  return { date: addDays(TODAY, -daysAgo), weight_kg: kg, body_fat_percentage: null };
+function weight(daysAgo: number, kg: number, bf: number | null = null) {
+  return { date: addDays(TODAY, -daysAgo), weight_kg: kg, body_fat_percentage: bf };
 }
 
 const run = (client: SupabaseClient) =>
@@ -293,6 +293,166 @@ Deno.test(
       ],
     );
     assertEquals(writes[2].values, { read: true });
+  },
+);
+
+Deno.test(
+  "gate unintended_weight_loss (ramo gated del motore): notifica atleta emessa",
+  async () => {
+    // Adaptive fixture with -0.92 kg/week on maintain → engine outcome "gated"
+    // (assemblePlan pin): the gated dispatch must escalate AND notify too.
+    const { client, writes } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
+      nutrition_plans: [{ data: [{ daily_calories: 2600, strategy_type: "maintain" }] }],
+      nutrition_releases: [
+        {
+          data: [
+            {
+              id: "rel-7",
+              released_at: `${addDays(TODAY, -7)}T08:00:00Z`,
+              nutrition_document: {
+                daily_calories: 2600,
+                expenditure_estimate: 2600,
+                strategy: "maintain",
+              },
+            },
+          ],
+        },
+      ],
+      nutrition_logs: [
+        { data: [1, 2, 3, 4, 5, 6, 7].map((d) => log(d, 2000)) },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      body_measurements: [
+        { data: [weight(7, 80), weight(1, 79.2)] },
+        { data: [] },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      athlete_cycle_settings: [{ data: null }],
+      coach_alerts: [{ data: [] }, { data: [] }, { error: null }], // referral fetch, dedupe, insert
+      notifications: [{ data: [] }, { error: null }],
+      audit_log: [{ error: null }],
+    });
+    const result = await run(client);
+    assertEquals(result, { status: "gate", reason: "unintended_weight_loss" });
+    assertEquals(
+      writes.map((w) => `${w.table}:${w.op}`),
+      ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
+    );
+  },
+);
+
+Deno.test(
+  "gate low_energy_availability (ramo gated del motore): notifica atleta emessa",
+  async () => {
+    // LEA fixture from assemblePlan.test.ts: bf 25 in window, 2000 kcal →
+    // (2000-300)/60 = 28.3 < 30 → gated. Fourth and last non-consent reason.
+    const { client, writes } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
+      nutrition_plans: [{ data: [{ daily_calories: 2050, strategy_type: "maintain" }] }],
+      nutrition_releases: [
+        {
+          data: [
+            {
+              id: "rel-7",
+              released_at: `${addDays(TODAY, -7)}T08:00:00Z`,
+              nutrition_document: {
+                daily_calories: 2050,
+                expenditure_estimate: 2000,
+                strategy: "maintain",
+              },
+            },
+          ],
+        },
+      ],
+      nutrition_logs: [
+        { data: [1, 2, 3, 4, 5, 6, 7].map((d) => log(d, 2000)) },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      body_measurements: [
+        { data: [weight(7, 80), weight(4, 80, 25), weight(1, 80)] },
+        { data: [] },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      athlete_cycle_settings: [{ data: null }],
+      coach_alerts: [{ data: [] }, { data: [] }, { error: null }],
+      notifications: [{ data: [] }, { error: null }],
+      audit_log: [{ error: null }],
+    });
+    const result = await run(client);
+    assertEquals(result, { status: "gate", reason: "low_energy_availability" });
+    assertEquals(
+      writes.map((w) => `${w.table}:${w.op}`),
+      ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
+    );
+  },
+);
+
+Deno.test(
+  "conflict 23505 sul release: NESSUNA clear — la pausa non si spegne senza nuovo target",
+  async () => {
+    // The clear must run only AFTER a SUCCESSFUL release insert: on the losing
+    // side of the chain race the concurrent winner does its own clear.
+    const { client, writes, fromCalls } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
+      nutrition_plans: [{ data: [{ daily_calories: 2600, strategy_type: "maintain" }] }],
+      nutrition_releases: [
+        {
+          data: [
+            {
+              id: "rel-7",
+              released_at: `${addDays(TODAY, -7)}T08:00:00Z`,
+              nutrition_document: {
+                daily_calories: 2600,
+                expenditure_estimate: 2600,
+                strategy: "maintain",
+              },
+            },
+          ],
+        },
+        { data: null, error: { code: "23505" } }, // insert loses the race
+      ],
+      nutrition_logs: [
+        { data: [1, 2, 3, 4, 5, 6, 7].map((d) => log(d, 2000)) },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      body_measurements: [
+        { data: [weight(7, 80), weight(1, 79.8)] },
+        { data: [] },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      athlete_cycle_settings: [{ data: null }],
+      coach_alerts: [{ data: [] }],
+      // NO notifications queue on purpose: the table must never be touched.
+    });
+    const result = await run(client);
+    assertEquals(result, { status: "conflict" });
+    assertEquals(
+      writes.map((w) => `${w.table}:${w.op}`),
+      ["nutrition_releases:insert"],
+    );
+    assertEquals(fromCalls["notifications"], undefined);
+  },
+);
+
+Deno.test(
+  "escalation coach fallita: status error e NESSUNA notifica di pausa",
+  async () => {
+    // Invariant: notify only AFTER raiseAlert stood — a pause telling the
+    // athlete "your coach is reviewing" must never exist without the alert.
+    const { client, fromCalls } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: true } }],
+      coach_alerts: [{ data: [] }, { error: { code: "XX000" } }], // lookup ok, insert fails
+      // NO notifications queue on purpose: the table must never be touched.
+    });
+    const result = await run(client);
+    assertEquals(result, { status: "error", error: "escalation_failed" });
+    assertEquals(fromCalls["notifications"], undefined);
+    assertEquals(fromCalls["audit_log"], undefined); // pre-existing behavior, pinned
   },
 );
 

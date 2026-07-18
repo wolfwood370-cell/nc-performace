@@ -52,6 +52,10 @@ export async function notifyAthleteReview(admin: SupabaseClient, athleteId: stri
  * release: turns the pause off now that a fresh target exists and keeps the
  * duplicate guard honest across block cycles. Idempotent (filters on
  * read=false); best-effort — an error is logged and never voids the release.
+ * Known residual risk of the simple guard (flagged at slice review): if this
+ * clear fails, the now-stale unread row keeps suppressing future notifies
+ * until the next clean release succeeds — during that window the UI pause
+ * stays off (the stale row predates the latest released_at).
  */
 export async function clearAthleteReview(admin: SupabaseClient, athleteId: string): Promise<void> {
   const { error } = await admin
