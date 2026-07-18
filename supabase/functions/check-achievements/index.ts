@@ -1,10 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publishableKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
@@ -21,13 +21,14 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, publishableKey(), {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -118,7 +119,9 @@ serve(async (req) => {
           const d = new Date(log.completed_at);
           // ISO week key
           const jan1 = new Date(d.getFullYear(), 0, 1);
-          const weekNum = Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+          const weekNum = Math.ceil(
+            ((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7,
+          );
           weekSet.add(`${d.getFullYear()}-W${weekNum}`);
         }
       }
@@ -129,7 +132,9 @@ serve(async (req) => {
       for (let i = 0; i < 12; i++) {
         const checkDate = new Date(now.getTime() - i * 7 * 86400000);
         const jan1 = new Date(checkDate.getFullYear(), 0, 1);
-        const weekNum = Math.ceil(((checkDate.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+        const weekNum = Math.ceil(
+          ((checkDate.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7,
+        );
         const weekKey = `${checkDate.getFullYear()}-W${weekNum}`;
         if (weekSet.has(weekKey)) {
           consecutiveWeeks++;
@@ -241,13 +246,16 @@ serve(async (req) => {
     }
 
     // Upsert leaderboard
-    await supabase.from("leaderboard_cache").upsert({
-      user_id: athleteId,
-      coach_id: profileData?.coach_id,
-      week_volume: Math.round(weekVolume),
-      workout_count: totalWorkouts,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
+    await supabase.from("leaderboard_cache").upsert(
+      {
+        user_id: athleteId,
+        coach_id: profileData?.coach_id,
+        week_volume: Math.round(weekVolume),
+        workout_count: totalWorkouts,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
 
     return new Response(
       JSON.stringify({
@@ -258,7 +266,7 @@ serve(async (req) => {
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (err) {
     console.error("check-achievements error:", err);

@@ -4,6 +4,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import OpenAI from "https://deno.land/x/openai@v4.69.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { romeDayFromDate } from "../_shared/nutrition/romeDate.ts";
+import { publishableKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -149,9 +150,8 @@ serve(async (req: Request) => {
     }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    if (!SUPABASE_URL) {
       console.error("[analyze-meal-photo] Missing Supabase env vars");
       return new Response(JSON.stringify({ error: "Configurazione server mancante" }), {
         status: 500,
@@ -159,7 +159,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const supabaseUser = createClient(SUPABASE_URL, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
 

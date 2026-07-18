@@ -167,10 +167,9 @@ serve(async (req) => {
     //     point of this function is RAG, so missing keys = hard error.
     // -------------------------------------------------------------------------
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl) {
       console.error("[ask-copilot] Missing Supabase env vars");
       return new Response(JSON.stringify({ error: "Configurazione server mancante" }), {
         status: 500,
@@ -194,7 +193,7 @@ serve(async (req) => {
     //     usage. The `if (!authHeader)` check above only verifies presence,
     //     not validity. This block forces token verification first.
     // -------------------------------------------------------------------------
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
     const {
