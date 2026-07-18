@@ -4,7 +4,9 @@
 // task is binding: no release without consent AND a clean capture. Writes:
 // nutrition_plans ONLY at cold start (never UPDATE), nutrition_releases
 // append-only with supersedes_id, coach_alerts with a guaranteed recipient
-// (SAFETY_NET_COACH_ID fallback) and the twin's live-alert dedupe.
+// (SAFETY_NET_COACH_ID fallback) and the twin's live-alert dedupe, plus the
+// athlete-facing nutrition_review notification (raised on blocking gates,
+// marked read on a clean release — target/notifications.ts).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
@@ -16,6 +18,7 @@ import { fetchEngineInputs } from "./fetchInputs.ts";
 import type { NutritionConfig, NutritionOutcome } from "../../_shared/nutrition/types.ts";
 import { alertForGate, lifecycleReferralAlert } from "./alerts.ts";
 import type { NutritionAlertContent, NutritionGateReason } from "./alerts.ts";
+import { clearAthleteReview, notifyAthleteReview } from "./notifications.ts";
 
 const FN = "[compute-nutrition-target]";
 
@@ -106,9 +109,10 @@ async function raiseAlert(
   return true;
 }
 
-/** Blocking gate: alert (fail-loud) + best-effort audit + explicit response.
- * `extra` lands in the audit metadata — e.g. the candidate document the
- * engine attached, so the coach can inspect what WOULD have been released. */
+/** Blocking gate: alert (fail-loud) + best-effort athlete notification and
+ * audit + explicit response. `extra` lands in the audit metadata — e.g. the
+ * candidate document the engine attached, so the coach can inspect what WOULD
+ * have been released. */
 async function respondGate(
   admin: SupabaseClient,
   athlete: AthleteRow,
@@ -120,6 +124,9 @@ async function respondGate(
   if (content) {
     const raised = await raiseAlert(admin, athlete, content);
     if (!raised) return { status: "error", error: "escalation_failed" };
+    // Hold-only athlete pause (never on the release path's lifecycle
+    // referral), and only AFTER the coach escalation stood.
+    await notifyAthleteReview(admin, athlete.id);
   }
   await insertAudit(admin, athlete.id, "nutrition_target_blocked", {
     reason,
@@ -264,6 +271,11 @@ export async function processAthlete(
     console.error(`${FN} release insert failed`, { code: releaseError.code });
     return { status: "error", error: "internal" };
   }
+
+  // A clean release resolves the athlete review pause. Placed BEFORE the
+  // fail-loud audit below: a late audit failure must not leave the duplicate
+  // guard stale (an unread row would silently swallow the next block's notify).
+  await clearAthleteReview(admin, athlete.id);
 
   // One-shot lifecycle referral: best-effort, never voids the release.
   if (outcome.audit.lifecycleReferralDue) {
