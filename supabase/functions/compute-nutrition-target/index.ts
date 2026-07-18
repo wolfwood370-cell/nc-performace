@@ -1,9 +1,12 @@
 // supabase/functions/compute-nutrition-target/index.ts
 // =============================================================================
 // Weekly ADAPTIVE nutrition target for AUTONOMOUS athletes (closed loop):
-//   1. auth: verify_jwt=true at the gateway + in-function exact match against
-//      SUPABASE_SERVICE_ROLE_KEY — only the scheduled job (or an operator with
-//      the service key) may invoke; a user JWT gets 403;
+//   1. auth: verify_jwt=false at the gateway (the caller-service has no JWT
+//      and the secret API key is opaque — the JWT gateway would reject it);
+//      in-function gate: x-cron-secret header vs the dedicated CRON_SECRET
+//      env (timing-safe, target/cronAuth.ts) — only the scheduled job (or an
+//      operator with that secret) may invoke; a DB key never doubles as the
+//      caller's auth secret;
 //   2. config: method_config profile `nicolo_nutrition`, is_active=true ONLY —
 //      the go-live switch is Cowork's activation, service_role does NOT bypass
 //      it (503 config_missing before activation); STRICT parse (v2 fields
@@ -21,6 +24,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseNutritionConfig, NutritionConfigError } from "../_shared/nutrition/parseConfig.ts";
 import { romeDayFromDate } from "../_shared/nutrition/romeDate.ts";
+import { secretKey } from "../_shared/apiKeys.ts";
+import { CRON_SECRET_HEADER, gateCronRequest } from "./target/cronAuth.ts";
 import { processAthlete } from "./target/processAthlete.ts";
 import type { AthleteRow, SingleResult } from "./target/processAthlete.ts";
 
@@ -54,20 +59,17 @@ serve(async (req: Request) => {
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL) {
       console.error(`${FN} missing Supabase env vars`);
       return json({ ok: false, error: "server_misconfigured" }, 500);
     }
 
-    // Service-role-only gate: exact string match is the strongest possible
-    // discriminator (a user JWT can never equal the service key; no claim
-    // parsing surface). The gateway already verified the JWT signature.
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-    if (!token) return json({ ok: false, error: "unauthorized" }, 401);
-    if (token !== SERVICE_ROLE_KEY) return json({ ok: false, error: "forbidden" }, 403);
+    // Caller-service gate: dedicated CRON_SECRET vs x-cron-secret header,
+    // timing-safe and fail-closed (500 on missing secret, 401/403 otherwise).
+    const gate = gateCronRequest(req.headers.get(CRON_SECRET_HEADER), Deno.env.get("CRON_SECRET"));
+    if (!gate.ok) return json({ ok: false, error: gate.error }, gate.status);
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    const admin = createClient(SUPABASE_URL, secretKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

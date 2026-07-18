@@ -7,9 +7,11 @@ project_id = "xgxtplqlewpqjzghvbke"
 # authenticated function so the policy is auditable in one place and a new
 # function added in the future inherits the safe default.
 #
-# Only two functions intentionally bypass the gateway check:
-#   - stripe-webhook   → caller is Stripe; auth is done via Stripe-Signature
-#   - forgot-password  → caller is unauthenticated by definition
+# Only three functions intentionally bypass the gateway check:
+#   - stripe-webhook           → caller is Stripe; auth via Stripe-Signature
+#   - forgot-password          → caller is unauthenticated by definition
+#   - compute-nutrition-target → caller-service with no JWT; auth via the
+#     x-cron-secret header (dedicated CRON_SECRET env, timing-safe in-function)
 # =============================================================================
 
 [functions.analyze-athlete-week]
@@ -57,12 +59,14 @@ verify_jwt = true
 [functions.submit-intake]
 verify_jwt = true
 
-# compute-nutrition-target: service-role only — the gateway verifies the JWT
-# signature, the function then requires an exact match with the service key.
-[functions.compute-nutrition-target]
-verify_jwt = true
-
 # -- Public endpoints (intentionally unauthenticated at the gateway) ---------
+
+# compute-nutrition-target: the scheduled caller has no user JWT (the new
+# secret API keys are opaque strings the JWT gateway would reject), so the
+# gateway check is off and auth happens in-function: x-cron-secret header
+# vs the dedicated CRON_SECRET env, compared timing-safe.
+[functions.compute-nutrition-target]
+verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
