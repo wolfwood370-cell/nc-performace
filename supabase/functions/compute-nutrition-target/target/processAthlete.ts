@@ -18,7 +18,11 @@ import { fetchEngineInputs } from "./fetchInputs.ts";
 import type { NutritionConfig, NutritionOutcome } from "../../_shared/nutrition/types.ts";
 import { alertForGate, lifecycleReferralAlert } from "./alerts.ts";
 import type { NutritionAlertContent, NutritionGateReason } from "./alerts.ts";
-import { clearAthleteReview, notifyAthleteReview } from "./notifications.ts";
+import {
+  clearAthleteReview,
+  fetchLatestReleasedAt,
+  notifyAthleteReview,
+} from "./notifications.ts";
 
 const FN = "[compute-nutrition-target]";
 
@@ -110,13 +114,15 @@ async function raiseAlert(
 }
 
 /** Blocking gate: alert (fail-loud) + best-effort athlete notification and
- * audit + explicit response. `extra` lands in the audit metadata — e.g. the
- * candidate document the engine attached, so the coach can inspect what WOULD
- * have been released. */
+ * audit + explicit response. `latestReleasedAt` anchors the release-aware
+ * duplicate guard of the notification (null = no release known). `extra`
+ * lands in the audit metadata — e.g. the candidate document the engine
+ * attached, so the coach can inspect what WOULD have been released. */
 async function respondGate(
   admin: SupabaseClient,
   athlete: AthleteRow,
   reason: NutritionGateReason,
+  latestReleasedAt: string | null,
   detail?: string,
   extra?: Record<string, unknown>,
 ): Promise<SingleResult> {
@@ -126,7 +132,7 @@ async function respondGate(
     if (!raised) return { status: "error", error: "escalation_failed" };
     // Hold-only athlete pause (never on the release path's lifecycle
     // referral), and only AFTER the coach escalation stood.
-    await notifyAthleteReview(admin, athlete.id);
+    await notifyAthleteReview(admin, athlete.id, latestReleasedAt);
   }
   await insertAudit(admin, athlete.id, "nutrition_target_blocked", {
     reason,
@@ -151,7 +157,7 @@ export async function processAthlete(
     .eq("consent_type", "nutrition_advice");
   if (consentError) return { status: "error", error: "internal" };
   if (!isNutritionConsentGranted(consentRows ?? [])) {
-    return respondGate(admin, athlete, "consent");
+    return respondGate(admin, athlete, "consent", null);
   }
 
   // (b) safety capture: LATEST daily_readiness row, has_pain gates (decision
@@ -166,7 +172,16 @@ export async function processAthlete(
     .maybeSingle();
   if (readinessError) return { status: "error", error: "internal" };
   if (readiness?.has_pain === true) {
-    return respondGate(admin, athlete, "safety_capture", `check-in del ${readiness.date}`);
+    // This gate fires BEFORE the engine fetches, so the release-aware guard
+    // needs its own anchor lookup (the only extra read, on this branch only).
+    const latestReleasedAt = await fetchLatestReleasedAt(admin, athlete.id);
+    return respondGate(
+      admin,
+      athlete,
+      "safety_capture",
+      latestReleasedAt,
+      `check-in del ${readiness.date}`,
+    );
   }
 
   // (c) parallel fetches for the engine (target/fetchInputs.ts).
@@ -191,13 +206,19 @@ export async function processAthlete(
   });
 
   if (outcome.status === "no_baseline_data") return { status: "no_baseline_data" };
+  const latestReleasedAt = inputs.previousReleases[0]?.released_at ?? null;
   if (outcome.status === "escalation") {
-    return respondGate(admin, athlete, "anomalous_adjustment", outcome.reasons.join("; "), {
-      raw_target_kcal: outcome.audit?.rawTargetKcal ?? null,
-    });
+    return respondGate(
+      admin,
+      athlete,
+      "anomalous_adjustment",
+      latestReleasedAt,
+      outcome.reasons.join("; "),
+      { raw_target_kcal: outcome.audit?.rawTargetKcal ?? null },
+    );
   }
   if (outcome.status === "gated") {
-    return respondGate(admin, athlete, outcome.reason, outcome.detail, {
+    return respondGate(admin, athlete, outcome.reason, latestReleasedAt, outcome.detail, {
       candidate: outcome.candidate,
     });
   }

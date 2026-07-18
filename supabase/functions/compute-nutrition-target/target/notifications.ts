@@ -15,23 +15,57 @@ export const NUTRITION_REVIEW_NOTIFICATION_TYPE = "nutrition_review";
 export const NUTRITION_REVIEW_MESSAGE =
   "Il tuo obiettivo nutrizionale è in revisione con il tuo coach. Riceverai presto un aggiornamento.";
 export const NUTRITION_REVIEW_LINK_URL = "/athlete/nutrition";
+/** COALESCE floor for the release-aware guard: with no release yet, any
+ * unread pause notification dedupes (first block cycle). */
+const NO_RELEASE_FLOOR = "1970-01-01T00:00:00Z";
+
+/**
+ * Latest released_at for the athlete, the anchor of the release-aware guard.
+ * null = no release yet, or lookup error: the guard then degrades to "any
+ * unread suppresses" (the pre-release-aware behavior) — conservative toward
+ * duplicates, never toward spam.
+ */
+export async function fetchLatestReleasedAt(
+  admin: SupabaseClient,
+  athleteId: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("nutrition_releases")
+    .select("released_at")
+    .eq("athlete_id", athleteId)
+    .order("released_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error(`${FN} latest release lookup failed`, { code: error.code });
+    return null;
+  }
+  return data?.released_at ?? null;
+}
 
 /**
  * Neutral "target under review" notification for the athlete, raised on every
  * blocking gate that also alerts the coach (alertForGate !== null — consent
- * excluded by construction). Duplicate guard: one UNREAD nutrition_review per
- * athlete already carries the pause, so an existing one skips the insert; a
- * lookup error falls through to the insert instead (a duplicate beats a lost
- * pause — same policy as raiseAlert). Works as a pair with clearAthleteReview:
- * the clean-release clear is what re-arms this guard for the next block cycle.
+ * excluded by construction). RELEASE-AWARE duplicate guard: the insert is
+ * skipped only when an UNREAD nutrition_review NEWER than the latest release
+ * exists — the same predicate the athlete UI uses for the pause. A stale
+ * unread left behind by a failed clear (created_at older than the release)
+ * does NOT suppress: the notification restarts on the next block cycle. A
+ * lookup error falls through to the insert (a duplicate beats a lost pause —
+ * same policy as raiseAlert). clearAthleteReview remains the bell hygiene.
  */
-export async function notifyAthleteReview(admin: SupabaseClient, athleteId: string): Promise<void> {
+export async function notifyAthleteReview(
+  admin: SupabaseClient,
+  athleteId: string,
+  latestReleasedAt: string | null,
+): Promise<void> {
   const { data: existing, error: lookupError } = await admin
     .from("notifications")
     .select("id")
     .eq("user_id", athleteId)
     .eq("type", NUTRITION_REVIEW_NOTIFICATION_TYPE)
     .eq("read", false)
+    .gt("created_at", latestReleasedAt ?? NO_RELEASE_FLOOR)
     .limit(1);
   if (!lookupError && existing && existing.length > 0) return;
   const { error } = await admin.from("notifications").insert({
@@ -49,13 +83,11 @@ export async function notifyAthleteReview(admin: SupabaseClient, athleteId: stri
 
 /**
  * Marks the athlete's unread nutrition_review rows as read after a CLEAN
- * release: turns the pause off now that a fresh target exists and keeps the
- * duplicate guard honest across block cycles. Idempotent (filters on
- * read=false); best-effort — an error is logged and never voids the release.
- * Known residual risk of the simple guard (flagged at slice review): if this
- * clear fails, the now-stale unread row keeps suppressing future notifies
- * until the next clean release succeeds — during that window the UI pause
- * stays off (the stale row predates the latest released_at).
+ * release: bell hygiene — no "in review" left hanging once the review is
+ * over. Since the guard above is release-aware, this clear is no longer the
+ * only defense: even if it fails, the stale unread cannot suppress the next
+ * block cycle's notification. Idempotent (filters on read=false);
+ * best-effort — an error is logged and never voids the release.
  */
 export async function clearAthleteReview(admin: SupabaseClient, athleteId: string): Promise<void> {
   const { error } = await admin

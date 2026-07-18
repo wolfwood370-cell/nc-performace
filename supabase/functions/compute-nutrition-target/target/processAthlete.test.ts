@@ -46,6 +46,7 @@ interface RecordedWrite {
 
 function fakeAdmin(canned: Record<string, CannedResult[]>) {
   const writes: RecordedWrite[] = [];
+  const lookups: Array<{ table: string; filters: Record<string, unknown> }> = [];
   const fromCalls: Record<string, number> = {};
   const client = {
     from(table: string) {
@@ -54,7 +55,10 @@ function fakeAdmin(canned: Record<string, CannedResult[]>) {
       const write: RecordedWrite = { table, op: "insert", values: undefined, filters: {} };
       // deno-lint-ignore no-explicit-any
       const builder: any = {
-        select: () => builder,
+        select: () => {
+          lookups.push({ table, filters: write.filters });
+          return builder;
+        },
         limit: () => builder,
         order: () => builder,
         gte: () => builder,
@@ -65,6 +69,10 @@ function fakeAdmin(canned: Record<string, CannedResult[]>) {
         single: () => builder,
         eq: (col: string, val: unknown) => {
           write.filters[col] = val;
+          return builder;
+        },
+        gt: (col: string, val: unknown) => {
+          write.filters[`gt:${col}`] = val;
           return builder;
         },
         insert: (values: unknown) => {
@@ -88,7 +96,7 @@ function fakeAdmin(canned: Record<string, CannedResult[]>) {
       return builder;
     },
   };
-  return { client: client as unknown as SupabaseClient, writes, fromCalls };
+  return { client: client as unknown as SupabaseClient, writes, lookups, fromCalls };
 }
 
 function log(daysAgo: number, calories: number) {
@@ -105,9 +113,12 @@ const run = (client: SupabaseClient) =>
 Deno.test(
   "gate safety_capture: coach alert PRIMA, poi 1 notifica atleta con shape pinnata",
   async () => {
-    const { client, writes } = fakeAdmin({
+    const { client, writes, lookups } = fakeAdmin({
       consents: [CONSENT_GRANTED],
       daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: true } }],
+      // Anchor for the release-aware guard (dedicated lookup on this branch:
+      // the gate fires before the engine fetches).
+      nutrition_releases: [{ data: { released_at: `${addDays(TODAY, -7)}T08:00:00Z` } }],
       coach_alerts: [{ data: [] }, { error: null }], // dedupe lookup, insert
       notifications: [{ data: [] }, { error: null }], // guard lookup, insert
       audit_log: [{ error: null }],
@@ -118,6 +129,9 @@ Deno.test(
       writes.map((w) => `${w.table}:${w.op}`),
       ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
     );
+    // Threading pin: the fetched released_at must reach the guard predicate.
+    const guardLookup = lookups.filter((l) => l.table === "notifications")[0];
+    assertEquals(guardLookup.filters["gt:created_at"], `${addDays(TODAY, -7)}T08:00:00Z`);
     assertEquals(writes[1].values, {
       user_id: "ath-1",
       sender_id: null,
@@ -134,6 +148,7 @@ Deno.test("2ª run ancora in blocco: guardia trova la non-letta → 0 nuove noti
   const { client, writes } = fakeAdmin({
     consents: [CONSENT_GRANTED],
     daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: true } }],
+    nutrition_releases: [{ data: null }], // no release yet → guard floor
     coach_alerts: [{ data: [{ id: "a1" }] }], // live alert → dedupe, no insert
     notifications: [{ data: [{ id: "n1" }] }], // unread pause → guard, no insert
     audit_log: [{ error: null }],
@@ -160,11 +175,12 @@ Deno.test(
       ["audit_log:insert"],
     );
     assertEquals(fromCalls["notifications"], undefined); // never even looked up
+    assertEquals(fromCalls["nutrition_releases"], undefined); // no anchor lookup either
   },
 );
 
 Deno.test("gate anomalous_adjustment (escalation motore): notifica atleta emessa", async () => {
-  const { client, writes } = fakeAdmin({
+  const { client, writes, lookups } = fakeAdmin({
     consents: [CONSENT_GRANTED],
     daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
     // Unknown strategy in the active plan → engine escalation (assemblePlan pin).
@@ -183,6 +199,9 @@ Deno.test("gate anomalous_adjustment (escalation motore): notifica atleta emessa
     writes.map((w) => `${w.table}:${w.op}`),
     ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
   );
+  // Empty release chain → null anchor → COALESCE floor, pinned end-to-end.
+  const guardLookup = lookups.filter((l) => l.table === "notifications")[0];
+  assertEquals(guardLookup.filters["gt:created_at"], "1970-01-01T00:00:00Z");
 });
 
 Deno.test(
@@ -301,7 +320,7 @@ Deno.test(
   async () => {
     // Adaptive fixture with -0.92 kg/week on maintain → engine outcome "gated"
     // (assemblePlan pin): the gated dispatch must escalate AND notify too.
-    const { client, writes } = fakeAdmin({
+    const { client, writes, lookups } = fakeAdmin({
       consents: [CONSENT_GRANTED],
       daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
       nutrition_plans: [{ data: [{ daily_calories: 2600, strategy_type: "maintain" }] }],
@@ -340,6 +359,9 @@ Deno.test(
       writes.map((w) => `${w.table}:${w.op}`),
       ["coach_alerts:insert", "notifications:insert", "audit_log:insert"],
     );
+    // Threading pin (gated branch): the anchor comes from the fetched chain.
+    const guardLookup = lookups.filter((l) => l.table === "notifications")[0];
+    assertEquals(guardLookup.filters["gt:created_at"], `${addDays(TODAY, -7)}T08:00:00Z`);
   },
 );
 
@@ -446,6 +468,7 @@ Deno.test(
     const { client, fromCalls } = fakeAdmin({
       consents: [CONSENT_GRANTED],
       daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: true } }],
+      nutrition_releases: [{ data: null }], // anchor lookup on the safety branch
       coach_alerts: [{ data: [] }, { error: { code: "XX000" } }], // lookup ok, insert fails
       // NO notifications queue on purpose: the table must never be touched.
     });
