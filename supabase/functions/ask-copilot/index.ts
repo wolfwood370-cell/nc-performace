@@ -25,6 +25,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { publishableKey } from "../_shared/apiKeys.ts";
 
 // -----------------------------------------------------------------------------
 // CORS — mirrors every other function in this project. Includes the

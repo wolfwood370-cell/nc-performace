@@ -31,6 +31,13 @@ Deno.test("pickKey: 'default' presente → ritorna il suo valore (senza warn)", 
   assertEquals(warns.length, 0);
 });
 
+Deno.test("pickKey: 'default' vince anche quando NON è la prima entry", () => {
+  // Kills the first-entry mutation: with insertion order {legacy, default},
+  // picking entries[0] instead of the 'default' entry must fail this pin.
+  const raw = JSON.stringify({ legacy: "chiave-finta-legacy", default: "chiave-finta-default" });
+  assertEquals(pickKey(raw, "ENV_TEST"), "chiave-finta-default");
+});
+
 Deno.test(
   "pickKey: 'default' assente con UNA sola chiave → usa quella e logga solo il NOME",
   () => {
