@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,13 +48,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseClient = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-  );
-
   try {
     logStep("Function started");
+
+    // Inside the try on purpose: publishableKey() is fail-fast and the catch
+    // below turns a missing/ambiguous key env into a clean JSON 500.
+    const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", publishableKey());
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
@@ -78,11 +78,9 @@ serve(async (req) => {
 
     // Ownership check: if creating for someone else, caller must be that athlete's coach.
     if (targetAthleteId !== user.id) {
-      const userClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-        { global: { headers: { Authorization: authHeader } } },
-      );
+      const userClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", publishableKey(), {
+        global: { headers: { Authorization: authHeader } },
+      });
       const { data: isCoach, error: rpcError } = await userClient.rpc("is_coach_of_athlete", {
         p_athlete_id: targetAthleteId,
       });
@@ -96,10 +94,7 @@ serve(async (req) => {
     }
 
     // Fetch billing plan using service role to bypass RLS
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
+    const adminClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", secretKey());
 
     const { data: plan, error: planError } = await adminClient
       .from("billing_plans")

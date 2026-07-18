@@ -24,6 +24,7 @@ import type { CoachingMode } from "./intake/semaforo.ts";
 import { deriveArena } from "./intake/objective.ts";
 import { scoreNeurotype } from "./intake/neurotype.ts";
 import { experienceForColumn, SCHEMA_VERSION, validateIntakePayload } from "./intake/validate.ts";
+import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,9 +58,7 @@ serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL) {
       console.error("submit-intake: missing Supabase env vars");
       return json({ ok: false, error: "server_misconfigured" }, 500);
     }
@@ -67,7 +66,7 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ ok: false, error: "unauthorized" }, 401);
 
-    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const supabaseUser = createClient(SUPABASE_URL, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
     const {
@@ -76,7 +75,7 @@ serve(async (req) => {
     } = await supabaseUser.auth.getUser();
     if (authError || !user) return json({ ok: false, error: "unauthorized" }, 401);
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    const admin = createClient(SUPABASE_URL, secretKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

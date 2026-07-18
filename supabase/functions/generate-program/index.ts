@@ -8,6 +8,7 @@ import {
 } from "../_shared/method/assembleWeek.ts";
 import type { CandidateRow } from "../_shared/method/assembleWeek.ts";
 import { hasGeneralBlock } from "../_shared/method/zoneMap.ts";
+import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,10 +39,8 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+    if (!supabaseUrl) {
       console.error("[generate-program] Missing Supabase env vars");
       return new Response(JSON.stringify({ error: "Configurazione server mancante" }), {
         status: 500,
@@ -50,7 +49,7 @@ serve(async (req) => {
     }
 
     // User-scoped client → validates the JWT and resolves auth.uid() for RPCs.
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const userClient = createClient(supabaseUrl, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -150,7 +149,7 @@ serve(async (req) => {
     // been fully established above — service-role reads from here on are
     // intentional (we need fields like onboarding_data that the caller's RLS
     // already permits via the coach relationship).
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, secretKey());
 
     // Fetch athlete profile — i campi letti dal motore deterministico (S0/S1/S3).
     const { data: profile } = await supabase

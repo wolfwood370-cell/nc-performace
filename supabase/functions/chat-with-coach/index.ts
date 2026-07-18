@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,22 +68,20 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) throw new Error("OPENAI_API_KEY is not configured");
 
     // User-scoped client — used for reads that benefit from RLS and for
     // verifying the caller identity via auth.getUser().
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Service-role client — used ONLY for writes on ai_usage_tracking
+    // Admin client — used ONLY for writes on ai_usage_tracking
     // (quota state). RLS policies on this table forbid user-side writes
     // since 20260525120000 (Security Advisor #7: AI rate limit bypass).
     // Reads still go through the user client so RLS scoping is honored.
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    const supabaseAdmin = createClient(supabaseUrl, secretKey(), {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 

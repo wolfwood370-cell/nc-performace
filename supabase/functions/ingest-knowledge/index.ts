@@ -1,6 +1,7 @@
 // supabase/functions/ingest-knowledge/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,14 +28,13 @@ function recursiveSplit(text: string, chunkSize: number, separators: string[]): 
 
   // Pick the coarsest separator that actually appears in this text; fall back
   // to the finest (empty string = character-level split) if none match.
-  const separator =
-    separators.find((s) => s !== "" && text.includes(s)) ?? "";
+  const separator = separators.find((s) => s !== "" && text.includes(s)) ?? "";
   const remainingSeparators = separators.slice(separators.indexOf(separator) + 1);
 
   // Character-level fallback: hard slice into chunkSize windows.
   const splits =
     separator === ""
-      ? text.match(new RegExp(`.{1,${chunkSize}}`, "gs")) ?? []
+      ? (text.match(new RegExp(`.{1,${chunkSize}}`, "gs")) ?? [])
       : text.split(separator);
 
   const chunks: string[] = [];
@@ -159,8 +159,6 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!openaiKey) {
@@ -168,18 +166,21 @@ serve(async (req) => {
     }
 
     // User-scoped client: respects RLS, used to verify caller identity & ownership.
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const userClient = createClient(supabaseUrl, publishableKey(), {
       global: { headers: { Authorization: authHeader } },
     });
 
     // Admin client: used for writes after we've authorized the caller. Bypasses
     // RLS for fast batch inserts, but every write is still constrained by the
     // coach_id we resolved from the user session — never from request input.
-    adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    adminClient = createClient(supabaseUrl, secretKey(), {
       auth: { persistSession: false },
     });
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await userClient.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Non autorizzato" }), {
         status: 401,
@@ -192,10 +193,10 @@ serve(async (req) => {
     const textContent: string | undefined = body.textContent;
 
     if (!documentId || !textContent || textContent.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: "documentId e textContent sono richiesti" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "documentId e textContent sono richiesti" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Ownership check — the caller must own the parent document. We use the
