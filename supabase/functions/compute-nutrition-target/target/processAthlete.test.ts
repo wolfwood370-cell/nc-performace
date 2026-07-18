@@ -262,3 +262,91 @@ Deno.test(
     assert(fromCalls["audit_log"] === undefined); // sanity: no gate audit either
   },
 );
+
+Deno.test(
+  "cold start resta un rilascio: nutrition_plans + release + clear della pausa",
+  async () => {
+    // First target ever (no plan, no chain, one weigh-in): still a clean
+    // release — the clear must run here too (task: cold start included).
+    const { client, writes } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
+      nutrition_plans: [{ data: [] }, { error: null }], // fetch, cold-start insert
+      nutrition_releases: [{ data: [] }, { data: { id: "rel-first" }, error: null }],
+      nutrition_logs: [{ data: [] }, { data: [] }],
+      body_measurements: [{ data: [weight(1, 80)] }, { data: [] }, { data: [weight(1, 80)] }],
+      athlete_cycle_settings: [{ data: null }],
+      coach_alerts: [{ data: [] }],
+      notifications: [{ error: null }], // the clear update
+      audit_log: [{ error: null }],
+    });
+    const result = await run(client);
+    if (result.status !== "released") throw new Error(`atteso released, ottenuto ${result.status}`);
+    assertEquals(result.cold_start, true);
+    assertEquals(
+      writes.map((w) => `${w.table}:${w.op}`),
+      [
+        "nutrition_plans:insert",
+        "nutrition_releases:insert",
+        "notifications:update",
+        "audit_log:insert",
+      ],
+    );
+    assertEquals(writes[2].values, { read: true });
+  },
+);
+
+Deno.test(
+  "hold-only: rilascio con lifecycle referral → clear e coach alert, MAI notifica di pausa",
+  async () => {
+    // Fixture from assemblePlan.test.ts (assente_3m + cut): released with
+    // lifecycleReferralDue=true. raiseAlert fires on the RELEASE path here —
+    // a notify wired inside raiseAlert (instead of respondGate) would insert
+    // a pause on a clean release: this pin kills that mutation.
+    const { client, writes } = fakeAdmin({
+      consents: [CONSENT_GRANTED],
+      daily_readiness: [{ data: { date: addDays(TODAY, -1), has_pain: false } }],
+      nutrition_plans: [{ data: [{ daily_calories: 2400, strategy_type: "cut" }] }],
+      nutrition_releases: [
+        {
+          data: [
+            {
+              id: "rel-7",
+              released_at: `${addDays(TODAY, -7)}T08:00:00Z`,
+              nutrition_document: {
+                daily_calories: 2400,
+                expenditure_estimate: 2500,
+                strategy: "cut",
+              },
+            },
+          ],
+        },
+        { data: { id: "rel-new" }, error: null },
+      ],
+      nutrition_logs: [
+        { data: [1, 2, 3, 4, 5, 6, 7].map((d) => log(d, 2500)) },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      body_measurements: [
+        { data: [weight(7, 80), weight(1, 80)] },
+        { data: [] },
+        { data: [{ date: addDays(TODAY, -7) }] },
+      ],
+      athlete_cycle_settings: [{ data: { cycle_status: "assente_3m" } }],
+      coach_alerts: [{ data: [] }, { data: [] }, { error: null }], // referral fetch, dedupe, insert
+      notifications: [{ error: null }], // ONLY the clear update — no insert canned
+      audit_log: [{ error: null }],
+    });
+    const result = await run(client);
+    if (result.status !== "released") throw new Error(`atteso released, ottenuto ${result.status}`);
+    assertEquals(
+      writes.map((w) => `${w.table}:${w.op}`),
+      [
+        "nutrition_releases:insert",
+        "notifications:update",
+        "coach_alerts:insert",
+        "audit_log:insert",
+      ],
+    );
+  },
+);
