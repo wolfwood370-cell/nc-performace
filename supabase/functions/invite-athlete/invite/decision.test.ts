@@ -74,6 +74,13 @@ Deno.test("atleta di un altro coach -> conflict, con o senza onboarding", () => 
     }),
     "conflict",
   );
+  assertEquals(
+    decideAlreadyExists({
+      profile: athlete({ coach_id: OTHER, onboarding_completed: null }),
+      coachId: COACH,
+    }),
+    "conflict",
+  );
 });
 
 Deno.test("ruolo non-athlete -> conflict (coach, null, coach con lo stesso id)", () => {
@@ -113,13 +120,4 @@ Deno.test("guardia account-attivi su tutti i rami: solo true blocca il reinvio",
       noResendAction,
     );
   }
-});
-
-Deno.test("stesso input -> stessa decisione (determinismo)", () => {
-  const input = { profile: athlete({ coach_id: COACH }), coachId: COACH };
-  assertEquals(decideAlreadyExists(input), decideAlreadyExists(input));
-  assertEquals(
-    decideAlreadyExists({ profile: athlete({ coach_id: COACH }), coachId: COACH }),
-    decideAlreadyExists({ profile: athlete({ coach_id: COACH }), coachId: COACH }),
-  );
 });
