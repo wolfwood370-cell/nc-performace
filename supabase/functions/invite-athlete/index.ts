@@ -5,12 +5,20 @@
 // coach-supplied full_name into the invitee's user metadata, so the
 // `handle_new_user` trigger can both link the athlete to the coach and
 // pre-populate the profile name on signup.
+//
+// If the auth user already exists (previous invite whose email failed, ended
+// up in spam, or whose action link expired), the already-exists branch
+// re-attaches when possible and re-sends the invite email with a fresh
+// magiclink — unless the athlete has already completed onboarding: no
+// coach-triggered sign-in links to active accounts. Which action runs is
+// decided by the pure helper in invite/decision.ts.
 // =============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 import { inviteEmail } from "../_shared/email/templates.ts";
+import { decideAlreadyExists } from "./invite/decision.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +56,45 @@ const CTRL_CHARS = /[\x00-\x1F\x7F]/g;
 function sanitizeNameField(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return raw.replace(CTRL_CHARS, "").trim().slice(0, NAME_MAX);
+}
+
+// Builds the NC-brand invite email from the shared pure template module and
+// sends it via Resend — no Supabase mailer rate limit. Used by the primary
+// invite path and by the already-exists re-send. Returns null on success, or
+// the error Response the caller should reply with (502; the provider detail
+// stays in the server log only, never in the client body).
+async function sendInvite(opts: {
+  apiKey: string;
+  to: string;
+  firstName: string;
+  actionLink: string;
+}): Promise<Response | null> {
+  const { subject, html } = inviteEmail({
+    firstName: opts.firstName,
+    actionLink: opts.actionLink,
+  });
+
+  const resendResp = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "NC Training Systems <noreply@mail.nctrainingsystems.com>",
+      to: [opts.to],
+      subject,
+      html,
+    }),
+  });
+
+  if (!resendResp.ok) {
+    const errBody = await resendResp.text();
+    console.error("invite-athlete: Resend send failed", resendResp.status, errBody);
+    return json({ error: "Failed to send invite email" }, 502);
+  }
+
+  return null;
 }
 
 serve(async (req) => {
@@ -189,55 +236,129 @@ serve(async (req) => {
         lower.includes("email address has already");
 
       if (isAlreadyExists) {
-        // Idempotent path: find the existing user and attach to this coach
-        // if they are an unassigned athlete.
-        const { data: list, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
-          page: 1,
-          perPage: 200,
+        // Re-invite path: the auth user already exists (previous invite whose
+        // email failed, went to spam, or whose link expired). A targeted
+        // magiclink generation resolves the user in one call — no paginated
+        // scan of the whole user list — and yields a fresh link for the re-send.
+        // The link is generated once here as the lookup byproduct; on
+        // no-resend outcomes it is discarded — never logged, never returned.
+        const { data: relink, error: relinkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email: athleteEmail,
         });
 
-        const existing = list?.users?.find((u) => u.email?.toLowerCase() === athleteEmail);
-
-        if (!listErr && existing) {
-          const { data: existingProfile } = await supabaseAdmin
-            .from("profiles")
-            .select("id, role, coach_id, full_name")
-            .eq("id", existing.id)
-            .maybeSingle();
-
-          if (!existingProfile) {
-            // Auth user without profile → create one linked to this coach
-            await supabaseAdmin.from("profiles").insert({
-              id: existing.id,
-              full_name: fullName,
-              role: "athlete",
-              coach_id: coachId,
-              onboarding_completed: false,
-              ...(coachingMode ? { coaching_mode: coachingMode } : {}),
-              ...(tier ? { tier } : {}),
-            });
-            return json({ success: true, email: athleteEmail, attached: true }, 200);
-          }
-
-          if (existingProfile.role === "athlete" && !existingProfile.coach_id) {
-            await supabaseAdmin
-              .from("profiles")
-              .update({
-                coach_id: coachId,
-                full_name: existingProfile.full_name ?? fullName,
-                // Only set when supplied: never clobber existing values with NULL.
-                ...(coachingMode ? { coaching_mode: coachingMode } : {}),
-                ...(tier ? { tier } : {}),
-              })
-              .eq("id", existing.id);
-            return json({ success: true, email: athleteEmail, attached: true }, 200);
-          }
-
-          if (existingProfile.role === "athlete" && existingProfile.coach_id === coachId) {
-            return json({ success: true, email: athleteEmail, alreadyLinked: true }, 200);
-          }
+        const existing = relink?.user;
+        if (relinkError || !existing) {
+          console.error(
+            "invite-athlete: existing user lookup failed",
+            relinkError?.message ?? "no user returned",
+          );
+          return json({ error: "Could not verify existing account" }, 500);
         }
 
+        const resendLink = relink?.properties?.action_link;
+
+        // Re-sends the invite email with the fresh link, then replies with
+        // the given success payload. Send failures mirror the primary path.
+        const resendInvite = async (successBody: Record<string, unknown>): Promise<Response> => {
+          if (!resendLink) {
+            return json({ error: "No invite link generated" }, 500);
+          }
+          const sendFailure = await sendInvite({
+            apiKey: RESEND_API_KEY,
+            to: athleteEmail,
+            firstName,
+            actionLink: resendLink,
+          });
+          if (sendFailure) return sendFailure;
+          return json({ success: true, email: athleteEmail, resent: true, ...successBody }, 200);
+        };
+
+        const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+          .from("profiles")
+          .select("role, coach_id, full_name, onboarding_completed")
+          .eq("id", existing.id)
+          .maybeSingle();
+
+        if (existingProfileError) {
+          // Without this check a failed lookup would fall through to the
+          // create branch below even when a profile actually exists.
+          console.error(
+            "invite-athlete: existing profile lookup failed",
+            existingProfileError.message,
+          );
+          return json({ error: "Could not verify existing account" }, 500);
+        }
+
+        const action = decideAlreadyExists({
+          profile: existingProfile
+            ? {
+                role: existingProfile.role,
+                coach_id: existingProfile.coach_id,
+                onboarding_completed: existingProfile.onboarding_completed,
+              }
+            : null,
+          coachId,
+        });
+
+        if (action === "create-and-resend") {
+          // Auth user without profile → create one linked to this coach.
+          const { error: insertError } = await supabaseAdmin.from("profiles").insert({
+            id: existing.id,
+            full_name: fullName,
+            role: "athlete",
+            coach_id: coachId,
+            onboarding_completed: false,
+            // Only set when supplied: never clobber existing values with NULL.
+            ...(coachingMode ? { coaching_mode: coachingMode } : {}),
+            ...(tier ? { tier } : {}),
+          });
+          if (insertError) {
+            console.error("invite-athlete: profile insert failed", insertError.message);
+            return json({ error: "Failed to link athlete" }, 500);
+          }
+          return await resendInvite({ attached: true });
+        }
+
+        if (action === "attach-and-resend" || action === "attach-no-resend") {
+          const { error: updateError } = await supabaseAdmin
+            .from("profiles")
+            .update({
+              coach_id: coachId,
+              full_name: existingProfile?.full_name ?? fullName,
+              // Only set when supplied: never clobber existing values with NULL.
+              ...(coachingMode ? { coaching_mode: coachingMode } : {}),
+              ...(tier ? { tier } : {}),
+            })
+            .eq("id", existing.id);
+          if (updateError) {
+            console.error("invite-athlete: profile update failed", updateError.message);
+            return json({ error: "Failed to link athlete" }, 500);
+          }
+          if (action === "attach-no-resend") {
+            // Onboarded athlete: attach only — no sign-in link to an active
+            // account, the fresh magiclink dies unused.
+            return json({ success: true, email: athleteEmail, attached: true, resent: false }, 200);
+          }
+          return await resendInvite({ attached: true });
+        }
+
+        if (action === "resend-pending") {
+          // Linked but never activated: the original invite email was lost,
+          // marked as spam, or its link expired → re-send with the fresh
+          // link. No profile write: a re-invite never overwrites state.
+          return await resendInvite({ alreadyLinked: true });
+        }
+
+        if (action === "no-resend-active") {
+          // Active athlete of this coach: nothing to attach, nothing to send.
+          return json(
+            { success: true, email: athleteEmail, alreadyLinked: true, resent: false },
+            200,
+          );
+        }
+
+        // action === "conflict": other coach's athlete or non-athlete role.
         return json(
           {
             error: "An account with this email already exists",
@@ -256,32 +377,14 @@ serve(async (req) => {
       return json({ error: "No invite link generated" }, 500);
     }
 
-    // Send via Resend directly — no Supabase mailer rate limit. NC-brand
-    // content (subject + html, name/link escaping included) comes from the
-    // shared pure template module. firstName is guaranteed non-empty here
-    // by the 400 guard above.
-    const { subject, html } = inviteEmail({ firstName, actionLink });
-
-    const resendResp = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "NC Training Systems <noreply@mail.nctrainingsystems.com>",
-        to: [athleteEmail],
-        subject,
-        html,
-      }),
+    // firstName is guaranteed non-empty here by the 400 guard above.
+    const sendFailure = await sendInvite({
+      apiKey: RESEND_API_KEY,
+      to: athleteEmail,
+      firstName,
+      actionLink,
     });
-
-    if (!resendResp.ok) {
-      const errBody = await resendResp.text();
-      console.error("invite-athlete: Resend send failed", resendResp.status, errBody);
-      // Detail stays in the server log only: no provider internals to clients.
-      return json({ error: "Failed to send invite email" }, 502);
-    }
+    if (sendFailure) return sendFailure;
 
     return json(
       {
