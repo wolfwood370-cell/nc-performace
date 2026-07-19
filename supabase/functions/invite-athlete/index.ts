@@ -10,6 +10,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
+import { inviteEmail } from "../_shared/email/templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,18 +48,6 @@ const CTRL_CHARS = /[\x00-\x1F\x7F]/g;
 function sanitizeNameField(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return raw.replace(CTRL_CHARS, "").trim().slice(0, NAME_MAX);
-}
-
-// Escape user-controlled text before interpolating it into the email HTML —
-// names are coach-supplied and would otherwise allow arbitrary markup to be
-// delivered from the verified sender domain (phishing vector).
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 serve(async (req) => {
@@ -267,25 +256,11 @@ serve(async (req) => {
       return json({ error: "No invite link generated" }, 500);
     }
 
-    // Send via Resend directly — no Supabase mailer rate limit.
-    const subject = `${firstName ? firstName + ", " : ""}il tuo coach ti ha invitato su NC Performance Hub`;
-    const html = `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a;background:#ffffff;">
-        <h1 style="font-size:22px;margin:0 0 16px;">Ciao ${escapeHtml(firstName)},</h1>
-        <p style="font-size:15px;line-height:1.6;color:#334155;margin:0 0 24px;">
-          Il tuo coach ti ha invitato su <strong>NC Performance Hub</strong>, la piattaforma per il tuo allenamento. Clicca sul pulsante qui sotto per attivare il tuo account.
-        </p>
-        <p style="margin:0 0 32px;">
-          <a href="${actionLink}" style="display:inline-block;background:#003e62;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px;">
-            Accetta invito
-          </a>
-        </p>
-        <p style="font-size:13px;color:#64748b;line-height:1.6;margin:0 0 8px;">
-          Oppure copia e incolla questo link nel browser:
-        </p>
-        <p style="font-size:12px;color:#64748b;word-break:break-all;margin:0;">${actionLink}</p>
-      </div>
-    `;
+    // Send via Resend directly — no Supabase mailer rate limit. NC-brand
+    // content (subject + html, name/link escaping included) comes from the
+    // shared pure template module. firstName is guaranteed non-empty here
+    // by the 400 guard above.
+    const { subject, html } = inviteEmail({ firstName, actionLink });
 
     const resendResp = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -304,7 +279,8 @@ serve(async (req) => {
     if (!resendResp.ok) {
       const errBody = await resendResp.text();
       console.error("invite-athlete: Resend send failed", resendResp.status, errBody);
-      return json({ error: "Failed to send invite email", details: errBody }, 502);
+      // Detail stays in the server log only: no provider internals to clients.
+      return json({ error: "Failed to send invite email" }, 502);
     }
 
     return json(
