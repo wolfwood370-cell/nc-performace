@@ -9,6 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { secretKey } from "../_shared/apiKeys.ts";
+import { recoveryEmail } from "../_shared/email/templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -118,27 +119,8 @@ serve(async (req) => {
       return json({ success: true }, 200);
     }
 
-    const subject = "Recupera la tua password";
-    const html = `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:0 auto;padding:32px 24px;color:#0f172a;background:#ffffff;">
-        <h1 style="font-size:22px;margin:0 0 16px;">Reimposta la tua password</h1>
-        <p style="font-size:15px;line-height:1.6;color:#334155;margin:0 0 24px;">
-          Abbiamo ricevuto una richiesta di reimpostazione della password. Clicca sul pulsante qui sotto per crearne una nuova. Il link scadrà a breve.
-        </p>
-        <p style="margin:0 0 32px;">
-          <a href="${actionLink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px;">
-            Reimposta password
-          </a>
-        </p>
-        <p style="font-size:13px;color:#64748b;line-height:1.6;margin:0 0 8px;">
-          Oppure copia e incolla questo link nel browser:
-        </p>
-        <p style="font-size:12px;color:#64748b;word-break:break-all;margin:0 0 24px;">${actionLink}</p>
-        <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">
-          Se non hai richiesto tu questa email, puoi ignorarla in tutta sicurezza.
-        </p>
-      </div>
-    `;
+    // NC-brand content from the shared pure template module.
+    const { subject, html } = recoveryEmail({ actionLink });
 
     const resendResp = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -147,7 +129,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Account <onboarding@resend.dev>",
+        from: "NC Training Systems <noreply@mail.nctrainingsystems.com>",
         to: [email],
         subject,
         html,
@@ -157,7 +139,8 @@ serve(async (req) => {
     if (!resendResp.ok) {
       const errBody = await resendResp.text();
       console.error("forgot-password: Resend send failed", resendResp.status, errBody);
-      return json({ error: "Failed to send email", details: errBody }, 502);
+      // Detail stays in the server log only: no provider internals to clients.
+      return json({ error: "Failed to send email" }, 502);
     }
 
     return json({ success: true }, 200);
