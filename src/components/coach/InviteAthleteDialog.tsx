@@ -14,7 +14,9 @@
 //   3. On signup the `handle_new_user` trigger links athlete<->coach from
 //      user_metadata.coach_id and pre-populates the profile name.
 //   4. If the account already exists, the edge function attaches the athlete
-//      to this coach when possible (`attached` / `alreadyLinked` responses).
+//      to this coach when possible (`attached` / `alreadyLinked` responses)
+//      and re-sends the invite email with a fresh link unless the athlete
+//      already completed onboarding (`resent` flag).
 //
 // SECONDARY fallback — explicit "Genera link manuale" button: legacy
 // `invite_tokens` INSERT + shareable {origin}/auth?token=<uuid> URL, redeemed
@@ -87,6 +89,7 @@ interface SentInvite {
   email: string;
   fullName: string;
   kind: "sent" | "attached" | "alreadyLinked";
+  resent: boolean;
 }
 
 interface GeneratedInvite {
@@ -193,16 +196,29 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
         : result?.attached
           ? "attached"
           : "sent";
-      setSent({ email: athleteEmail, fullName, kind });
+      // Backwards-compatible: a response without the flag means no re-send.
+      const resent = result?.resent === true;
+      setSent({ email: athleteEmail, fullName, kind, resent });
 
       toast({
-        title: kind === "sent" ? "Invito inviato" : "Atleta collegato",
+        title:
+          kind === "sent"
+            ? "Invito inviato"
+            : kind === "attached"
+              ? "Atleta collegato"
+              : resent
+                ? "Invito re-inviato"
+                : "Atleta già collegato",
         description:
           kind === "sent"
             ? `Email di invito inviata a ${athleteEmail}.`
             : kind === "attached"
-              ? "L'atleta risultava già registrato: è stato collegato al tuo roster."
-              : "Questo atleta è già collegato a te.",
+              ? resent
+                ? "L'atleta risultava già registrato: collegato al tuo roster e invito re-inviato via email."
+                : "L'atleta risultava già registrato con account attivo: collegato al tuo roster, nessuna email inviata."
+              : resent
+                ? "L'atleta non aveva ancora attivato l'account: invito re-inviato via email."
+                : "Questo atleta è già collegato a te e il suo account è attivo.",
       });
 
       onAthleteInvited?.();
@@ -340,14 +356,20 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
                       ? `Invito inviato via email a ${sent.email}`
                       : sent.kind === "attached"
                         ? "Atleta collegato al tuo roster"
-                        : "Atleta già collegato a te"}
+                        : sent.resent
+                          ? "Invito re-inviato"
+                          : "Atleta già collegato a te"}
                   </p>
                   <p className="text-muted-foreground text-xs">
                     {sent.kind === "sent"
                       ? `${sent.fullName} riceverà un'email con il link di attivazione dell'account.`
                       : sent.kind === "attached"
-                        ? `${sent.fullName} (${sent.email}) — account già esistente, nessuna email inviata.`
-                        : `${sent.fullName} (${sent.email}) fa già parte del tuo roster.`}
+                        ? sent.resent
+                          ? `${sent.fullName} (${sent.email}) — account già esistente collegato al tuo roster, invito re-inviato via email.`
+                          : `${sent.fullName} (${sent.email}) — account già attivo, collegato al tuo roster, nessuna email inviata.`
+                        : sent.resent
+                          ? `${sent.fullName} (${sent.email}) non aveva ancora attivato l'account: nuova email di invito inviata.`
+                          : `${sent.fullName} (${sent.email}) fa già parte del tuo roster e il suo account è attivo.`}
                   </p>
                 </div>
               </div>
