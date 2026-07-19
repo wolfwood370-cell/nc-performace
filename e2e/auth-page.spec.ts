@@ -1,8 +1,8 @@
 import { test, expect } from "../playwright-fixture";
 
-// Static UI smoke for /auth: tabs, login fields, forgot-password, and the
-// signup role picker. `{ exact: true }` avoids the "Accedi" tab clashing with
-// the "Accedi" submit button.
+// Static UI smoke for /auth: tabs, login fields, forgot-password, signup.
+// `{ exact: true }` avoids the "Accedi" tab clashing with the "Accedi"
+// submit button.
 
 test.describe("Auth page UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -23,11 +23,12 @@ test.describe("Auth page UI", () => {
     await expect(page.getByRole("button", { name: "Continua con Google" })).toBeVisible();
   });
 
-  test("signup tab shows the role picker and submit", async ({ page }) => {
+  // Public signup is athlete-only: the coach/athlete role picker must NOT
+  // exist (coach accounts are created administratively).
+  test("signup tab shows submit and no role picker", async ({ page }) => {
     await page.getByRole("tab", { name: "Registrati", exact: true }).click();
-    await expect(page.getByText("Sono un...", { exact: true })).toBeVisible();
-    await expect(page.getByText("Coach", { exact: true })).toBeVisible();
-    await expect(page.getByText("Atleta", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Crea account", exact: true })).toBeVisible();
+    await expect(page.getByText("Sono un...", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Coach", { exact: true })).toHaveCount(0);
   });
 });

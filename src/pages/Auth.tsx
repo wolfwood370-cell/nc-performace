@@ -5,10 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Dumbbell, Users } from "lucide-react";
+import { Dumbbell } from "lucide-react";
 import { mapSupabaseError } from "@/lib/errorMapping";
 import { supabase } from "@/integrations/supabase/client";
 import { MetaHead } from "@/components/MetaHead";
@@ -65,12 +64,11 @@ export default function Auth() {
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupName, setSignupName] = useState("");
-  const [signupRole, setSignupRole] = useState<"coach" | "athlete">("athlete");
 
   // Invite-flow state. `prefillReady === true` switches the visible tab to
-  // "signup" and locks the role to athlete; `inviteCoachId` is captured at
-  // prefill time so we can pass it to the post-signup RPC even if the row
-  // gets marked-used between prefill and submit.
+  // "signup"; `inviteCoachId` is captured at prefill time so we can pass it
+  // to the post-signup RPC even if the row gets marked-used between prefill
+  // and submit.
   const [prefillReady, setPrefillReady] = useState(false);
   const [inviteCoachId, setInviteCoachId] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -151,20 +149,16 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signUp(signupEmail, signupPassword, signupName, signupRole);
+      // Public signups are always athletes: handle_new_user ignores any
+      // client-supplied role. Coach accounts are created administratively.
+      await signUp(signupEmail, signupPassword, signupName);
       // Invite tokens are auto-redeemed by the `handle_new_user` DB trigger
       // (email match against `invite_tokens`). No client-side RPC needed.
       toast.success("Account creato! Benvenuto!");
       // Invite-flow signups go straight to /athlete because the coach
-      // already prefilled the relationship; non-invite athlete signups
-      // still pass through /onboarding to capture profile data.
-      if (inviteToken && signupRole === "athlete") {
-        navigate("/athlete", { replace: true });
-      } else {
-        navigate(signupRole === "coach" ? "/coach" : "/onboarding", {
-          replace: true,
-        });
-      }
+      // already prefilled the relationship; non-invite signups still pass
+      // through /onboarding to capture profile data.
+      navigate(inviteToken ? "/athlete" : "/onboarding", { replace: true });
     } catch (error: unknown) {
       toast.error(mapSupabaseError(error));
     } finally {
@@ -323,43 +317,6 @@ export default function Auth() {
                       required
                       minLength={6}
                     />
-                  </div>
-
-                  <div
-                    className={`space-y-3 ${prefillReady ? "hidden" : ""}`}
-                    aria-hidden={prefillReady}
-                  >
-                    <Label>Sono un...</Label>
-                    <RadioGroup
-                      value={signupRole}
-                      onValueChange={(v) => setSignupRole(v as "coach" | "athlete")}
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <Label
-                        htmlFor="role-coach"
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                          signupRole === "coach"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <RadioGroupItem value="coach" id="role-coach" className="sr-only" />
-                        <Users className="h-6 w-6 mb-2 text-primary" />
-                        <span className="text-sm font-medium">Coach</span>
-                      </Label>
-                      <Label
-                        htmlFor="role-athlete"
-                        className={`flex flex-col items-center justify-center rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                          signupRole === "athlete"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <RadioGroupItem value="athlete" id="role-athlete" className="sr-only" />
-                        <Dumbbell className="h-6 w-6 mb-2 text-primary" />
-                        <span className="text-sm font-medium">Atleta</span>
-                      </Label>
-                    </RadioGroup>
                   </div>
 
                   <Button type="submit" className="w-full gradient-primary" disabled={loading}>

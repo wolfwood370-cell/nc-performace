@@ -80,20 +80,16 @@ export function useAuth() {
     };
   }, []);
 
-  const signUp = async (
-    email: string,
-    password: string,
-    fullName: string,
-    role: "coach" | "athlete",
-  ) => {
+  const signUp = async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: window.location.origin,
         data: {
+          // No role here: handle_new_user ignores client-supplied roles —
+          // public signups are always athletes, coaches are created admin-side.
           full_name: fullName,
-          role, // Letto dal trigger handle_new_user per creare il profilo con il role corretto
         },
       },
     });
