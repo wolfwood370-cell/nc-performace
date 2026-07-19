@@ -237,42 +237,47 @@ serve(async (req) => {
 
       if (isAlreadyExists) {
         // Re-invite path: the auth user already exists (previous invite whose
-        // email failed, went to spam, or whose link expired). A targeted
-        // magiclink generation resolves the user in one call — no paginated
-        // scan of the whole user list — and yields a fresh link for the re-send.
-        // The link is generated once here as the lookup byproduct; on
-        // no-resend outcomes it is discarded — never logged, never returned.
-        const { data: relink, error: relinkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: "magiclink",
-          email: athleteEmail,
-        });
+        // email failed, went to spam, or whose link expired). The lookup is
+        // READ-ONLY by design: listUsers only reads the user list, whereas a
+        // generateLink-based lookup would rotate the target's recovery token
+        // even on outcomes that send nothing (409 included). The fresh
+        // magiclink is generated later — only on resend-bound outcomes, after
+        // the decision and the profile writes.
+        const LOOKUP_PER_PAGE = 1000;
+        const MAX_LOOKUP_PAGES = 200;
 
-        const existing = relink?.user;
-        if (relinkError || !existing) {
+        let existing: { id: string } | undefined;
+        let page: number | null = 1;
+        while (page !== null && page <= MAX_LOOKUP_PAGES) {
+          const { data: list, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage: LOOKUP_PER_PAGE,
+          });
+          if (listErr) {
+            console.error("invite-athlete: existing user lookup failed", listErr.message);
+            return json({ error: "Could not verify existing account" }, 500);
+          }
+          existing = list?.users?.find((u) => u.email?.toLowerCase() === athleteEmail);
+          if (existing) break;
+          // Full pagination: trust the API's nextPage when present (robust to
+          // server-side perPage clamping), else stop on a short page.
+          const next = (list as { nextPage?: number | null } | null)?.nextPage;
+          if (next !== undefined) {
+            page = next;
+          } else {
+            page = (list?.users?.length ?? 0) < LOOKUP_PER_PAGE ? null : page + 1;
+          }
+        }
+
+        if (!existing) {
+          // The invite generateLink reported the email as taken, but the full
+          // scan cannot see the user: fail explicitly, never fall through.
           console.error(
             "invite-athlete: existing user lookup failed",
-            relinkError?.message ?? "no user returned",
+            "user not found after full scan",
           );
           return json({ error: "Could not verify existing account" }, 500);
         }
-
-        const resendLink = relink?.properties?.action_link;
-
-        // Re-sends the invite email with the fresh link, then replies with
-        // the given success payload. Send failures mirror the primary path.
-        const resendInvite = async (successBody: Record<string, unknown>): Promise<Response> => {
-          if (!resendLink) {
-            return json({ error: "No invite link generated" }, 500);
-          }
-          const sendFailure = await sendInvite({
-            apiKey: RESEND_API_KEY,
-            to: athleteEmail,
-            firstName,
-            actionLink: resendLink,
-          });
-          if (sendFailure) return sendFailure;
-          return json({ success: true, email: athleteEmail, resent: true, ...successBody }, 200);
-        };
 
         const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
           .from("profiles")
@@ -300,6 +305,35 @@ serve(async (req) => {
             : null,
           coachId,
         });
+
+        // Generates the fresh magiclink and re-sends the invite email, then
+        // replies with the given success payload. Reached ONLY from the three
+        // resend-bound outcomes below, after any profile write: the no-send
+        // outcomes (attach-no-resend, no-resend-active, conflict) never touch
+        // the target's auth state. Send failures mirror the primary path
+        // (502); the coach's retry lands on resend-pending, idempotent.
+        const resendInvite = async (successBody: Record<string, unknown>): Promise<Response> => {
+          const { data: relink, error: relinkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: "magiclink",
+            email: athleteEmail,
+          });
+          const resendLink = relink?.properties?.action_link;
+          if (relinkError || !resendLink) {
+            console.error(
+              "invite-athlete: magiclink generation failed",
+              relinkError?.message ?? "no link returned",
+            );
+            return json({ error: "No invite link generated" }, 500);
+          }
+          const sendFailure = await sendInvite({
+            apiKey: RESEND_API_KEY,
+            to: athleteEmail,
+            firstName,
+            actionLink: resendLink,
+          });
+          if (sendFailure) return sendFailure;
+          return json({ success: true, email: athleteEmail, resent: true, ...successBody }, 200);
+        };
 
         if (action === "create-and-resend") {
           // Auth user without profile → create one linked to this coach.
@@ -336,8 +370,8 @@ serve(async (req) => {
             return json({ error: "Failed to link athlete" }, 500);
           }
           if (action === "attach-no-resend") {
-            // Onboarded athlete: attach only — no sign-in link to an active
-            // account, the fresh magiclink dies unused.
+            // Onboarded athlete: attach only — no sign-in link is ever
+            // generated for an active account.
             return json({ success: true, email: athleteEmail, attached: true, resent: false }, 200);
           }
           return await resendInvite({ attached: true });
