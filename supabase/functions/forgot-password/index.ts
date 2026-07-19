@@ -30,14 +30,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // and the recovery email would steer the user to evil.com after auth.
 //
 // Allowed:
-//   - Lovable project preview/prod: <slug>--<projectId>.lovable.app or <projectId>.lovable.app
+//   - production host (Vercel) listed in ALLOWED_HOSTS
 //   - localhost (http) for local development
-//
-// Note: if/when a custom production domain is configured, extend ALLOWED_HOSTS.
-const LOVABLE_PROJECT_ID = "e1c56229-82db-4ffc-8215-23b357d4c3a9";
-const ALLOWED_HOSTS = [
-  // Custom production domains can be added here.
-];
+const ALLOWED_HOSTS = ["nc-performace-mu.vercel.app"];
 
 function isAllowedRedirect(url: string): boolean {
   try {
@@ -48,14 +43,6 @@ function isAllowedRedirect(url: string): boolean {
     }
     // Require HTTPS for any non-localhost destination.
     if (u.protocol !== "https:") return false;
-    // Allow Lovable preview/prod hosts tied to this project.
-    if (
-      u.hostname.endsWith(`--${LOVABLE_PROJECT_ID}.lovable.app`) ||
-      u.hostname === `${LOVABLE_PROJECT_ID}.lovable.app`
-    ) {
-      return true;
-    }
-    // Allow explicitly whitelisted hosts (custom domains).
     return ALLOWED_HOSTS.includes(u.hostname);
   } catch {
     return false;
