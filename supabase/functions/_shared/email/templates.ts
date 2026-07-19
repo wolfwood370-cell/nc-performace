@@ -86,7 +86,10 @@ export interface InviteEmailParams {
 // Athlete invite email. `firstName` is required (the edge function 400s on a
 // missing name before ever building the email). The subject is a plain-text
 // mail header, NOT an HTML context: it stays unescaped by design — escaping
-// would corrupt names like D'Angelo into D&#39;Angelo.
+// would corrupt names like D'Angelo into D&#39;Angelo. CONTRACT: callers must
+// strip control chars (CR/LF included) from firstName BEFORE calling — the
+// header-injection guard lives in the caller (invite-athlete's
+// sanitizeNameField), not here.
 export function inviteEmail({ firstName, actionLink }: InviteEmailParams): {
   subject: string;
   html: string;

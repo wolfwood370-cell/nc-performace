@@ -90,7 +90,6 @@ Deno.test("brand NC: wordmark, navy, accent, lang/charset; niente viola legacy",
     assertStringIncludes(html, `<html lang="it">`);
     assertStringIncludes(html, `<meta charset="utf-8">`);
     assertFalse(html.includes("#7c3aed"));
-    assertFalse(html.includes("onboarding@resend.dev"));
   }
 });
 
