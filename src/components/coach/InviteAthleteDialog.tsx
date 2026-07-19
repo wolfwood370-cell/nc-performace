@@ -89,7 +89,10 @@ interface SentInvite {
   email: string;
   fullName: string;
   kind: "sent" | "attached" | "alreadyLinked";
-  resent: boolean;
+  // Tri-state: true = invite re-sent, false = explicit no-resend from the new
+  // edge fn (active account guaranteed), undefined = response without the flag
+  // (older edge fn) — activation is unknown there, so the copy must not claim it.
+  resent?: boolean;
 }
 
 interface GeneratedInvite {
@@ -196,8 +199,9 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
         : result?.attached
           ? "attached"
           : "sent";
-      // Backwards-compatible: a response without the flag means no re-send.
-      const resent = result?.resent === true;
+      // Backwards-compatible tri-state: only an explicit boolean is trusted —
+      // a response without the flag keeps the pre-resend copy (no activation claim).
+      const resent = typeof result?.resent === "boolean" ? result.resent : undefined;
       setSent({ email: athleteEmail, fullName, kind, resent });
 
       toast({
@@ -215,10 +219,14 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
             : kind === "attached"
               ? resent
                 ? "L'atleta risultava già registrato: collegato al tuo roster e invito re-inviato via email."
-                : "L'atleta risultava già registrato con account attivo: collegato al tuo roster, nessuna email inviata."
+                : resent === false
+                  ? "L'atleta risultava già registrato con account attivo: collegato al tuo roster, nessuna email inviata."
+                  : "L'atleta risultava già registrato: è stato collegato al tuo roster."
               : resent
                 ? "L'atleta non aveva ancora attivato l'account: invito re-inviato via email."
-                : "Questo atleta è già collegato a te e il suo account è attivo.",
+                : resent === false
+                  ? "Questo atleta è già collegato a te e il suo account è attivo."
+                  : "Questo atleta è già collegato a te.",
       });
 
       onAthleteInvited?.();
@@ -366,10 +374,14 @@ export function InviteAthleteDialog({ onAthleteInvited, trigger }: InviteAthlete
                       : sent.kind === "attached"
                         ? sent.resent
                           ? `${sent.fullName} (${sent.email}) — account già esistente collegato al tuo roster, invito re-inviato via email.`
-                          : `${sent.fullName} (${sent.email}) — account già attivo, collegato al tuo roster, nessuna email inviata.`
+                          : sent.resent === false
+                            ? `${sent.fullName} (${sent.email}) — account già attivo, collegato al tuo roster, nessuna email inviata.`
+                            : `${sent.fullName} (${sent.email}) — account già esistente, nessuna email inviata.`
                         : sent.resent
                           ? `${sent.fullName} (${sent.email}) non aveva ancora attivato l'account: nuova email di invito inviata.`
-                          : `${sent.fullName} (${sent.email}) fa già parte del tuo roster e il suo account è attivo.`}
+                          : sent.resent === false
+                            ? `${sent.fullName} (${sent.email}) fa già parte del tuo roster e il suo account è attivo.`
+                            : `${sent.fullName} (${sent.email}) fa già parte del tuo roster.`}
                   </p>
                 </div>
               </div>
