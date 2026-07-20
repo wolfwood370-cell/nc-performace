@@ -15,18 +15,29 @@ export interface BillingPlan {
   active: boolean;
   description: string | null;
   created_at: string;
+  /** Canonical entitlement key (billing_plans.tier). Optional because the column
+   * ships with the checkout slice: before that migration is applied the select
+   * simply does not return it. */
+  tier?: "monthly" | "premium" | null;
 }
 
 interface AthleteSubscriptionRow {
   id: string;
   athlete_id: string;
   plan_id: string;
-  status: "active" | "past_due" | "canceled" | "incomplete";
+  status: "active" | "past_due" | "canceled" | "incomplete" | "canceling";
   current_period_end: string | null;
   stripe_subscription_id: string | null;
   stripe_customer_id: string | null;
   created_at: string;
 }
+
+/** The row states that mean "this athlete currently has a subscription to show".
+ * `incomplete` is deliberately out: create-checkout-session writes such a row
+ * BEFORE any payment and nobody deletes it when the checkout is abandoned, so
+ * treating it as a subscription would show a phantom one to an athlete who never
+ * paid. `canceled` is out too — they should be offered the plans again. */
+const VIGENT_SUBSCRIPTION_STATUSES = ["active", "canceling", "past_due"] as const;
 
 export function useBillingPlans() {
   const { user } = useAuth();
@@ -120,8 +131,13 @@ export function useBillingPlans() {
   };
 }
 
-// Separate hook for athlete-side subscription view
-function useAthleteSubscription() {
+/**
+ * The athlete's own subscription, as the athlete app shows it. Filtered by state
+ * rather than just "the newest row": an abandoned checkout leaves an `incomplete`
+ * row behind, and being the most recent it would otherwise win and be rendered as
+ * a real subscription. Own-row RLS keeps this to the caller's own subscriptions.
+ */
+export function useAthleteSubscription() {
   const { user } = useAuth();
 
   return useQuery({
@@ -132,12 +148,40 @@ function useAthleteSubscription() {
         .from("athlete_subscriptions")
         .select("*, billing_plans(*)")
         .eq("athlete_id", user.id)
+        .in("status", [...VIGENT_SUBSCRIPTION_STATUSES])
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
       if (error) throw error;
-      return data as (AthleteSubscriptionRow & { billing_plans: BillingPlan }) | null;
+      const row = data?.[0] ?? null;
+      return row as (AthleteSubscriptionRow & { billing_plans: BillingPlan }) | null;
     },
     enabled: !!user,
+  });
+}
+
+/**
+ * The plans the athlete can actually subscribe to: the ACTIVE ones published by
+ * their own coach. Mirrors the "Athletes can view coach plans" RLS policy, which
+ * joins on profiles.coach_id — an athlete without a coach legitimately sees none,
+ * and the caller renders an empty state for that.
+ */
+export function useAthleteCoachPlans() {
+  const { user, profile } = useAuth();
+  const coachId = profile?.coach_id ?? null;
+
+  return useQuery({
+    queryKey: ["athlete-coach-plans", coachId],
+    queryFn: async () => {
+      if (!coachId) return [];
+      const { data, error } = await supabase
+        .from("billing_plans")
+        .select("*")
+        .eq("coach_id", coachId)
+        .eq("active", true)
+        .order("price_amount", { ascending: true });
+      if (error) throw error;
+      return data as BillingPlan[];
+    },
+    enabled: !!user && !!coachId,
   });
 }

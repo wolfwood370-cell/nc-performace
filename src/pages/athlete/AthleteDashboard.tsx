@@ -49,6 +49,7 @@ import {
   type MetricSnapshot,
 } from "@/stores/useAthleteReadinessStore";
 import { useDailyReadinessQuery } from "@/hooks/athlete/useAthleteReadinessHooks";
+import { usePaymentOutcome } from "@/hooks/athlete/usePaymentOutcome";
 import {
   Dialog,
   DialogContent,
@@ -92,8 +93,7 @@ function computeTrendDirection(
   const ascending = today > yesterday;
   const polarity = POSITIVE_POLARITY[metric];
   const isImprovement =
-    (ascending && polarity === "high-is-good") ||
-    (!ascending && polarity === "low-is-good");
+    (ascending && polarity === "high-is-good") || (!ascending && polarity === "low-is-good");
   return isImprovement ? "up" : "down";
 }
 
@@ -127,20 +127,9 @@ function ReadinessRing({ value }: { value: number }) {
       aria-label={`Punteggio readiness ${safeValue} su 100`}
       className="relative w-28 h-28 flex items-center justify-center z-10"
     >
-      <svg
-        className="w-full h-full -rotate-90"
-        viewBox="0 0 100 100"
-        aria-hidden="true"
-      >
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
         {/* Track */}
-        <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          fill="transparent"
-          stroke="#c5e7ff"
-          strokeWidth="8"
-        />
+        <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#c5e7ff" strokeWidth="8" />
         {/* Progress */}
         <circle
           cx="50"
@@ -167,20 +156,9 @@ function ReadinessRing({ value }: { value: number }) {
 // MetricTrendRow — one dashboard metric: name + today value + trend icon.
 // All three columns derived from the live readiness store.
 // =============================================================================
-function MetricTrendRow({
-  metric,
-  snapshot,
-}: {
-  metric: MetricKey;
-  snapshot: MetricSnapshot;
-}) {
-  const direction = computeTrendDirection(
-    metric,
-    snapshot.today,
-    snapshot.yesterday,
-  );
-  const Icon =
-    direction === "up" ? TrendingUp : direction === "down" ? TrendingDown : Minus;
+function MetricTrendRow({ metric, snapshot }: { metric: MetricKey; snapshot: MetricSnapshot }) {
+  const direction = computeTrendDirection(metric, snapshot.today, snapshot.yesterday);
+  const Icon = direction === "up" ? TrendingUp : direction === "down" ? TrendingDown : Minus;
   const iconTint =
     direction === "up"
       ? "text-emerald-600"
@@ -188,9 +166,11 @@ function MetricTrendRow({
         ? "text-amber-600"
         : "text-on-surface-variant/60";
   const displayValue =
-    snapshot.today === null ? "—" : Number.isInteger(snapshot.today)
-      ? String(snapshot.today)
-      : snapshot.today.toFixed(1);
+    snapshot.today === null
+      ? "—"
+      : Number.isInteger(snapshot.today)
+        ? String(snapshot.today)
+        : snapshot.today.toFixed(1);
 
   return (
     <div className="flex items-center justify-between">
@@ -248,12 +228,8 @@ function ReadinessCard({
   const isCompletedToday = Boolean(todayQuery.data);
 
   const metrics = useAthleteReadinessStore((s) => s.metrics);
-  const selectedDashboardMetrics = useAthleteReadinessStore(
-    (s) => s.selectedDashboardMetrics,
-  );
-  const isCustomMetricsPinned = useAthleteReadinessStore(
-    (s) => s.isCustomMetricsPinned,
-  );
+  const selectedDashboardMetrics = useAthleteReadinessStore((s) => s.selectedDashboardMetrics);
+  const isCustomMetricsPinned = useAthleteReadinessStore((s) => s.isCustomMetricsPinned);
 
   // When the user has NOT pinned a custom selection, surface the three
   // worst-scoring metrics from today's checkin so the dashboard draws
@@ -261,9 +237,7 @@ function ReadinessCard({
   // no submission exists yet (empty worst list).
   const worstMetrics = computeWorstMetrics(metrics, 3);
   const displayedMetricKeys =
-    isCustomMetricsPinned || worstMetrics.length === 0
-      ? selectedDashboardMetrics
-      : worstMetrics;
+    isCustomMetricsPinned || worstMetrics.length === 0 ? selectedDashboardMetrics : worstMetrics;
 
   const ringValue = isCompletedToday && dailyScore !== null ? dailyScore : 0;
   const ariaLabel = isCompletedToday
@@ -396,11 +370,7 @@ function NextWorkoutCard({ onStart }: { onStart: () => void }) {
         )}
       >
         Inizia Sessione
-        <Play
-          className="h-5 w-5 fill-white"
-          strokeWidth={0}
-          aria-hidden="true"
-        />
+        <Play className="h-5 w-5 fill-white" strokeWidth={0} aria-hidden="true" />
       </button>
     </section>
   );
@@ -466,25 +436,16 @@ function MetricsSettingsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const persistedPinned = useAthleteReadinessStore(
-    (s) => s.isCustomMetricsPinned,
-  );
-  const persistedSelected = useAthleteReadinessStore(
-    (s) => s.selectedDashboardMetrics,
-  );
-  const setCustomMetricsPinned = useAthleteReadinessStore(
-    (s) => s.setCustomMetricsPinned,
-  );
-  const setSelectedMetrics = useAthleteReadinessStore(
-    (s) => s.setSelectedMetrics,
-  );
+  const persistedPinned = useAthleteReadinessStore((s) => s.isCustomMetricsPinned);
+  const persistedSelected = useAthleteReadinessStore((s) => s.selectedDashboardMetrics);
+  const setCustomMetricsPinned = useAthleteReadinessStore((s) => s.setCustomMetricsPinned);
+  const setSelectedMetrics = useAthleteReadinessStore((s) => s.setSelectedMetrics);
 
   // Local draft state — only commits to the store on Save so the user
   // can cancel without side effects. Reseeds from persisted state when
   // the dialog opens (key trick: derive from `open` prop in useState).
   const [draftPinned, setDraftPinned] = useState(persistedPinned);
-  const [draftSelected, setDraftSelected] =
-    useState<MetricKey[]>(persistedSelected);
+  const [draftSelected, setDraftSelected] = useState<MetricKey[]>(persistedSelected);
 
   // Re-sync drafts whenever the dialog opens, so a previous Cancel
   // doesn't leak stale local state into the next open.
@@ -525,8 +486,8 @@ function MetricsSettingsDialog({
         <DialogHeader>
           <DialogTitle>Metriche dashboard</DialogTitle>
           <DialogDescription>
-            Scegli se mostrare automaticamente le 3 metriche peggiori
-            (default) o pinnare 3 metriche fisse.
+            Scegli se mostrare automaticamente le 3 metriche peggiori (default) o pinnare 3 metriche
+            fisse.
           </DialogDescription>
         </DialogHeader>
 
@@ -567,9 +528,7 @@ function MetricsSettingsDialog({
                     : "bg-surface-container/30 cursor-not-allowed opacity-60",
                 )}
               >
-                <span className="font-sans text-sm text-on-surface">
-                  {key}
-                </span>
+                <span className="font-sans text-sm text-on-surface">{key}</span>
                 <Checkbox
                   checked={checked}
                   disabled={!draftPinned}
@@ -582,12 +541,8 @@ function MetricsSettingsDialog({
         </fieldset>
 
         {draftPinned && draftSelected.length !== 3 && (
-          <p
-            role="alert"
-            className="text-xs font-medium text-amber-600 -mt-1"
-          >
-            Seleziona esattamente 3 metriche ({draftSelected.length}/3
-            selezionate).
+          <p role="alert" className="text-xs font-medium text-amber-600 -mt-1">
+            Seleziona esattamente 3 metriche ({draftSelected.length}/3 selezionate).
           </p>
         )}
 
@@ -636,6 +591,8 @@ export default function AthleteDashboard() {
   // the Prontezza card opens the analysis page or the logging flow.
   const todayReadinessQuery = useDailyReadinessQuery(todayIso());
   const isReadinessCompletedToday = Boolean(todayReadinessQuery.data);
+  // Stripe's success_url lands here with ?payment=success.
+  usePaymentOutcome();
 
   /**
    * Readiness card tap — log first, analyse second. The branch reads
@@ -675,21 +632,13 @@ export default function AthleteDashboard() {
         <p className="font-display text-3xl font-bold tracking-tight text-on-surface">
           Ciao, {MOCK.athleteName}
         </p>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          Ecco il tuo riepilogo di oggi.
-        </p>
+        <p className="mt-1 text-sm text-on-surface-variant">Ecco il tuo riepilogo di oggi.</p>
       </section>
 
-      <ReadinessCard
-        onOpen={handleReadinessCardClick}
-        onEditMetrics={handleEditMetrics}
-      />
+      <ReadinessCard onOpen={handleReadinessCardClick} onEditMetrics={handleEditMetrics} />
       <NextWorkoutCard onStart={handleStartWorkout} />
 
-      <MetricsSettingsDialog
-        open={isSettingsOpen}
-        onOpenChange={setIsSettingsOpen}
-      />
+      <MetricsSettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
     </div>
   );
 }

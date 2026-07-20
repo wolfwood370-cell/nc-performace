@@ -33,7 +33,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import SubscriptionSection from "@/components/athlete/SubscriptionSection";
 import { useAuth } from "@/hooks/useAuth";
+import { usePaymentOutcome } from "@/hooks/athlete/usePaymentOutcome";
 import { cn } from "@/lib/utils";
 import { log } from "@/lib/logger";
 
@@ -56,6 +58,8 @@ const ACTION_ROWS: ActionRow[] = [
 export default function AthleteProfile() {
   const { user, profile, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // Stripe's cancel_url lands here with ?payment=cancelled.
+  usePaymentOutcome();
 
   const displayName = profile?.full_name?.trim() || "Atleta";
   const email = user?.email ?? "";
@@ -148,6 +152,11 @@ export default function AthleteProfile() {
           {email ? <p className="mt-1 text-sm text-on-surface-variant break-all">{email}</p> : null}
         </div>
       </section>
+
+      {/* ---------------------------------------------------------------
+         Subscription — plans + checkout, or state + Customer Portal
+         --------------------------------------------------------------- */}
+      <SubscriptionSection />
 
       {/* ---------------------------------------------------------------
          Settings / actions list — single glass card, internal dividers

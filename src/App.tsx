@@ -242,6 +242,11 @@ const App = () => (
                 }
               >
                 <Route index element={<AthleteDashboard />} />
+                {/* Alias for Stripe's success_url, which points at
+                    /athlete/dashboard: without this the athlete comes back from a
+                    successful payment onto the 404 page. create-checkout-session
+                    stays frozen, so the route adapts instead of the URL. */}
+                <Route path="dashboard" element={<AthleteDashboard />} />
                 <Route path="training" element={<AthleteTraining />} />
                 <Route path="profile" element={<AthleteProfile />} />
                 {/* Read-only nutrition target — entitlement-gated (silent
