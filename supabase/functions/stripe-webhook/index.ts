@@ -31,6 +31,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.57.2";
 import { secretKey } from "../_shared/apiKeys.ts";
 import {
   effectiveBillingStatus,
+  grantsAccess,
   mapBillingStatusToProfile,
   mapBillingStatusToRow,
   nextProfileTier,
@@ -92,7 +93,7 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
 
   const state = resolveAccountState(rows);
   const subscriptionStatus = state ? mapBillingStatusToProfile(state.status) : "none";
-  const grantsAccess = subscriptionStatus === "active" || subscriptionStatus === "trial";
+  const entitled = grantsAccess(subscriptionStatus);
 
   const profileRows = unwrap(
     await admin.from("profiles").select("tier, coach_id").eq("id", athleteId).limit(1),
@@ -108,7 +109,7 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
 
   const update: Record<string, unknown> = { subscription_status: subscriptionStatus };
 
-  if (grantsAccess && state?.planId) {
+  if (entitled && state?.planId) {
     const planRows = unwrap(
       await admin
         .from("billing_plans")
@@ -118,7 +119,10 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
       "billing_plans select for sync",
     );
     const plan = planRows?.[0];
-    const ownershipOk = profile.coach_id === null || plan?.coach_id === profile.coach_id;
+    // Fail closed, including the no-coach case: an athlete with coach_id NULL has
+    // no legitimate plan to point at (the "Athletes can view coach plans" policy
+    // joins on that very column), so an unverifiable owner writes no tier at all.
+    const ownershipOk = profile.coach_id !== null && plan?.coach_id === profile.coach_id;
     if (plan && plan.active === true && ownershipOk) {
       const tier = nextProfileTier(profile.tier, tierForPlan(plan));
       update.tier = tier;
@@ -151,7 +155,7 @@ async function rowForSubscription(admin: AdminClient, subscriptionId: string) {
   const rows = unwrap(
     await admin
       .from("athlete_subscriptions")
-      .select("id, athlete_id, status")
+      .select("id, athlete_id, status, plan_id")
       .eq("stripe_subscription_id", subscriptionId)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -189,10 +193,18 @@ serve(async (req) => {
 
     const adminClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", secretKey());
 
-    // ── Event ledger: ONE statement claims the event ────────────────────────
-    // An insert followed by a select would not be a claim: two parallel deliveries
-    // would both read "not processed" and both run. Here the winner is whoever gets
-    // a row back from the upsert; anyone else lost the race.
+    // ── Event ledger ────────────────────────────────────────────────────────
+    // What this DOES guarantee: an event already carried to completion is never
+    // executed twice — the upsert cannot insert, the lookup finds processed_at set,
+    // and we answer 200 without side effects. That is the case Stripe actually
+    // produces (a retry after a response was lost).
+    // What it does NOT guarantee: mutual exclusion. Two deliveries arriving while
+    // the first is still in flight both find processed_at NULL and both proceed, on
+    // purpose — the alternative is stranding an event whose first run died halfway.
+    // That is safe because the handlers are fixed-value writes (invariant 2), with
+    // one residue: syncProfileFromAthlete is a read-modify-write, so concurrent runs
+    // can interleave and leave the cache one recompute behind. Self-healing on the
+    // next event; a real lease (claimed_at + expiry) is the fix if it ever bites.
     const claimed = unwrap(
       await adminClient
         .from("stripe_events")
@@ -251,12 +263,25 @@ serve(async (req) => {
         // so the row is active with no renewal date.
         let rowStatus = "active";
         let periodEnd: string | null = null;
+        // A Stripe outage must not cost us the link between athlete, plan and
+        // subscription — all of it is already in the SIGNED event. So the row is
+        // written either way and the failure is re-raised afterwards: Stripe retries,
+        // and the retry fills in the status and the renewal date.
+        let enrichmentFailed = false;
         if (subscriptionId) {
-          const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          rowStatus = mapBillingStatusToRow(
-            effectiveBillingStatus(sub.status, sub.cancel_at_period_end),
-          );
-          periodEnd = periodEndIso(sub);
+          try {
+            const sub = await stripe.subscriptions.retrieve(subscriptionId);
+            rowStatus = mapBillingStatusToRow(
+              effectiveBillingStatus(sub.status, sub.cancel_at_period_end),
+            );
+            periodEnd = periodEndIso(sub);
+          } catch (retrieveError) {
+            enrichmentFailed = true;
+            console.error("[STRIPE-WEBHOOK] subscription retrieve failed", {
+              subscriptionId,
+              message: retrieveError instanceof Error ? retrieveError.message : "unknown",
+            });
+          }
         }
 
         // Upsert on the UNIQUE (athlete_id, plan_id): re-running the handler rewrites
@@ -284,6 +309,10 @@ serve(async (req) => {
 
         await syncProfileFromAthlete(adminClient, athleteId);
         logStep("Subscription activated", { athleteId, planId, rowStatus });
+        if (enrichmentFailed) {
+          // The durable part is committed; fail loud so the retry completes the row.
+          throw new Error("stripe_error:subscription_retrieve");
+        }
         break;
       }
 
@@ -373,6 +402,14 @@ serve(async (req) => {
           logStep("No athlete_subscription linked to this subscription", { subscriptionId });
           break;
         }
+        if (row.status === "canceled") {
+          // Same absorbing rule as the invoice branches, and for the same reason:
+          // this payload is a SNAPSHOT of when it was emitted, so a retry arriving
+          // after `deleted` would otherwise write 'active' back over a settled
+          // cancellation — and no further event would ever correct it.
+          logStep("Subscription canceled: update ignorato", { subscriptionId });
+          break;
+        }
 
         const update: Record<string, unknown> = {
           status: mapBillingStatusToRow(
@@ -396,10 +433,32 @@ serve(async (req) => {
             "billing_plans select by price",
           );
           const planId = planRows?.[0]?.id;
-          if (planId) {
-            update.plan_id = planId;
-          } else {
+          if (!planId) {
             logStep("Price non mappato a nessun piano: plan_id invariato", { subscriptionId });
+          } else if (planId !== row.plan_id) {
+            // Moving plan_id could collide with UNIQUE (athlete_id, plan_id): the
+            // athlete may already own a row for the destination plan — an abandoned
+            // checkout leaves exactly such a row behind. A 23505 here would be a
+            // deterministic 500 on every retry, i.e. a webhook endpoint stuck for
+            // days. A stale plan_id is the lesser harm, and it is logged.
+            const clashing = unwrap(
+              await adminClient
+                .from("athlete_subscriptions")
+                .select("id")
+                .eq("athlete_id", row.athlete_id)
+                .eq("plan_id", planId)
+                .neq("id", row.id)
+                .limit(1),
+              "athlete_subscriptions clash check",
+            );
+            if (clashing?.[0]) {
+              logStep("plan_id invariato: esiste gia' una riga dell'atleta per quel piano", {
+                subscriptionId,
+                planId,
+              });
+            } else {
+              update.plan_id = planId;
+            }
           }
         }
 

@@ -98,7 +98,7 @@ function SectionHeader() {
 }
 
 export default function SubscriptionSection() {
-  const { user } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const subscriptionQuery = useAthleteSubscription();
   const plansQuery = useAthleteCoachPlans();
 
@@ -144,7 +144,14 @@ export default function SubscriptionSection() {
   });
 
   // Hooks are all above this line (law 6): from here on it is rendering only.
-  const isLoading = subscriptionQuery.isPending || plansQuery.isPending;
+  // isLoading, NOT isPending: in TanStack v5 isPending means "no data yet", which
+  // stays true FOREVER for a disabled query. useAthleteCoachPlans is disabled when
+  // the athlete has no coach, so isPending would pin this section on the loading
+  // copy permanently. isLoading is `isPending && isFetching`, i.e. a real fetch.
+  // The auth clauses cover the window before `profile` lands, when coach_id is not
+  // known yet and the plans query has legitimately not started.
+  const isLoading =
+    authLoading || (!!user && !profile) || subscriptionQuery.isLoading || plansQuery.isLoading;
   const subscription = subscriptionQuery.data ?? null;
   const plans = plansQuery.data ?? [];
   const periodEnd = formatPeriodEnd(subscription?.current_period_end);
@@ -231,7 +238,7 @@ export default function SubscriptionSection() {
         Attiva un abbonamento per sbloccare tutte le funzioni del tuo percorso.
       </p>
 
-      <ul role="list" className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3">
         {plans.map((plan) => (
           <li
             key={plan.id}

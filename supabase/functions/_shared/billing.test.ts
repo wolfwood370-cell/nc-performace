@@ -8,6 +8,7 @@
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import {
   effectiveBillingStatus,
+  grantsAccess,
   mapBillingStatusToProfile,
   mapBillingStatusToRow,
   nextProfileTier,
@@ -147,6 +148,22 @@ Deno.test("mapBillingStatusToProfile: NESSUN ramo esce dall'enum di profiles", (
       `valore fuori enum per ${String(status)}`,
     );
   }
+});
+
+// ----------------------------------------------------------------- grantsAccess
+
+Deno.test("grantsAccess: solo active e trial danno accesso", () => {
+  assert(grantsAccess("active"));
+  assert(grantsAccess("trial"));
+  assertFalse(grantsAccess("past_due"));
+  assertFalse(grantsAccess("canceled"));
+  assertFalse(grantsAccess("none"));
+});
+
+Deno.test("grantsAccess: copre l'intero enum del profilo, senza buchi", () => {
+  // Pin di totalita': se domani l'enum cresce, questo test non compila piu'.
+  const decisi = PROFILE_ENUM.filter((status) => grantsAccess(status));
+  assertEquals(decisi.sort(), ["active", "trial"]);
 });
 
 // ------------------------------------------------------- mapBillingStatusToRow

@@ -21,7 +21,7 @@
 // anyway, and a failure toast here would be noise on a payment that did succeed.
 // =============================================================================
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -37,15 +37,22 @@ export function usePaymentOutcome() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  // The effect must run once per arrival, never once per re-render: searchParams
-  // is a new object on every render and would otherwise re-trigger it.
-  const handledRef = useRef(false);
+  // Announced once per arrival, never once per re-render: searchParams is a new
+  // object on every render and would otherwise re-trigger the effect.
+  const announcedRef = useRef(false);
+  // Kept in state, not read back from the URL: the parameter is stripped
+  // immediately, so by the time `user` is available the URL no longer says why.
+  const [awaitingActivation, setAwaitingActivation] = useState(false);
 
   const outcome = searchParams.get("payment");
 
+  // Effect 1 — announce and clean up. Deliberately WITHOUT a cleanup function:
+  // stripping the parameter changes searchParams, which re-runs this effect, and a
+  // cleanup here would tear down whatever it had just started (announcedRef makes
+  // the second run a no-op).
   useEffect(() => {
-    if (!outcome || handledRef.current) return;
-    handledRef.current = true;
+    if (!outcome || announcedRef.current) return;
+    announcedRef.current = true;
 
     const next = new URLSearchParams(searchParams);
     next.delete("payment");
@@ -62,8 +69,18 @@ export function usePaymentOutcome() {
     toast.success("Pagamento riuscito", {
       description: "Stiamo attivando il tuo abbonamento…",
     });
+    setAwaitingActivation(true);
+  }, [outcome, searchParams, setSearchParams]);
 
-    if (!user) return;
+  // Effect 2 — wait for the webhook. Separate from effect 1 because `user` starts
+  // out null: useAuth is not a context, so every caller gets its own state that
+  // fills in asynchronously. Polling from effect 1 would consume the one-shot guard
+  // while `user` was still null and the wait would never happen at all.
+  // Deps are stable values only, so the cleanup fires on unmount, not on a URL edit.
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    if (!awaitingActivation || !userId) return;
 
     let abandoned = false;
 
@@ -75,7 +92,7 @@ export function usePaymentOutcome() {
         const { data, error } = await supabase
           .from("profiles")
           .select("coaching_mode, subscription_status")
-          .eq("id", user.id)
+          .eq("id", userId as string)
           .maybeSingle();
         if (abandoned) return;
         if (error) {
@@ -84,6 +101,10 @@ export function usePaymentOutcome() {
         }
         if (!hasActiveAccess(data)) continue;
 
+        // Closed BEFORE refreshing: refreshSession() fires onAuthStateChange, which
+        // hands useAuth a new user object. Leaving the flag up would re-enter this
+        // effect, poll again, refresh again — a loop with no exit.
+        setAwaitingActivation(false);
         // Recorded: push it into every consumer. refreshSession() re-fires
         // onAuthStateChange, which is the only path that refills useAuth's profile.
         await queryClient.invalidateQueries({ queryKey: ["athlete-subscription"] });
@@ -93,6 +114,7 @@ export function usePaymentOutcome() {
         }
         return;
       }
+      setAwaitingActivation(false);
       log.warn("[usePaymentOutcome] abbonamento non ancora attivo al termine dell'attesa");
     };
 
@@ -101,5 +123,5 @@ export function usePaymentOutcome() {
     return () => {
       abandoned = true;
     };
-  }, [outcome, searchParams, setSearchParams, queryClient, user]);
+  }, [awaitingActivation, userId, queryClient]);
 }

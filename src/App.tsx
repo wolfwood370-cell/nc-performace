@@ -2,7 +2,7 @@ import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { SunThemeSync } from "@/components/logic/SunThemeSync";
 import { OfflineSyncProvider } from "@/providers/OfflineSyncProvider";
@@ -55,6 +55,14 @@ const TrainingAnalytics = lazy(() => import("./pages/athlete/TrainingAnalytics")
 const AcwrAnalysis = lazy(() => import("./pages/athlete/AcwrAnalysis"));
 const DailyReadiness = lazy(() => import("./pages/athlete/DailyReadiness"));
 const AthleteNutrition = lazy(() => import("./features/nutrition/AthleteNutrition"));
+
+/** Sends /athlete/dashboard (Stripe's success_url) to the real athlete home,
+ * carrying the query string over — dropping it would lose ?payment=success and
+ * with it the confirmation toast and the wait for the webhook. */
+const DashboardRedirect = () => {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/athlete", search }} replace />;
+};
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
@@ -242,11 +250,14 @@ const App = () => (
                 }
               >
                 <Route index element={<AthleteDashboard />} />
-                {/* Alias for Stripe's success_url, which points at
-                    /athlete/dashboard: without this the athlete comes back from a
-                    successful payment onto the 404 page. create-checkout-session
-                    stays frozen, so the route adapts instead of the URL. */}
-                <Route path="dashboard" element={<AthleteDashboard />} />
+                {/* Stripe's success_url points at /athlete/dashboard, a path that
+                    does not otherwise exist: without this the athlete came back from
+                    a successful payment onto the 404 page. create-checkout-session
+                    stays frozen, so the route adapts instead of the URL.
+                    A redirect rather than an alias: rendering the dashboard under a
+                    second path would leave the bottom nav with no active item, since
+                    its "Oggi" link matches /athlete exactly. */}
+                <Route path="dashboard" element={<DashboardRedirect />} />
                 <Route path="training" element={<AthleteTraining />} />
                 <Route path="profile" element={<AthleteProfile />} />
                 {/* Read-only nutrition target — entitlement-gated (silent

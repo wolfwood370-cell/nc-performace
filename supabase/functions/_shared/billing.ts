@@ -87,6 +87,16 @@ export function effectiveBillingStatus(stripeStatus: unknown, cancelAtPeriodEnd:
 }
 
 /**
+ * PURE. Which profile statuses actually entitle the account to something. Kept
+ * here, next to the map that produces them, so the two cannot drift: the FE
+ * mirror (src/lib/billing/access.ts) adds the coached shortcut on top of exactly
+ * this set.
+ */
+export function grantsAccess(status: ProfileSubscriptionStatus): boolean {
+  return status === "active" || status === "trial";
+}
+
+/**
  * PURE, TOTAL. Canonical status -> profiles.subscription_status. Every branch
  * returns a value inside the enum; anything unknown falls back to "none", which
  * is the fail-closed answer (no access) rather than the permissive one.
