@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { secretKey } from "../_shared/apiKeys.ts";
+import { resolveOriginFromEnv } from "../_shared/origins.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,34 +14,6 @@ const logStep = (step: string, details?: unknown) => {
   const d = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CREATE-PORTAL] ${step}${d}`);
 };
-
-// Origin whitelist — prevents Stripe billing portal return_url being
-// redirected to an attacker domain. Supabase Advisor warning: untrusted
-// Origin header flows directly into Stripe portal session params.
-const LOVABLE_PROJECT_ID = "e1c56229-82db-4ffc-8215-23b357d4c3a9";
-const ALLOWED_HOSTS: string[] = [
-  // Custom production domains can be added here.
-];
-const DEFAULT_ORIGIN = `https://id-preview--${LOVABLE_PROJECT_ID}.lovable.app`;
-
-function isAllowedOrigin(origin: string): boolean {
-  try {
-    const u = new URL(origin);
-    if (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) {
-      return true;
-    }
-    if (u.protocol !== "https:") return false;
-    if (
-      u.hostname.endsWith(`--${LOVABLE_PROJECT_ID}.lovable.app`) ||
-      u.hostname === `${LOVABLE_PROJECT_ID}.lovable.app`
-    ) {
-      return true;
-    }
-    return ALLOWED_HOSTS.includes(u.hostname);
-  } catch {
-    return false;
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -99,9 +72,8 @@ serve(async (req) => {
     logStep("Found Stripe customer", { customerId });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-    // Validate caller-provided Origin against whitelist (anti-redirect-hijack).
-    const requestOrigin = req.headers.get("origin");
-    const origin = requestOrigin && isAllowedOrigin(requestOrigin) ? requestOrigin : DEFAULT_ORIGIN;
+    // Origin whitelist rationale: see _shared/origins.ts (anti-redirect-hijack).
+    const origin = resolveOriginFromEnv(req.headers.get("origin"));
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
