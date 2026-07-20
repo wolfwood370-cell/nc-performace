@@ -38,3 +38,22 @@ export interface ProfileSettings {
   /** ISO timestamp set alongside `archived = true`. */
   archived_at?: string | null;
 }
+
+/**
+ * Single source of truth for the "archived athlete" check (roster filter,
+ * header badge, settings card). The flag is written exclusively by the
+ * `archive_athlete` / `unarchive_athlete` RPCs: strictly-boolean `true`
+ * means archived; anything else (absent, false, malformed) means active.
+ * NOTE: `settings.training_status === "archived"` is a different, legacy
+ * enum value and is deliberately NOT part of this criterion.
+ */
+export function isArchived(settings: unknown): boolean {
+  return settings != null && (settings as ProfileSettings).archived === true;
+}
+
+/** ISO timestamp of archiving, if present (set by `archive_athlete`). */
+export function getArchivedAt(settings: unknown): string | null {
+  if (settings == null) return null;
+  const value = (settings as ProfileSettings).archived_at;
+  return typeof value === "string" ? value : null;
+}

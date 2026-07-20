@@ -3246,6 +3246,7 @@ export type Database = {
         Args: { p_athlete_id: string; p_computed: Json; p_payload: Json }
         Returns: Json
       }
+      unarchive_athlete: { Args: { p_athlete_id: string }; Returns: undefined }
     }
     Enums: {
       billing_sub_status:
