@@ -162,21 +162,27 @@ serve(async (req) => {
     const session = await stripe.checkout.sessions.create(sessionParams);
     logStep("Checkout session created", { sessionId: session.id, url: session.url });
 
-    // Create or update athlete_subscriptions record
-    const { data: existingSub } = await adminClient
-      .from("athlete_subscriptions")
-      .select("id")
-      .eq("athlete_id", targetAthleteId)
-      .eq("plan_id", plan.id)
-      .maybeSingle();
-
-    if (!existingSub) {
-      await adminClient.from("athlete_subscriptions").insert({
+    // Placeholder row for the pending checkout. Idempotent by construction now that
+    // athlete_subscriptions carries UNIQUE (athlete_id, plan_id): a double click (or a
+    // second tab) hits the conflict and does nothing, where the previous
+    // read-then-insert had no transaction and could produce two rows — enough to make
+    // every later lookup ambiguous and, with the fail-fast webhook, to turn a paid
+    // subscription into a 500 loop.
+    // ignoreDuplicates rather than a merge: an existing row may already be 'active',
+    // and restarting a checkout must never push it back to 'incomplete'.
+    const { error: placeholderError } = await adminClient.from("athlete_subscriptions").upsert(
+      {
         athlete_id: targetAthleteId,
         plan_id: plan.id,
         status: "incomplete",
         stripe_customer_id: customerId || null,
-      });
+      },
+      { onConflict: "athlete_id,plan_id", ignoreDuplicates: true },
+    );
+    // Logged, not thrown: the Stripe session already exists and the athlete must get
+    // its URL. The row is a convenience — the webhook writes the real one on payment.
+    if (placeholderError) {
+      logStep("Placeholder subscription row not written", { code: placeholderError.code });
     }
 
     return new Response(JSON.stringify({ url: session.url }), {
