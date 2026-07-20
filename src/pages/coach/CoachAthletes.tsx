@@ -338,6 +338,7 @@ export default function CoachAthletes() {
                       unarchiveMutation.isPending &&
                       unarchiveMutation.variables === athlete.athleteId
                     }
+                    disabled={unarchiveMutation.isPending}
                   />
                 </div>
               ))}
@@ -452,10 +453,16 @@ function ArchivedAthleteCard({
   athlete,
   onRestore,
   restoring,
+  disabled,
 }: {
   athlete: AthleteRiskData;
   onRestore: () => void;
+  /** True only for the card whose restore is in flight (label swap). */
   restoring: boolean;
+  /** True while ANY restore is in flight: the shared mutation only tracks
+   *  the last mutate(), so per-card pending would lie mid-flight. One
+   *  restore at a time keeps the state truthful. */
+  disabled: boolean;
 }) {
   const navigate = useNavigate();
   const archivedOn = athlete.archivedAt
@@ -479,7 +486,7 @@ function ArchivedAthleteCard({
           {archivedOn ? `Archiviato il ${archivedOn}` : "Archiviato"}
         </p>
       </div>
-      <Button variant="outline" className="shrink-0 gap-2" onClick={onRestore} disabled={restoring}>
+      <Button variant="outline" className="shrink-0 gap-2" onClick={onRestore} disabled={disabled}>
         <ArchiveRestore className="h-4 w-4" />
         {restoring ? "Ripristino…" : "Ripristina"}
       </Button>
