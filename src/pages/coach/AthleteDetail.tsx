@@ -65,6 +65,7 @@ import {
   Utensils,
   Pencil,
   Archive,
+  ArchiveRestore,
   MessageSquare,
   CheckCircle2,
   XCircle,
@@ -155,7 +156,7 @@ import { StrategyContent } from "@/components/coach/athlete/StrategyContent";
 import { HealthProfileTab } from "@/components/coach/athlete/HealthProfileTab";
 import { PeriodizationTab } from "@/components/coach/athlete/PeriodizationTab";
 import type { Tables } from "@/integrations/supabase/types";
-import type { ProfileSettings } from "@/types/profile";
+import { isArchived, type ProfileSettings } from "@/types/profile";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 /** Narrow the JSONB `settings` column to its known shape. The DB stores
@@ -1998,10 +1999,15 @@ function SettingsContent({
   athleteId,
   profile,
   onProfileUpdate,
+  archiveDialogOpen,
+  onArchiveDialogOpenChange,
 }: {
   athleteId: string | undefined;
   profile: Tables<"profiles"> | null | undefined;
   onProfileUpdate: () => void;
+  /** Lifted dialog state: the header «⋯» menu opens the canonical dialog. */
+  archiveDialogOpen: boolean;
+  onArchiveDialogOpenChange: (open: boolean) => void;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -2009,6 +2015,7 @@ function SettingsContent({
   // Form state — initialised from the typed `settings` blob with the
   // `readSettings` helper so we never have to do `as any` casts here.
   const settings = readSettings(profile?.settings);
+  const archived = isArchived(profile?.settings);
   const [neurotype, setNeurotype] = useState(profile?.neurotype || "");
   const [trainingStatus, setTrainingStatus] = useState<string>(
     settings.training_status ?? "active",
@@ -2153,10 +2160,38 @@ function SettingsContent({
     },
     onSuccess: () => {
       toast.success("Atleta archiviato con successo");
+      // Refresh every list that filters on settings.archived so the athlete
+      // drops out of the active roster without a manual reload.
+      queryClient.invalidateQueries({ queryKey: ["athlete-profile", athleteId] });
+      queryClient.invalidateQueries({ queryKey: ["risk-overview-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
       navigate("/coach/athletes");
     },
     onError: (error: Error | PostgrestError) => {
       toast.error(`Errore nell'archiviazione: ${error.message}`);
+    },
+  });
+
+  // Restore mutation — same RPC family as archive. Deliberately no dialog:
+  // restoring is non-destructive (the RPC just removes the archived keys).
+  const unarchiveAthleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!athleteId) throw new Error("No athlete ID");
+
+      const { error } = await supabase.rpc("unarchive_athlete", {
+        p_athlete_id: athleteId,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Atleta ripristinato");
+      queryClient.invalidateQueries({ queryKey: ["athlete-profile", athleteId] });
+      queryClient.invalidateQueries({ queryKey: ["risk-overview-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
+    },
+    onError: (error: Error | PostgrestError) => {
+      toast.error(`Errore nel ripristino: ${error.message}`);
     },
   });
 
@@ -2381,41 +2416,61 @@ function SettingsContent({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Archive Athlete */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30">
-            <div>
-              <h4 className="font-medium text-foreground">Archivia Atleta</h4>
-              <p className="text-sm text-muted-foreground">
-                Nascondi dal roster attivo ma conserva tutti i dati
-              </p>
+          {/* Archive / Restore athlete — conditional on the archived flag */}
+          {archived ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30">
+              <div>
+                <h4 className="font-medium text-foreground">Ripristina Atleta</h4>
+                <p className="text-sm text-muted-foreground">
+                  Riporta l'atleta nel roster attivo; tutti i dati restano intatti
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                className="shrink-0"
+                onClick={() => unarchiveAthleteMutation.mutate()}
+                disabled={unarchiveAthleteMutation.isPending}
+              >
+                <ArchiveRestore className="h-4 w-4 mr-2" />
+                {unarchiveAthleteMutation.isPending ? "Ripristino..." : "Ripristina"}
+              </Button>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="secondary" className="shrink-0">
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archivia
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archiviare questo atleta?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Questo nasconderà {profile?.full_name || "questo atleta"} dal roster attivo.
-                    Tutti i dati di allenamento saranno conservati e potranno essere ripristinati.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => archiveAthleteMutation.mutate()}
-                    disabled={archiveAthleteMutation.isPending}
-                  >
-                    {archiveAthleteMutation.isPending ? "Archiviazione..." : "Archivia Atleta"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30">
+              <div>
+                <h4 className="font-medium text-foreground">Archivia Atleta</h4>
+                <p className="text-sm text-muted-foreground">
+                  Nascondi dal roster attivo ma conserva tutti i dati
+                </p>
+              </div>
+              <AlertDialog open={archiveDialogOpen} onOpenChange={onArchiveDialogOpenChange}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="secondary" className="shrink-0">
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archivia
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Archiviare questo atleta?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questo nasconderà {profile?.full_name || "questo atleta"} dal roster attivo.
+                      Tutti i dati di allenamento saranno conservati e potranno essere ripristinati.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => archiveAthleteMutation.mutate()}
+                      disabled={archiveAthleteMutation.isPending}
+                    >
+                      {archiveAthleteMutation.isPending ? "Archiviazione..." : "Archivia Atleta"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
 
           {/* Delete Athlete */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
@@ -2471,6 +2526,9 @@ export default function AthleteDetail() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [godModeOpen, setGodModeOpen] = useState(false);
+  // Lifted so the header «⋯» menu can open the canonical archive dialog,
+  // which lives inside the Settings tab (unmounted while other tabs show).
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 
   // Fetch athlete profile
   const { data: profile, isLoading: profileLoading } = useQuery({
@@ -2648,9 +2706,10 @@ export default function AthleteDetail() {
   // ACWR Data
   const { data: acwrData, isLoading: acwrLoading } = useAthleteAcwrData(id);
 
-  // Determine status
+  // Determine status — archived wins over injured/active in the header badge
   const hasActiveInjuries = injuries && injuries.length > 0;
-  const athleteStatus = hasActiveInjuries ? "injured" : "active";
+  const athleteArchived = isArchived(profile?.settings);
+  const athleteStatus = athleteArchived ? "archived" : hasActiveInjuries ? "injured" : "active";
 
   // Get initials
   const getInitials = (name: string) => {
@@ -2988,7 +3047,12 @@ export default function AthleteDetail() {
                         "bg-success/15 text-success border-success/30 hover:bg-success/20",
                     )}
                   >
-                    {athleteStatus === "injured" ? (
+                    {athleteStatus === "archived" ? (
+                      <>
+                        <Archive className="h-3.5 w-3.5 mr-1.5" />
+                        Archiviato
+                      </>
+                    ) : athleteStatus === "injured" ? (
                       <>
                         <XCircle className="h-3.5 w-3.5 mr-1.5" />
                         Infortunato
@@ -3062,19 +3126,38 @@ export default function AthleteDetail() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-popover">
-                    <DropdownMenuItem className="cursor-pointer">
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onSelect={() => setActiveTab("settings")}
+                    >
                       <Pencil className="h-4 w-4 mr-2" />
-                      Edit Profile
+                      Modifica profilo
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer">
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onSelect={() => navigate("/coach/messages")}
+                    >
                       <MessageSquare className="h-4 w-4 mr-2" />
-                      Message
+                      Messaggi
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
-                      <Archive className="h-4 w-4 mr-2" />
-                      Archive
-                    </DropdownMenuItem>
+                    {!athleteArchived && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="cursor-pointer text-destructive focus:text-destructive"
+                          onSelect={() => {
+                            setActiveTab("settings");
+                            // Defer past the dropdown close so Radix releases
+                            // its focus/pointer-events lock before the modal
+                            // opens (dropdown -> dialog interaction).
+                            setTimeout(() => setArchiveDialogOpen(true), 0);
+                          }}
+                        >
+                          <Archive className="h-4 w-4 mr-2" />
+                          Archivia
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -3206,7 +3289,13 @@ export default function AthleteDetail() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <SettingsContent athleteId={id} profile={profile} onProfileUpdate={() => {}} />
+            <SettingsContent
+              athleteId={id}
+              profile={profile}
+              onProfileUpdate={() => {}}
+              archiveDialogOpen={archiveDialogOpen}
+              onArchiveDialogOpenChange={setArchiveDialogOpen}
+            />
           </TabsContent>
         </Tabs>
 
