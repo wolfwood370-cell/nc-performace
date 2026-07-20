@@ -1,48 +1,163 @@
+// supabase/functions/stripe-webhook/index.ts
+// Stripe -> DB, v22. Reads the signed event and reflects it onto
+// athlete_subscriptions (one row per plan) and the profiles cache (one status per
+// athlete). All the Stripe<->Postgres translation lives in _shared/billing.ts,
+// pure and tested; this file is I/O and ordering only.
+//
+// Three invariants, each paid for by a real defect:
+//
+// 1. NEVER 2xx WITH FAILED DB WORK. A 2xx switches Stripe's retries off, so a lying
+//    2xx is a subscription lost in silence. Every supabase-js result goes through
+//    unwrap(): an error becomes a throw, hence a 500, hence a retry.
+//
+// 2. IDEMPOTENCY LIVES ON stripe_events.processed_at, NOWHERE ELSE. The previous
+//    version guarded each handler with an early `break` ("row already active ->
+//    skip"). That guard describes the FIRST effect, not the complete one: if the
+//    profile write failed after the row write, the retry saw the row already
+//    active, skipped, answered 200 — and the profile stayed unwritten forever.
+//    Here the handlers are plain fixed-value writes, cheap and safe to re-run, and
+//    the only gate is the event ledger.
+//
+// 3. THE PROFILE CACHE IS RECOMPUTED, NOT PATCHED. profiles holds one status/tier
+//    per athlete while athlete_subscriptions holds one row per plan. Writing the
+//    cache straight from the event in flight means the `deleted` of an old plan
+//    switches off the plan the athlete just bought. syncProfileFromAthlete() always
+//    re-reads every row of the athlete and resolves the winner.
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.57.2";
 import { secretKey } from "../_shared/apiKeys.ts";
+import {
+  effectiveBillingStatus,
+  mapBillingStatusToProfile,
+  mapBillingStatusToRow,
+  nextProfileTier,
+  periodEndIso,
+  priceIdFromSubscription,
+  resolveAccountState,
+  subscriptionIdFromInvoice,
+  tierForPlan,
+} from "../_shared/billing.ts";
+
+// Matches what createClient(url, key) actually returns for an untyped schema.
+// `ReturnType<typeof createClient>` would pick the DEFAULT generics instead, which
+// resolve the schema to `never` and make every row property unreachable.
+type AdminClient = SupabaseClient<any, "public", "public", any, any>;
 
 const logStep = (step: string, details?: unknown) => {
   const d = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[STRIPE-WEBHOOK] ${step}${d}`);
 };
 
-/** Map a Stripe subscription to a profile-level status update */
-async function syncProfileFromSubscription(
-  adminClient: ReturnType<typeof createClient>,
-  stripe: Stripe,
-  subscriptionId: string,
-  overrideStatus?: string,
-) {
-  // Find the athlete_subscription row to get athlete_id
-  const { data: subRow } = await adminClient
-    .from("athlete_subscriptions")
-    .select("athlete_id, plan_id")
-    .eq("stripe_subscription_id", subscriptionId)
-    .maybeSingle();
+/**
+ * Invariant 1 in one place: a supabase-js error becomes a throw, and the request
+ * catch turns it into a 500 so Stripe retries. Only the error CODE is logged —
+ * messages can carry row content (art. 9 hygiene).
+ */
+function unwrap<T>(
+  result: { data: T; error: { code?: string; message?: string } | null },
+  step: string,
+): T {
+  if (result.error) {
+    console.error(`[STRIPE-WEBHOOK] db error at ${step}`, { code: result.error.code });
+    throw new Error(`db_error:${step}`);
+  }
+  return result.data;
+}
 
-  if (!subRow) {
-    logStep("No athlete_subscription row found for profile sync", { subscriptionId });
-    return;
+/**
+ * Recomputes the profiles cache from ALL the athlete's subscription rows
+ * (invariant 3). The tier is written ONLY while the resolved state actually grants
+ * access and the winning plan is a legitimate one; switching off is expressed by
+ * the STATUS alone, never by inventing a lower tier.
+ *
+ * Plan legitimacy is checked HERE because create-checkout-session takes the plan_id
+ * from the caller and does not verify it: now that the athlete-facing UI picks it,
+ * an archived plan or another coach's plan must not be able to set a tier.
+ *
+ * Note: an athlete on a Stripe trial ends up with subscription_status 'active'
+ * rather than 'trial' — billing_sub_status has no 'trial' label, so the nuance is
+ * lost on the way through the row. Both values grant access, so nothing breaks.
+ */
+async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Promise<void> {
+  const rows = unwrap(
+    await admin
+      .from("athlete_subscriptions")
+      .select("status, plan_id, current_period_end")
+      .eq("athlete_id", athleteId),
+    "athlete_subscriptions select for profile sync",
+  );
+
+  const state = resolveAccountState(rows);
+  const subscriptionStatus = state ? mapBillingStatusToProfile(state.status) : "none";
+  const grantsAccess = subscriptionStatus === "active" || subscriptionStatus === "trial";
+
+  const profileRows = unwrap(
+    await admin.from("profiles").select("tier, coach_id").eq("id", athleteId).limit(1),
+    "profiles select for sync",
+  );
+  const profile = profileRows?.[0];
+  if (!profile) {
+    // The athlete_id came from Stripe metadata: a missing profile means the link is
+    // broken, and silently doing nothing would hide it.
+    console.error("[STRIPE-WEBHOOK] profile not found for sync", { athleteId });
+    throw new Error("db_error:profile_missing");
   }
 
-  // Determine tier from the billing plan
-  const { data: plan } = await adminClient
-    .from("billing_plans")
-    .select("name, stripe_product_id")
-    .eq("id", subRow.plan_id)
-    .maybeSingle();
+  const update: Record<string, unknown> = { subscription_status: subscriptionStatus };
 
-  const tier = plan?.name?.toLowerCase() ?? "free";
-  const status = overrideStatus ?? "active";
+  if (grantsAccess && state?.planId) {
+    const planRows = unwrap(
+      await admin
+        .from("billing_plans")
+        .select("tier, active, coach_id")
+        .eq("id", state.planId)
+        .limit(1),
+      "billing_plans select for sync",
+    );
+    const plan = planRows?.[0];
+    const ownershipOk = profile.coach_id === null || plan?.coach_id === profile.coach_id;
+    if (plan && plan.active === true && ownershipOk) {
+      const tier = nextProfileTier(profile.tier, tierForPlan(plan));
+      update.tier = tier;
+      // Legacy text mirror: still read by the coach Business view (estimated MRR and
+      // the tier column). Kept in sync with the canonical enum so that view keeps
+      // behaving exactly as it does today.
+      update.subscription_tier = tier;
+    } else {
+      logStep("Tier non scritto: piano archiviato o non del coach dell'atleta", {
+        athleteId,
+        planId: state.planId,
+      });
+    }
+  }
 
-  await adminClient
-    .from("profiles")
-    .update({ subscription_tier: tier, subscription_status: status })
-    .eq("id", subRow.athlete_id);
+  unwrap(
+    await admin.from("profiles").update(update).eq("id", athleteId).select("id"),
+    "profiles update",
+  );
+  logStep("Profile synced", { athleteId, subscriptionStatus, tier: update.tier ?? "invariato" });
+}
 
-  logStep("Profile synced", { athleteId: subRow.athlete_id, tier, status });
+/**
+ * The athlete_subscriptions row linked to a Stripe subscription, or null. Ordered +
+ * limited instead of maybeSingle(): a duplicate row must not turn the webhook into a
+ * permanent 500 loop (the UNIQUE index makes it impossible, this is the belt to its
+ * braces).
+ */
+async function rowForSubscription(admin: AdminClient, subscriptionId: string) {
+  const rows = unwrap(
+    await admin
+      .from("athlete_subscriptions")
+      .select("id, athlete_id, status")
+      .eq("stripe_subscription_id", subscriptionId)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    "athlete_subscriptions select by stripe_subscription_id",
+  );
+  return rows?.[0] ?? null;
 }
 
 serve(async (req) => {
@@ -74,6 +189,46 @@ serve(async (req) => {
 
     const adminClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", secretKey());
 
+    // ── Event ledger: ONE statement claims the event ────────────────────────
+    // An insert followed by a select would not be a claim: two parallel deliveries
+    // would both read "not processed" and both run. Here the winner is whoever gets
+    // a row back from the upsert; anyone else lost the race.
+    const claimed = unwrap(
+      await adminClient
+        .from("stripe_events")
+        .upsert(
+          { stripe_event_id: event.id, type: event.type, payload: event },
+          { onConflict: "stripe_event_id", ignoreDuplicates: true },
+        )
+        .select("id"),
+      "stripe_events claim",
+    );
+
+    let eventRowId = claimed?.[0]?.id ?? null;
+    if (!eventRowId) {
+      const existing = unwrap(
+        await adminClient
+          .from("stripe_events")
+          .select("id, processed_at")
+          .eq("stripe_event_id", event.id)
+          .limit(1),
+        "stripe_events lookup",
+      );
+      const previous = existing?.[0];
+      if (!previous) throw new Error("db_error:stripe_events_claim_lost");
+      if (previous.processed_at) {
+        logStep("Duplicate delivery, already processed", { id: event.id });
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // processed_at NULL: a previous run died before closing. Re-running is safe —
+      // the handlers below are fixed-value writes (invariant 2).
+      logStep("Reprocessing an unfinished event", { id: event.id });
+      eventRowId = previous.id;
+    }
+
     switch (event.type) {
       // ── Checkout completed ─────────────────────────────────────
       case "checkout.session.completed": {
@@ -87,209 +242,227 @@ serve(async (req) => {
         logStep("checkout.session.completed", { athleteId, planId, subscriptionId });
 
         if (!athleteId || !planId) {
+          // Not an idempotency skip: there is simply nothing to act on.
           logStep("Missing metadata, skipping");
           break;
         }
 
-        // Idempotency
-        if (subscriptionId) {
-          const { data: alreadyActive } = await adminClient
-            .from("athlete_subscriptions")
-            .select("id")
-            .eq("stripe_subscription_id", subscriptionId)
-            .eq("status", "active")
-            .maybeSingle();
-          if (alreadyActive) {
-            logStep("Idempotent skip: subscription already active", { subscriptionId });
-            break;
-          }
-        }
-
+        // One-off plans (mode: payment) have no subscription: the purchase is done,
+        // so the row is active with no renewal date.
+        let rowStatus = "active";
         let periodEnd: string | null = null;
         if (subscriptionId) {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          periodEnd = new Date(sub.current_period_end * 1000).toISOString();
+          rowStatus = mapBillingStatusToRow(
+            effectiveBillingStatus(sub.status, sub.cancel_at_period_end),
+          );
+          periodEnd = periodEndIso(sub);
         }
 
-        const { data: existing } = await adminClient
-          .from("athlete_subscriptions")
-          .select("id")
-          .eq("athlete_id", athleteId)
-          .eq("plan_id", planId)
-          .maybeSingle();
+        // Upsert on the UNIQUE (athlete_id, plan_id): re-running the handler rewrites
+        // the same values instead of racing a read-then-write. The two Stripe ids are
+        // only included when present — a column absent from the payload is left out of
+        // the ON CONFLICT update, so a session that does not expose them cannot erase
+        // what create-checkout-session already stored (create-portal-session resolves
+        // the customer from exactly that column).
+        const row: Record<string, unknown> = {
+          athlete_id: athleteId,
+          plan_id: planId,
+          status: rowStatus,
+          current_period_end: periodEnd,
+        };
+        if (subscriptionId) row.stripe_subscription_id = subscriptionId;
+        if (customerId) row.stripe_customer_id = customerId;
 
-        if (existing) {
+        unwrap(
           await adminClient
             .from("athlete_subscriptions")
-            .update({
-              status: "active",
-              stripe_subscription_id: subscriptionId,
-              stripe_customer_id: customerId,
-              current_period_end: periodEnd,
-            })
-            .eq("id", existing.id);
-        } else {
-          await adminClient.from("athlete_subscriptions").insert({
-            athlete_id: athleteId,
-            plan_id: planId,
-            status: "active",
-            stripe_subscription_id: subscriptionId,
-            stripe_customer_id: customerId,
-            current_period_end: periodEnd,
-          });
-        }
+            .upsert(row, { onConflict: "athlete_id,plan_id" })
+            .select("id"),
+          "athlete_subscriptions upsert",
+        );
 
-        // Sync profile
-        if (subscriptionId) {
-          await syncProfileFromSubscription(adminClient, stripe, subscriptionId, "active");
-        }
-
-        logStep("Subscription activated", { athleteId, planId });
+        await syncProfileFromAthlete(adminClient, athleteId);
+        logStep("Subscription activated", { athleteId, planId, rowStatus });
         break;
       }
 
       // ── Invoice paid (renewal) ─────────────────────────────────
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId =
-          typeof invoice.subscription === "string" ? invoice.subscription : null;
-        if (!subscriptionId) break;
-
-        const { data: subRecord } = await adminClient
-          .from("athlete_subscriptions")
-          .select("id, status, current_period_end")
-          .eq("stripe_subscription_id", subscriptionId)
-          .maybeSingle();
-        if (!subRecord) break;
-
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const periodEnd = new Date(sub.current_period_end * 1000).toISOString();
-
-        if (subRecord.status === "active" && subRecord.current_period_end === periodEnd) {
-          logStep("Idempotent skip: renewal already up to date", { subscriptionId });
+        const subscriptionId = subscriptionIdFromInvoice(invoice);
+        if (!subscriptionId) {
+          logStep("Invoice without subscription, skipping", { id: invoice.id });
           break;
         }
 
-        await adminClient
-          .from("athlete_subscriptions")
-          .update({ status: "active", current_period_end: periodEnd })
-          .eq("id", subRecord.id);
+        const row = await rowForSubscription(adminClient, subscriptionId);
+        if (!row) {
+          logStep("No athlete_subscription linked to this subscription", { subscriptionId });
+          break;
+        }
+        if (row.status === "canceled") {
+          // Terminal state is absorbing: Stripe does not guarantee delivery order and
+          // retries for up to 3 days, so a late invoice must not resurrect access.
+          logStep("Subscription canceled: invoice ignored", { subscriptionId });
+          break;
+        }
 
-        await syncProfileFromSubscription(adminClient, stripe, subscriptionId, "active");
-        logStep("Renewal updated", { subscriptionId, periodEnd });
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        unwrap(
+          await adminClient
+            .from("athlete_subscriptions")
+            .update({
+              status: mapBillingStatusToRow(
+                effectiveBillingStatus(sub.status, sub.cancel_at_period_end),
+              ),
+              current_period_end: periodEndIso(sub),
+            })
+            .eq("id", row.id)
+            .select("id"),
+          "athlete_subscriptions update on renewal",
+        );
+
+        await syncProfileFromAthlete(adminClient, row.athlete_id as string);
+        logStep("Renewal recorded", { subscriptionId });
         break;
       }
 
       // ── Invoice payment failed (card declined) ────────────────
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId =
-          typeof invoice.subscription === "string" ? invoice.subscription : null;
-        if (!subscriptionId) break;
-
-        const { data: subRecord } = await adminClient
-          .from("athlete_subscriptions")
-          .select("id, status")
-          .eq("stripe_subscription_id", subscriptionId)
-          .maybeSingle();
-
-        if (!subRecord || subRecord.status === "past_due") {
-          logStep("Idempotent skip: already past_due or not found", { subscriptionId });
+        const subscriptionId = subscriptionIdFromInvoice(invoice);
+        if (!subscriptionId) {
+          logStep("Failed invoice without subscription, skipping", { id: invoice.id });
           break;
         }
 
-        await adminClient
-          .from("athlete_subscriptions")
-          .update({ status: "past_due" })
-          .eq("id", subRecord.id);
+        const row = await rowForSubscription(adminClient, subscriptionId);
+        if (!row) {
+          logStep("No athlete_subscription linked to this subscription", { subscriptionId });
+          break;
+        }
+        if (row.status === "canceled") {
+          logStep("Subscription canceled: failed invoice ignored", { subscriptionId });
+          break;
+        }
 
-        await syncProfileFromSubscription(adminClient, stripe, subscriptionId, "past_due");
-        logStep("Payment failed → past_due", { subscriptionId });
+        // Forced rather than derived: the business fact IS "a payment failed", and
+        // Stripe may not have moved the subscription off 'active' yet.
+        unwrap(
+          await adminClient
+            .from("athlete_subscriptions")
+            .update({ status: "past_due" })
+            .eq("id", row.id)
+            .select("id"),
+          "athlete_subscriptions update on payment failure",
+        );
+
+        await syncProfileFromAthlete(adminClient, row.athlete_id as string);
+        logStep("Payment failed, marked past_due", { subscriptionId });
         break;
       }
 
       // ── Subscription updated (plan change, cancel_at_period_end) ──
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
-        const subId = subscription.id;
-        const stripeStatus = subscription.status;
-        const cancelAtPeriodEnd = subscription.cancel_at_period_end;
-        const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        const subscriptionId = subscription.id;
 
-        let mappedStatus: string;
-        if (cancelAtPeriodEnd && stripeStatus === "active") {
-          mappedStatus = "canceling";
-        } else if (stripeStatus === "active") {
-          mappedStatus = "active";
-        } else if (stripeStatus === "past_due") {
-          mappedStatus = "past_due";
-        } else if (stripeStatus === "canceled") {
-          mappedStatus = "canceled";
-        } else {
-          mappedStatus = "incomplete";
-        }
-
-        const { data: updRecord } = await adminClient
-          .from("athlete_subscriptions")
-          .select("id, status, current_period_end")
-          .eq("stripe_subscription_id", subId)
-          .maybeSingle();
-
-        if (
-          updRecord &&
-          updRecord.status === mappedStatus &&
-          updRecord.current_period_end === periodEnd
-        ) {
-          logStep("Idempotent skip: subscription already up to date", { subId, mappedStatus });
+        const row = await rowForSubscription(adminClient, subscriptionId);
+        if (!row) {
+          logStep("No athlete_subscription linked to this subscription", { subscriptionId });
           break;
         }
 
-        await adminClient
-          .from("athlete_subscriptions")
-          .update({ status: mappedStatus, current_period_end: periodEnd })
-          .eq("stripe_subscription_id", subId);
+        const update: Record<string, unknown> = {
+          status: mapBillingStatusToRow(
+            effectiveBillingStatus(subscription.status, subscription.cancel_at_period_end),
+          ),
+          current_period_end: periodEndIso(subscription),
+        };
 
-        // Sync profile — downgrade to free if canceled
-        const profileStatus = mappedStatus === "canceled" ? "past_due" : mappedStatus;
-        await syncProfileFromSubscription(adminClient, stripe, subId, profileStatus);
+        // The Customer Portal can swap the price ON THE SAME subscription. Without
+        // re-resolving the plan, plan_id keeps pointing at the old one and the profile
+        // inherits a stale tier. An unmapped price writes no plan_id at all (fail
+        // closed) rather than keeping a wrong one.
+        const priceId = priceIdFromSubscription(subscription);
+        if (priceId) {
+          const planRows = unwrap(
+            await adminClient
+              .from("billing_plans")
+              .select("id")
+              .eq("stripe_price_id", priceId)
+              .limit(1),
+            "billing_plans select by price",
+          );
+          const planId = planRows?.[0]?.id;
+          if (planId) {
+            update.plan_id = planId;
+          } else {
+            logStep("Price non mappato a nessun piano: plan_id invariato", { subscriptionId });
+          }
+        }
 
-        logStep("Subscription updated", { subId, status: mappedStatus, cancelAtPeriodEnd });
+        unwrap(
+          await adminClient
+            .from("athlete_subscriptions")
+            .update(update)
+            .eq("id", row.id)
+            .select("id"),
+          "athlete_subscriptions update on subscription change",
+        );
+
+        await syncProfileFromAthlete(adminClient, row.athlete_id as string);
+        logStep("Subscription updated", { subscriptionId, status: update.status });
         break;
       }
 
       // ── Subscription deleted (final cancel) ───────────────────
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const subId = subscription.id;
+        const subscriptionId = subscription.id;
 
-        const { data: delRecord } = await adminClient
-          .from("athlete_subscriptions")
-          .select("id, status, athlete_id")
-          .eq("stripe_subscription_id", subId)
-          .maybeSingle();
-
-        if (!delRecord || delRecord.status === "canceled") {
-          logStep("Idempotent skip: already canceled or not found", { subId });
+        const row = await rowForSubscription(adminClient, subscriptionId);
+        if (!row) {
+          // Loud on purpose: a cancellation with no local row means the
+          // checkout -> subscription link broke somewhere upstream.
+          console.error("[STRIPE-WEBHOOK] deleted event with no local row", { subscriptionId });
           break;
         }
 
-        await adminClient
-          .from("athlete_subscriptions")
-          .update({ status: "canceled" })
-          .eq("stripe_subscription_id", subId);
+        unwrap(
+          await adminClient
+            .from("athlete_subscriptions")
+            .update({ status: "canceled" })
+            .eq("id", row.id)
+            .select("id"),
+          "athlete_subscriptions update on delete",
+        );
 
-        // Downgrade profile to free
-        await adminClient
-          .from("profiles")
-          .update({ subscription_tier: "free", subscription_status: "past_due" })
-          .eq("id", delRecord.athlete_id);
-
-        logStep("Subscription canceled → free tier", { subId, athleteId: delRecord.athlete_id });
+        // Always re-synced, never guarded: switching off is the STATUS. The tier is
+        // deliberately left alone — there is no 'free' tier to fall back to, and the
+        // athlete keeps the tier the coach assigned them.
+        await syncProfileFromAthlete(adminClient, row.athlete_id as string);
+        logStep("Subscription canceled", { subscriptionId, athleteId: row.athlete_id });
         break;
       }
 
       default:
         logStep("Unhandled event type", { type: event.type });
+    }
+
+    // Close the ledger entry. If THIS fails the work is already done and committed,
+    // so answering 2xx is honest: a retry would find processed_at still NULL and
+    // re-run handlers that are safe to re-run (invariant 2).
+    const { error: closeError } = await adminClient
+      .from("stripe_events")
+      .update({ processed_at: new Date().toISOString() })
+      .eq("id", eventRowId);
+    if (closeError) {
+      console.error("[STRIPE-WEBHOOK] failed to close the event ledger", {
+        code: closeError.code,
+        id: event.id,
+      });
     }
 
     return new Response(JSON.stringify({ received: true }), {
