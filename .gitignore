@@ -51,3 +51,4 @@ test-results/
 playwright-report/
 # Storage-state autenticato per gli E2E (può contenere un token di sessione reale).
 e2e/.auth/
+supabase/.temp/linked-project.json
