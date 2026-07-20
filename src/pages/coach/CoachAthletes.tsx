@@ -11,7 +11,8 @@
  *      - Search input rounded-xl with #c1c7d0 outline transitioning to
  *        primary (#005685) + ambient outer glow on focus
  *      - 5 filter pills rounded-full (Tutti / Attivi / In Onboarding /
- *        Rehab Limitati / Sospesi)
+ *        Rehab Limitati / Sospesi) + pill «Archiviati» visibile solo se
+ *        esiste almeno un atleta archiviato
  *   3. Responsive grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6
  *
  * Data binding:
@@ -21,12 +22,15 @@
  *   - Auth guard preserved
  *
  * Filter logic:
- *   activeFilter ∈ "all" | "active" | "onboarding" | "rehab" | "suspended"
- *   - all       → tutti
+ *   activeFilter ∈ "all" | "active" | "onboarding" | "rehab" | "suspended" | "archived"
+ *   Gli archiviati (criterio unico isArchived, calcolato nel hook) NON
+ *   entrano nei bucket attivi: vivono solo nella vista «Archiviati».
+ *   - all       → tutti i NON archiviati
  *   - active    → readiness entro 3 giorni (existing isActive heuristic)
  *   - onboarding → mai check-in (readinessDate === null)
  *   - rehab     → riskLevel high|moderate
  *   - suspended → ultima readiness > 14 giorni fa
+ *   - archived  → settings.archived === true; azione «Ripristina» via RPC
  *
  * AthleteCard mapping:
  *   - acwrValue: trigger State Critical quando ACWR > 1.5
@@ -35,27 +39,30 @@
  *   - missingOnboardingSteps: array vuoto per "onboarding" filter → AthleteCard renderizza Pending
  */
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { CoachLayout } from "@/components/coach/CoachLayout";
 import { MetaHead } from "@/components/MetaHead";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InviteAthleteDialog } from "@/components/coach/InviteAthleteDialog";
 import { AthleteCard } from "@/components/coach/AthleteCard";
 
-import { useAthletesRiskOverview } from "@/hooks/useAthletesRiskOverview";
+import { useAthletesRiskOverview, type AthleteRiskData } from "@/hooks/useAthletesRiskOverview";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
-import { Users, UserPlus, Search, X, type LucideIcon } from "lucide-react";
+import { ArchiveRestore, Users, UserPlus, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Filter model
 // ---------------------------------------------------------------------------
-type FilterKey = "all" | "active" | "onboarding" | "rehab" | "suspended";
+type FilterKey = "all" | "active" | "onboarding" | "rehab" | "suspended" | "archived";
 
 const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "Tutti" },
@@ -64,6 +71,12 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: "rehab", label: "Rehab / Limitati" },
   { key: "suspended", label: "Sospesi" },
 ];
+
+// Appended to FILTERS only while at least one athlete is archived.
+const ARCHIVED_FILTER: { key: FilterKey; label: string } = {
+  key: "archived",
+  label: "Archiviati",
+};
 
 // ---------------------------------------------------------------------------
 // Time-window helpers
@@ -138,12 +151,15 @@ export default function CoachAthletes() {
 
   // ── Per-filter buckets (computed once, used both for counts and list) ───
   const buckets = useMemo(() => {
-    const all = allAthletes;
+    // Archived athletes (single isArchived criterion, applied in the hook)
+    // never enter the active buckets: they only live in the archived view.
+    const all = allAthletes.filter((a) => !a.archived);
+    const archived = allAthletes.filter((a) => a.archived);
     const onboarding = all.filter((a) => a.readinessDate === null && a.latestReadiness === null);
     const active = all.filter((a) => isWithinDays(a.readinessDate, 3));
     const rehab = all.filter((a) => a.riskLevel === "high" || a.riskLevel === "moderate");
     const suspended = all.filter((a) => isOlderThanDays(a.readinessDate, 14));
-    return { all, active, onboarding, rehab, suspended };
+    return { all, active, onboarding, rehab, suspended, archived };
   }, [allAthletes]);
 
   // Apply active filter + search query
@@ -152,6 +168,34 @@ export default function CoachAthletes() {
     const q = searchQuery.trim().toLowerCase();
     return q ? list.filter((a) => a.athleteName.toLowerCase().includes(q)) : list;
   }, [buckets, activeFilter, searchQuery]);
+
+  // Leave the archived view when it empties: its pill disappears with it.
+  useEffect(() => {
+    if (activeFilter === "archived" && buckets.archived.length === 0) {
+      setActiveFilter("all");
+    }
+  }, [activeFilter, buckets.archived.length]);
+
+  // Restore an archived athlete — write goes through the guarded RPC only
+  // (never a client-side .update on profiles.settings). No confirm dialog:
+  // restoring is non-destructive by design (declared in the plan).
+  const unarchiveMutation = useMutation({
+    mutationFn: async (athleteId: string) => {
+      const { error } = await supabase.rpc("unarchive_athlete", {
+        p_athlete_id: athleteId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, athleteId) => {
+      toast.success("Atleta ripristinato");
+      queryClient.invalidateQueries({ queryKey: ["risk-overview-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["athlete-profile", athleteId] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Errore nel ripristino: ${error.message}`);
+    },
+  });
 
   // ── Loading skeleton ────────────────────────────────────────────────────
   if (authLoading || isLoading) {
@@ -239,37 +283,39 @@ export default function CoachAthletes() {
 
               {/* Filter pills */}
               <nav className="flex flex-wrap gap-2" aria-label="Filtri roster">
-                {FILTERS.map((f) => {
-                  const isActive = activeFilter === f.key;
-                  const count = buckets[f.key].length;
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setActiveFilter(f.key)}
-                      aria-pressed={isActive}
-                      className={cn(
-                        "inline-flex items-center gap-2 h-9 px-4 rounded-full text-sm font-bold transition-all duration-200",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                        isActive
-                          ? "bg-primary-container text-white shadow-[0_4px_14px_rgb(0_62_98_/_0.20)]"
-                          : "bg-surface-container-lowest text-on-surface-variant border border-outline-variant/40 hover:bg-primary-container/10 hover:text-on-surface",
-                      )}
-                    >
-                      {f.label}
-                      <span
+                {[...FILTERS, ...(buckets.archived.length > 0 ? [ARCHIVED_FILTER] : [])].map(
+                  (f) => {
+                    const isActive = activeFilter === f.key;
+                    const count = buckets[f.key].length;
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setActiveFilter(f.key)}
+                        aria-pressed={isActive}
                         className={cn(
-                          "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-3xs font-bold tabular-nums",
+                          "inline-flex items-center gap-2 h-9 px-4 rounded-full text-sm font-bold transition-all duration-200",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                           isActive
-                            ? "bg-white/20 text-white"
-                            : "bg-primary-container/15 text-primary",
+                            ? "bg-primary-container text-white shadow-[0_4px_14px_rgb(0_62_98_/_0.20)]"
+                            : "bg-surface-container-lowest text-on-surface-variant border border-outline-variant/40 hover:bg-primary-container/10 hover:text-on-surface",
                         )}
                       >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
+                        {f.label}
+                        <span
+                          className={cn(
+                            "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-3xs font-bold tabular-nums",
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-primary-container/15 text-primary",
+                          )}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  },
+                )}
               </nav>
             </div>
           </header>
@@ -277,6 +323,25 @@ export default function CoachAthletes() {
           {/* ═══ Responsive Grid ═══ */}
           {visible.length === 0 ? (
             <FilterEmpty filter={activeFilter} searchQuery={searchQuery} />
+          ) : activeFilter === "archived" ? (
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              role="list"
+              aria-label="Atleti archiviati"
+            >
+              {visible.map((athlete) => (
+                <div key={athlete.athleteId} role="listitem">
+                  <ArchivedAthleteCard
+                    athlete={athlete}
+                    onRestore={() => unarchiveMutation.mutate(athlete.athleteId)}
+                    restoring={
+                      unarchiveMutation.isPending &&
+                      unarchiveMutation.variables === athlete.athleteId
+                    }
+                  />
+                </div>
+              ))}
+            </div>
           ) : (
             <div
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -383,6 +448,45 @@ function RosterEmpty() {
   );
 }
 
+function ArchivedAthleteCard({
+  athlete,
+  onRestore,
+  restoring,
+}: {
+  athlete: AthleteRiskData;
+  onRestore: () => void;
+  restoring: boolean;
+}) {
+  const navigate = useNavigate();
+  const archivedOn = athlete.archivedAt
+    ? new Date(athlete.archivedAt).toLocaleDateString("it-IT")
+    : null;
+  return (
+    <Card className="p-5 flex items-center gap-4 rounded-3xl">
+      <Avatar className="h-12 w-12">
+        <AvatarImage src={athlete.avatarUrl ?? undefined} alt={athlete.athleteName} />
+        <AvatarFallback>{athlete.avatarInitials}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => navigate(`/coach/athlete/${athlete.athleteId}`)}
+          className="block max-w-full truncate text-left font-bold text-on-surface hover:text-primary transition-colors"
+        >
+          {athlete.athleteName}
+        </button>
+        <p className="text-sm text-on-surface-variant">
+          {archivedOn ? `Archiviato il ${archivedOn}` : "Archiviato"}
+        </p>
+      </div>
+      <Button variant="outline" className="shrink-0 gap-2" onClick={onRestore} disabled={restoring}>
+        <ArchiveRestore className="h-4 w-4" />
+        {restoring ? "Ripristino…" : "Ripristina"}
+      </Button>
+    </Card>
+  );
+}
+
 function FilterEmpty({ filter, searchQuery }: { filter: FilterKey; searchQuery: string }) {
   if (searchQuery) {
     return (
@@ -413,6 +517,11 @@ function FilterEmpty({ filter, searchQuery }: { filter: FilterKey; searchQuery: 
     suspended: {
       title: "Nessun atleta sospeso",
       subtitle: "Tutti gli atleti hanno fatto check-in negli ultimi 14 giorni.",
+      icon: Users,
+    },
+    archived: {
+      title: "Nessun atleta archiviato",
+      subtitle: "Gli atleti archiviati compaiono qui e possono essere ripristinati.",
       icon: Users,
     },
   };

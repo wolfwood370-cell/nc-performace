@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { getArchivedAt, isArchived } from "@/types/profile";
 import { useAuth } from "./useAuth";
 import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 
@@ -28,6 +30,12 @@ export interface AthleteRiskData {
   latestReadiness: number | null;
   readinessDate: string | null;
   dailyLoadHistory: number[];
+  /** Single archived criterion (settings.archived === true, via isArchived).
+   *  Consumers decide what to do with it: CoachAthletes filters the roster,
+   *  NewChatDialog deliberately keeps archived athletes reachable. */
+  archived: boolean;
+  /** ISO timestamp of archiving, when present. */
+  archivedAt: string | null;
 }
 
 interface WorkoutLogRaw {
@@ -57,6 +65,7 @@ interface AthleteProfile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  settings: Json | null;
 }
 
 function calculateDailyLoads(logs: WorkoutLogRaw[], days: number): number[] {
@@ -156,7 +165,7 @@ export function useAthletesRiskOverview() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url")
+        .select("id, full_name, avatar_url, settings")
         .eq("coach_id", user.id)
         .eq("role", "athlete");
       if (error) throw error;
@@ -249,6 +258,8 @@ export function useAthletesRiskOverview() {
       latestReadiness,
       readinessDate,
       dailyLoadHistory,
+      archived: isArchived(athlete.settings),
+      archivedAt: getArchivedAt(athlete.settings),
     };
   });
 
