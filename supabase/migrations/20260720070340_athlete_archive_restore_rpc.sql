@@ -1,4 +1,3 @@
-## APPENDICE A — migrazione GIÀ APPLICATA (specchio VERBATIM, non applicare)
 -- Fetta archiviazione atleti end-to-end (2026-07-19, sess.79)
 -- 1) archive_athlete: aggiunge archived_at accanto ad archived
 --    (il tipo FE src/types/profile.ts prevede già entrambe le chiavi)
@@ -50,3 +49,4 @@ $function$;
 --    niente EXECUTE per anon/PUBLIC; solo authenticated (guardia interna resta).
 --    archive_athlete esistente NON viene toccata nei grant (fetta hardening dedicata).
 REVOKE ALL ON FUNCTION public.unarchive_athlete(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.unarchive_athlete(uuid) TO authenticated;
