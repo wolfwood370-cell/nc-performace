@@ -25,12 +25,13 @@
 //    re-reads every row of the athlete and resolves the winner.
 //
 // Slice F1 (2026-07-21) adds ONE output to the same machinery: profiles.access_until,
-// the single authority for access. Two of its three sources are here — the renewal
-// date of a subscription, and the term of a PREPAID purchase (mode: payment), whose
-// duration comes from billing_plans.term_days and is anchored on session.created so
-// a retry recomputes the same instant. The third source is the coach's manual grant
-// (RPC grant_athlete_access). Nothing READS access_until yet: the predicate flip is
-// the next slice.
+// the single authority for access, written as the MAX of two durable sources —
+// the furthest access-granting subscription period end (a recurring renewal date,
+// OR a PREPAID term stored in the same column, anchored on session.created so a
+// retry recomputes the same instant from billing_plans.term_days) and the latest
+// row of access_grants (the coach's manual grant, third source). Because both the
+// webhook and the grant RPC recompute that max from durable rows, neither can wipe
+// the other. Nothing READS access_until yet: the predicate flip is the next slice.
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
@@ -46,6 +47,7 @@ import {
   periodEndIso,
   prepaidTermEndIso,
   priceIdFromSubscription,
+  resolveAccessUntil,
   resolveAccountState,
   subscriptionIdFromInvoice,
   tierForPlan,
@@ -104,6 +106,21 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
   const subscriptionStatus = state ? mapBillingStatusToProfile(state.status) : "none";
   const entitled = grantsAccess(subscriptionStatus);
 
+  // Latest manual grant: the SECOND durable source of access_until (the coach's
+  // off-platform concession). Read here so the recompute below cannot wipe it —
+  // the defect this architecture avoids. Ordered + limited, not maybeSingle: a
+  // duplicate must never turn the webhook into a permanent 500. Missing/none -> null.
+  const grantRows = unwrap(
+    await admin
+      .from("access_grants")
+      .select("granted_until")
+      .eq("athlete_id", athleteId)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    "access_grants latest select for sync",
+  );
+  const latestGrant = (grantRows?.[0]?.granted_until as string | null | undefined) ?? null;
+
   const profileRows = unwrap(
     await admin.from("profiles").select("tier, coach_id").eq("id", athleteId).limit(1),
     "profiles select for sync",
@@ -118,18 +135,15 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
 
   const update: Record<string, unknown> = {
     subscription_status: subscriptionStatus,
-    // access_until: the single authority for access (slice F1). Recomputed from
-    // ALL the athlete's rows exactly like the status, and for the same reason
-    // (invariant 3) — resolveAccountState has already collapsed the multi-row
-    // truth, and state.periodEnd is the furthest instant that still serves them.
-    // A prepaid term is stored as that row's period end, so subscription and
-    // prepaid resolve through the same path with no extra branch here.
-    // Fixed value, safe to re-run (invariant 2).
-    // Not entitled -> null: fail-closed. Note the corollary — an `active` row
-    // with no period end (the window between checkout and a successful Stripe
-    // enrichment) also writes null, i.e. no access until the retry fills the
-    // date in. Deliberate: a date we cannot justify is worse than a short gap.
-    access_until: entitled ? (state?.periodEnd ?? null) : null,
+    // access_until: the single authority for access (slice F1). It is NOT
+    // resolveAccountState's single winner (which is precedence-first, so an
+    // 'active' row with a PAST date would beat a 'canceling' one still paid, and
+    // would ignore a coach grant). It is the MAX over the two durable sources —
+    // furthest access-granting subscription period end, and the latest manual
+    // grant — computed by the pure resolveAccessUntil. Fixed value from durable
+    // rows: safe to re-run (invariant 2), and neither writer can wipe the other.
+    // A past/None result reads as no access downstream (fail-closed).
+    access_until: resolveAccessUntil(rows, latestGrant),
   };
 
   if (entitled && state?.planId) {

@@ -279,6 +279,60 @@ export function priceIdFromSubscription(subscription: unknown): string | null {
   return idOf(prop(items[0], "price"));
 }
 
+// ------------------------------------------------------------- access_until
+
+/** Row statuses that currently entitle to access. `canceling` still pays
+ * through the end of the period; trialing is stored as `active`. */
+const ACCESS_GRANTING_ROW: ReadonlySet<RowSubscriptionStatus> = new Set(["active", "canceling"]);
+
+/** ISO string -> epoch ms, or null for anything unusable. Accepts both the `Z`
+ * and the `+00:00` offset forms that Postgres/PostgREST and toISOString emit. */
+function isoToMs(value: unknown): number | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * PURE. The ONE authority for access (slice F1):
+ *   access_until = max( furthest current_period_end among ACCESS-GRANTING
+ *                       athlete_subscriptions rows, latest manual grant )
+ *
+ * Computed from durable rows, so BOTH writers (this webhook and the RPC
+ * grant_athlete_access) converge on the same value and neither can wipe the
+ * other's contribution:
+ *   - a Stripe event can no longer null out a coach's manual grant;
+ *   - an EXPIRED prepaid row (status 'active' forever, current_period_end in the
+ *     past) can no longer switch off a 'canceling' subscription still paid: the
+ *     max keeps the future date. resolveAccountState is precedence-first and
+ *     would pick the 'active' past row, which is exactly the bug this avoids —
+ *     hence access_until does NOT ride on resolveAccountState's single winner.
+ *
+ * `latestGrantIso` is the granted_until of the most recent access_grants row for
+ * the athlete (null if none). Comparison is by epoch, not by string, because
+ * the two inputs may arrive in different ISO spellings for the same instant.
+ * Returns null when nothing grants access; a past result is deliberate and reads
+ * as "no access" downstream (fail-closed). No clock is consulted.
+ */
+export function resolveAccessUntil(rows: unknown, latestGrantIso: unknown): string | null {
+  let bestMs: number | null = null;
+  const consider = (value: unknown) => {
+    const ms = isoToMs(value);
+    if (ms === null) return;
+    if (bestMs === null || ms > bestMs) bestMs = ms;
+  };
+
+  if (Array.isArray(rows)) {
+    for (const row of rows) {
+      if (!ACCESS_GRANTING_ROW.has(mapBillingStatusToRow(prop(row, "status")))) continue;
+      consider(prop(row, "current_period_end"));
+    }
+  }
+  consider(latestGrantIso);
+
+  return bestMs === null ? null : new Date(bestMs).toISOString();
+}
+
 // ------------------------------------------------------- multi-row resolution
 
 /** Lower wins. Mirrors "how much access does this row grant, right now". */
@@ -311,9 +365,8 @@ export function resolveAccountState(rows: unknown): AccountState | null {
     const planIdRaw = prop(row, "plan_id");
     const planId = typeof planIdRaw === "string" && planIdRaw.length > 0 ? planIdRaw : null;
     const periodEndRaw = prop(row, "current_period_end");
-    const periodEnd = typeof periodEndRaw === "string" && periodEndRaw.length > 0
-      ? periodEndRaw
-      : null;
+    const periodEnd =
+      typeof periodEndRaw === "string" && periodEndRaw.length > 0 ? periodEndRaw : null;
 
     if (rank < bestRank) {
       best = { status, planId, periodEnd };

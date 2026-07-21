@@ -15,6 +15,7 @@ import {
   periodEndIso,
   prepaidTermEndIso,
   priceIdFromSubscription,
+  resolveAccessUntil,
   resolveAccountState,
   subscriptionIdFromInvoice,
   tierForPlan,
@@ -320,7 +321,9 @@ Deno.test("subscriptionIdFromInvoice: forma Basil con id stringa → id", () => 
 
 Deno.test("subscriptionIdFromInvoice: forma Basil con oggetto espanso → .id", () => {
   const invoice = {
-    parent: { subscription_details: { subscription: { id: "sub_finta_2", object: "subscription" } } },
+    parent: {
+      subscription_details: { subscription: { id: "sub_finta_2", object: "subscription" } },
+    },
   };
   assertEquals(subscriptionIdFromInvoice(invoice), "sub_finta_2");
 });
@@ -343,7 +346,11 @@ Deno.test("subscriptionIdFromInvoice: parent presente ma non di tipo subscriptio
   // parent NON è un union discriminante usabile: subscription_details è nullable
   // per conto suo, quindi il narrowing va fatto sul CAMPO, non su parent.type.
   const invoice = {
-    parent: { type: "quote_details", quote_details: { quote: "qt_finto" }, subscription_details: null },
+    parent: {
+      type: "quote_details",
+      quote_details: { quote: "qt_finto" },
+      subscription_details: null,
+    },
   };
   assertEquals(subscriptionIdFromInvoice(invoice), null);
 });
@@ -418,20 +425,18 @@ Deno.test("periodEndIso: item con valore non usabile viene saltato, non azzera i
 
 Deno.test("periodEndIso: nessun valore usabile → null (mai Invalid Date, mai 1970)", () => {
   // Kills `new Date(x*1000).toISOString()` senza guardia: darebbe throw o 1970-01-01.
-  for (
-    const bad of [
-      null,
-      undefined,
-      {},
-      { current_period_end: null },
-      { current_period_end: 0 },
-      { current_period_end: -1 },
-      { current_period_end: Number.NaN },
-      { current_period_end: Number.POSITIVE_INFINITY },
-      { current_period_end: 1e15 },
-      { items: { data: [{}] } },
-    ]
-  ) {
+  for (const bad of [
+    null,
+    undefined,
+    {},
+    { current_period_end: null },
+    { current_period_end: 0 },
+    { current_period_end: -1 },
+    { current_period_end: Number.NaN },
+    { current_period_end: Number.POSITIVE_INFINITY },
+    { current_period_end: 1e15 },
+    { items: { data: [{}] } },
+  ]) {
     assertEquals(periodEndIso(bad), null, JSON.stringify(bad ?? null));
   }
 });
@@ -473,9 +478,17 @@ Deno.test("prepaidTermEndIso: termine assente o fuori dominio → null (fail clo
   // NULL e' il caso reale: billing_plans.term_days non e' vincolata a NOT NULL
   // per i one_time (vedi 20260721150100), quindi il piano mal configurato
   // arriva fin qui e DEVE produrre null, mai una data inventata.
-  for (
-    const bad of [null, undefined, 0, -1, 30.5, Number.NaN, Number.POSITIVE_INFINITY, "180", {}]
-  ) {
+  for (const bad of [
+    null,
+    undefined,
+    0,
+    -1,
+    30.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    "180",
+    {},
+  ]) {
     assertEquals(prepaidTermEndIso({ created: CREATED }, bad), null, JSON.stringify(bad ?? null));
   }
 });
@@ -512,7 +525,14 @@ Deno.test("priceIdFromSubscription: più di un item → null (fail-closed)", () 
 });
 
 Deno.test("priceIdFromSubscription: items assenti/vuoti/degeneri → null", () => {
-  for (const bad of [null, undefined, {}, { items: {} }, { items: { data: [] } }, { items: { data: [{}] } }]) {
+  for (const bad of [
+    null,
+    undefined,
+    {},
+    { items: {} },
+    { items: { data: [] } },
+    { items: { data: [{}] } },
+  ]) {
     assertEquals(priceIdFromSubscription(bad), null, JSON.stringify(bad ?? null));
   }
 });
@@ -548,20 +568,23 @@ Deno.test("resolveAccountState: active vince su canceled, in qualsiasi ordine", 
   assertEquals(resolveAccountState([nuovo, vecchio])?.planId, "plan-finto-nuovo");
 });
 
-Deno.test("resolveAccountState: precedenza active > canceling > past_due > incomplete > canceled", () => {
-  const rows = [
-    { status: "canceled", plan_id: "p-canceled" },
-    { status: "incomplete", plan_id: "p-incomplete" },
-    { status: "past_due", plan_id: "p-past-due" },
-    { status: "canceling", plan_id: "p-canceling" },
-    { status: "active", plan_id: "p-active" },
-  ];
-  assertEquals(resolveAccountState(rows)?.planId, "p-active");
-  assertEquals(resolveAccountState(rows.slice(0, 4))?.planId, "p-canceling");
-  assertEquals(resolveAccountState(rows.slice(0, 3))?.planId, "p-past-due");
-  assertEquals(resolveAccountState(rows.slice(0, 2))?.planId, "p-incomplete");
-  assertEquals(resolveAccountState(rows.slice(0, 1))?.planId, "p-canceled");
-});
+Deno.test(
+  "resolveAccountState: precedenza active > canceling > past_due > incomplete > canceled",
+  () => {
+    const rows = [
+      { status: "canceled", plan_id: "p-canceled" },
+      { status: "incomplete", plan_id: "p-incomplete" },
+      { status: "past_due", plan_id: "p-past-due" },
+      { status: "canceling", plan_id: "p-canceling" },
+      { status: "active", plan_id: "p-active" },
+    ];
+    assertEquals(resolveAccountState(rows)?.planId, "p-active");
+    assertEquals(resolveAccountState(rows.slice(0, 4))?.planId, "p-canceling");
+    assertEquals(resolveAccountState(rows.slice(0, 3))?.planId, "p-past-due");
+    assertEquals(resolveAccountState(rows.slice(0, 2))?.planId, "p-incomplete");
+    assertEquals(resolveAccountState(rows.slice(0, 1))?.planId, "p-canceled");
+  },
+);
 
 Deno.test("resolveAccountState: a parità di stato vince la scadenza più lontana", () => {
   const rows = [
@@ -572,26 +595,37 @@ Deno.test("resolveAccountState: a parità di stato vince la scadenza più lontan
   assertEquals(resolveAccountState([...rows].reverse())?.planId, "p-lontano");
 });
 
-Deno.test("resolveAccountState: a parità di stato una riga senza scadenza non batte una con scadenza", () => {
-  const rows = [
-    { status: "active", plan_id: "p-senza-data", current_period_end: null },
-    { status: "active", plan_id: "p-con-data", current_period_end: "2026-12-01T00:00:00.000Z" },
-  ];
-  assertEquals(resolveAccountState(rows)?.planId, "p-con-data");
-  assertEquals(resolveAccountState([...rows].reverse())?.planId, "p-con-data");
-});
+Deno.test(
+  "resolveAccountState: a parità di stato una riga senza scadenza non batte una con scadenza",
+  () => {
+    const rows = [
+      { status: "active", plan_id: "p-senza-data", current_period_end: null },
+      { status: "active", plan_id: "p-con-data", current_period_end: "2026-12-01T00:00:00.000Z" },
+    ];
+    assertEquals(resolveAccountState(rows)?.planId, "p-con-data");
+    assertEquals(resolveAccountState([...rows].reverse())?.planId, "p-con-data");
+  },
+);
 
 Deno.test("resolveAccountState: stato ignoto sulla riga → incomplete, non guadagna accesso", () => {
   const state = resolveAccountState([{ status: "stato_finto", plan_id: "p-finto" }]);
   assertEquals(state?.status, "incomplete");
 });
 
-Deno.test("resolveAccountState: trialing sulla riga → active (coerente con mapBillingStatusToRow)", () => {
-  assertEquals(resolveAccountState([{ status: "trialing", plan_id: "p-trial" }])?.status, "active");
-});
+Deno.test(
+  "resolveAccountState: trialing sulla riga → active (coerente con mapBillingStatusToRow)",
+  () => {
+    assertEquals(
+      resolveAccountState([{ status: "trialing", plan_id: "p-trial" }])?.status,
+      "active",
+    );
+  },
+);
 
 Deno.test("resolveAccountState: plan_id e scadenza non-stringa → null, mai valori sporchi", () => {
-  const state = resolveAccountState([{ status: "active", plan_id: 42, current_period_end: 1767225600 }]);
+  const state = resolveAccountState([
+    { status: "active", plan_id: 42, current_period_end: 1767225600 },
+  ]);
   assertEquals(state, { status: "active", planId: null, periodEnd: null });
 });
 
@@ -600,4 +634,112 @@ Deno.test("resolveAccountState: lo stato risolto resta dentro l'enum riga", () =
   const state = resolveAccountState(rows);
   assert(state !== null);
   assert(ROW_ENUM.includes(state.status), "valore fuori enum");
+});
+
+// ------------------------------------------------------------- resolveAccessUntil
+// access_until = max(copertura-abbonamento fra le righe che danno accesso,
+// ultima-concessione). Il confronto e' per istante, non per stringa, e nessun
+// orologio viene consultato: una data passata torna com'e' (fail-closed a valle).
+
+const FUT_1 = "2027-01-31T00:00:00.000Z";
+const FUT_2 = "2027-06-30T00:00:00.000Z";
+const PAST_1 = "2020-01-01T00:00:00.000Z";
+
+Deno.test("resolveAccessUntil: nessuna riga e nessuna concessione → null", () => {
+  assertEquals(resolveAccessUntil([], null), null);
+  assertEquals(resolveAccessUntil(null, null), null);
+  assertEquals(resolveAccessUntil(undefined, undefined), null);
+});
+
+Deno.test("resolveAccessUntil: solo abbonamento active → la sua scadenza", () => {
+  assertEquals(resolveAccessUntil([{ status: "active", current_period_end: FUT_1 }], null), FUT_1);
+});
+
+Deno.test("resolveAccessUntil: solo concessione manuale, nessuna riga → la concessione", () => {
+  assertEquals(resolveAccessUntil([], FUT_1), FUT_1);
+});
+
+Deno.test(
+  "resolveAccessUntil: il webhook NON puo' cancellare la concessione del coach (tema A)",
+  () => {
+    // Nessuna riga che dia accesso (past_due), ma c'e' una concessione futura:
+    // access_until resta la concessione, non null. E' il difetto che il modello evita.
+    assertEquals(
+      resolveAccessUntil([{ status: "past_due", current_period_end: null }], FUT_1),
+      FUT_1,
+    );
+  },
+);
+
+Deno.test(
+  "resolveAccessUntil: prepagato SCADUTO non spegne un canceling ancora pagato (tema C)",
+  () => {
+    // Riga prepagata 'active' con data PASSATA (status 'active' per sempre) +
+    // abbonamento 'canceling' con data FUTURA. resolveAccountState (precedence-first)
+    // sceglierebbe l'active passato; qui il max prende la data futura -> accesso salvo.
+    const rows = [
+      { status: "active", current_period_end: PAST_1 },
+      { status: "canceling", current_period_end: FUT_1 },
+    ];
+    assertEquals(resolveAccessUntil(rows, null), FUT_1);
+    assertEquals(resolveAccessUntil([...rows].reverse(), null), FUT_1);
+  },
+);
+
+Deno.test(
+  "resolveAccessUntil: fra piu' coperture vince la piu' lontana (sub vs sub vs grant)",
+  () => {
+    const rows = [
+      { status: "active", current_period_end: FUT_1 },
+      { status: "canceling", current_period_end: FUT_2 },
+    ];
+    assertEquals(resolveAccessUntil(rows, PAST_1), FUT_2);
+    // Se la concessione e' la piu' lontana, vince lei.
+    assertEquals(
+      resolveAccessUntil([{ status: "active", current_period_end: FUT_1 }], FUT_2),
+      FUT_2,
+    );
+  },
+);
+
+Deno.test("resolveAccessUntil: le righe che NON danno accesso non contano", () => {
+  // past_due, canceled, incomplete: escluse. Con solo queste e nessuna concessione → null.
+  const rows = [
+    { status: "past_due", current_period_end: FUT_2 },
+    { status: "canceled", current_period_end: FUT_2 },
+    { status: "incomplete", current_period_end: FUT_2 },
+  ];
+  assertEquals(resolveAccessUntil(rows, null), null);
+});
+
+Deno.test(
+  "resolveAccessUntil: unico prepagato scaduto → data passata (fail-closed a valle)",
+  () => {
+    assertEquals(
+      resolveAccessUntil([{ status: "active", current_period_end: PAST_1 }], null),
+      PAST_1,
+    );
+  },
+);
+
+Deno.test("resolveAccessUntil: confronto per ISTANTE, non per stringa (Z vs +00:00)", () => {
+  // Stesso istante scritto in due forme: non deve sballare l'ordinamento.
+  const zForm = "2027-01-31T00:00:00.000Z";
+  const offsetForm = "2027-01-31T01:00:00+01:00"; // identico istante
+  const rows = [{ status: "active", current_period_end: offsetForm }];
+  assertEquals(resolveAccessUntil(rows, zForm), zForm); // normalizzato in Z
+});
+
+Deno.test("resolveAccessUntil: date e stati sporchi ignorati, mai un valore inventato", () => {
+  const rows = [
+    { status: "active", current_period_end: 1767225600 }, // numero, non stringa
+    { status: "active", current_period_end: "non-una-data" },
+    { status: "stato_finto", current_period_end: FUT_2 }, // stato ignoto → escluso
+  ];
+  assertEquals(resolveAccessUntil(rows, "spazzatura"), null);
+});
+
+Deno.test("resolveAccessUntil: normalizza l'output in ISO canonico (Z)", () => {
+  const out = resolveAccessUntil([{ status: "active", current_period_end: FUT_1 }], null);
+  assertEquals(out, new Date(FUT_1).toISOString());
 });
