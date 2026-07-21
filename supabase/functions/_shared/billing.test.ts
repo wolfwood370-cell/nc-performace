@@ -13,6 +13,7 @@ import {
   mapBillingStatusToRow,
   nextProfileTier,
   periodEndIso,
+  prepaidTermEndIso,
   priceIdFromSubscription,
   resolveAccountState,
   subscriptionIdFromInvoice,
@@ -433,6 +434,59 @@ Deno.test("periodEndIso: nessun valore usabile → null (mai Invalid Date, mai 1
   ) {
     assertEquals(periodEndIso(bad), null, JSON.stringify(bad ?? null));
   }
+});
+
+// ------------------------------------------------------------ prepaidTermEndIso
+
+const DAY = 86400;
+/** 2026-01-01T00:00:00Z, l'ancora usata da tutti i casi qui sotto. */
+const CREATED = 1767225600;
+
+Deno.test("prepaidTermEndIso: ancora + termine → istante esatto in ISO", () => {
+  assertEquals(
+    prepaidTermEndIso({ created: CREATED }, 180),
+    new Date((CREATED + 180 * DAY) * 1000).toISOString(),
+  );
+});
+
+Deno.test("prepaidTermEndIso: e' IDEMPOTENTE — un retry Stripe ricalcola lo stesso istante", () => {
+  // Il cuore del contratto (invariante 2 del webhook): l'ancora sta dentro
+  // l'evento firmato, quindi la rielaborazione della stessa sessione non puo'
+  // regalare un altro termine. Un'implementazione basata su now() farebbe
+  // fallire questo test solo per caso, quindi lo si verifica sull'uguaglianza
+  // di due chiamate separate sullo STESSO payload.
+  const session = { created: CREATED };
+  assertEquals(prepaidTermEndIso(session, 90), prepaidTermEndIso(session, 90));
+  // ...e due sessioni diverse danno scadenze diverse: non e' una costante.
+  assert(prepaidTermEndIso({ created: CREATED + DAY }, 90) !== prepaidTermEndIso(session, 90));
+});
+
+Deno.test("prepaidTermEndIso: termini diversi sulla stessa ancora → scadenze ordinate", () => {
+  const session = { created: CREATED };
+  const t90 = prepaidTermEndIso(session, 90)!;
+  const t180 = prepaidTermEndIso(session, 180)!;
+  const t365 = prepaidTermEndIso(session, 365)!;
+  assert(t90 < t180 && t180 < t365, "le scadenze devono crescere col termine");
+});
+
+Deno.test("prepaidTermEndIso: termine assente o fuori dominio → null (fail closed)", () => {
+  // NULL e' il caso reale: billing_plans.term_days non e' vincolata a NOT NULL
+  // per i one_time (vedi 20260721150100), quindi il piano mal configurato
+  // arriva fin qui e DEVE produrre null, mai una data inventata.
+  for (
+    const bad of [null, undefined, 0, -1, 30.5, Number.NaN, Number.POSITIVE_INFINITY, "180", {}]
+  ) {
+    assertEquals(prepaidTermEndIso({ created: CREATED }, bad), null, JSON.stringify(bad ?? null));
+  }
+});
+
+Deno.test("prepaidTermEndIso: ancora assente o malformata → null, mai la data di oggi", () => {
+  for (const bad of [null, undefined, {}, { created: null }, { created: 0 }, { created: -1 }]) {
+    assertEquals(prepaidTermEndIso(bad, 180), null, JSON.stringify(bad ?? null));
+  }
+  // Ancora fuori scala (millisecondi passati per secondi): la data risultante
+  // non e' rappresentabile e va rifiutata, non troncata.
+  assertEquals(prepaidTermEndIso({ created: 1e15 }, 180), null);
 });
 
 // ---------------------------------------------------------- priceIdFromSubscription

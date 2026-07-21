@@ -241,6 +241,31 @@ export function periodEndIso(subscription: unknown): string | null {
 }
 
 /**
+ * PURE, never throws. PREPAID term -> the instant access stops, as an ISO string.
+ *
+ * A one-off checkout (mode: payment) produces NO subscription, so there is no
+ * Stripe period to read: the duration is a property of the PLAN
+ * (billing_plans.term_days), which is why it arrives as a separate argument
+ * rather than being dug out of the payload.
+ *
+ * The anchor is `session.created` — an instant FROZEN inside the signed event —
+ * and deliberately never the wall clock. Stripe retries a delivery for up to 3
+ * days, and `now() + term` would hand out a fresh term on every retry, turning
+ * the handler into a read-modify-write and breaking invariant 2 of the webhook
+ * (fixed-value writes, safe to re-run). With this anchor the tenth retry
+ * computes exactly the same instant as the first.
+ *
+ * Returns null for an unusable term or anchor, so the caller can fail closed
+ * (and loudly) rather than persist a date it cannot justify.
+ */
+export function prepaidTermEndIso(session: unknown, termDays: unknown): string | null {
+  if (typeof termDays !== "number" || !Number.isInteger(termDays) || termDays <= 0) return null;
+  const created = prop(session, "created");
+  if (typeof created !== "number" || !Number.isFinite(created) || created <= 0) return null;
+  return epochSecondsToIso(created + termDays * 86400);
+}
+
+/**
  * PURE, never throws. Subscription -> the Stripe price id currently billed.
  * Needed because the Customer Portal can swap the price on the SAME subscription:
  * without re-resolving the plan from the price, athlete_subscriptions.plan_id keeps

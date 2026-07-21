@@ -23,6 +23,14 @@
 //    cache straight from the event in flight means the `deleted` of an old plan
 //    switches off the plan the athlete just bought. syncProfileFromAthlete() always
 //    re-reads every row of the athlete and resolves the winner.
+//
+// Slice F1 (2026-07-21) adds ONE output to the same machinery: profiles.access_until,
+// the single authority for access. Two of its three sources are here — the renewal
+// date of a subscription, and the term of a PREPAID purchase (mode: payment), whose
+// duration comes from billing_plans.term_days and is anchored on session.created so
+// a retry recomputes the same instant. The third source is the coach's manual grant
+// (RPC grant_athlete_access). Nothing READS access_until yet: the predicate flip is
+// the next slice.
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
@@ -36,6 +44,7 @@ import {
   mapBillingStatusToRow,
   nextProfileTier,
   periodEndIso,
+  prepaidTermEndIso,
   priceIdFromSubscription,
   resolveAccountState,
   subscriptionIdFromInvoice,
@@ -107,7 +116,21 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
     throw new Error("db_error:profile_missing");
   }
 
-  const update: Record<string, unknown> = { subscription_status: subscriptionStatus };
+  const update: Record<string, unknown> = {
+    subscription_status: subscriptionStatus,
+    // access_until: the single authority for access (slice F1). Recomputed from
+    // ALL the athlete's rows exactly like the status, and for the same reason
+    // (invariant 3) — resolveAccountState has already collapsed the multi-row
+    // truth, and state.periodEnd is the furthest instant that still serves them.
+    // A prepaid term is stored as that row's period end, so subscription and
+    // prepaid resolve through the same path with no extra branch here.
+    // Fixed value, safe to re-run (invariant 2).
+    // Not entitled -> null: fail-closed. Note the corollary — an `active` row
+    // with no period end (the window between checkout and a successful Stripe
+    // enrichment) also writes null, i.e. no access until the retry fills the
+    // date in. Deliberate: a date we cannot justify is worse than a short gap.
+    access_until: entitled ? (state?.periodEnd ?? null) : null,
+  };
 
   if (entitled && state?.planId) {
     const planRows = unwrap(
@@ -259,8 +282,6 @@ serve(async (req) => {
           break;
         }
 
-        // One-off plans (mode: payment) have no subscription: the purchase is done,
-        // so the row is active with no renewal date.
         let rowStatus = "active";
         let periodEnd: string | null = null;
         // A Stripe outage must not cost us the link between athlete, plan and
@@ -268,6 +289,8 @@ serve(async (req) => {
         // written either way and the failure is re-raised afterwards: Stripe retries,
         // and the retry fills in the status and the renewal date.
         let enrichmentFailed = false;
+        // Same shape for the prepaid misconfiguration below: write first, shout after.
+        let prepaidTermMissing = false;
         if (subscriptionId) {
           try {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
@@ -281,6 +304,27 @@ serve(async (req) => {
               subscriptionId,
               message: retrieveError instanceof Error ? retrieveError.message : "unknown",
             });
+          }
+        } else {
+          // PREPAID (mode: payment). There is no subscription and therefore no
+          // Stripe period to read: the purchase buys a TERM, and the term is a
+          // property of the plan (billing_plans.term_days, slice F1).
+          //
+          // The computed end is stored in the row's current_period_end — same
+          // column, same meaning ("until when is this row serving the athlete"),
+          // which is what lets resolveAccountState keep resolving the two shapes
+          // identically, with no clock and no new branch. Before F1 this stayed
+          // NULL, so a prepaid row was active FOREVER; now it fails closed by time.
+          const planRows = unwrap(
+            await adminClient.from("billing_plans").select("term_days").eq("id", planId).limit(1),
+            "billing_plans select for prepaid term",
+          );
+          periodEnd = prepaidTermEndIso(session, planRows?.[0]?.term_days ?? null);
+          if (!periodEnd) {
+            // The plan is misconfigured (no usable term_days). Never guess a
+            // duration and never grant an endless one: see the throw below.
+            prepaidTermMissing = true;
+            console.error("[STRIPE-WEBHOOK] prepaid plan without a usable term_days", { planId });
           }
         }
 
@@ -312,6 +356,14 @@ serve(async (req) => {
         if (enrichmentFailed) {
           // The durable part is committed; fail loud so the retry completes the row.
           throw new Error("stripe_error:subscription_retrieve");
+        }
+        if (prepaidTermMissing) {
+          // The row and the athlete<->plan<->payment link are committed, so nothing
+          // is lost. Failing loud is deliberate: the alternative is a paid athlete
+          // with no access and no alarm anywhere. This surfaces as a failing endpoint
+          // in the Stripe dashboard, and once term_days is set on the plan the retry
+          // (Stripe keeps trying for 3 days) completes the row on its own.
+          throw new Error("config_error:plan_term_days");
         }
         break;
       }
