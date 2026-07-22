@@ -72,6 +72,18 @@ function ctaBlock(label: string, safeHref: string): string {
 </table>`;
 }
 
+// Boxed one-time code, monospace. `safeCode` must already be escaped.
+// letter-spacing makes the six digits readable at a glance; the box is a
+// table (not a <div>) because Outlook drops padding/background on divs.
+function codeBlock(safeCode: string): string {
+  return `<p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:#64748b;">Oppure inserisci questo codice nell'app:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 26px;">
+  <tr><td style="border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 26px;" align="center">
+    <span style="font-family:Consolas,'Courier New',monospace;font-size:26px;font-weight:700;letter-spacing:.28em;color:#0f172a;">${safeCode}</span>
+  </td></tr>
+</table>`;
+}
+
 // Plain-link fallback under the CTA. `safeHref` must already be escaped.
 function fallbackBlock(safeHref: string): string {
   return `<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#64748b;">Oppure copia e incolla questo link nel browser:</p>
@@ -133,6 +145,38 @@ ${fallbackBlock(safeLink)}`;
       reason:
         "Ricevi questa email perché è stato richiesto un recupero password per questo indirizzo.",
       closing: "Se non l'hai richiesta tu, puoi ignorarla in tutta sicurezza.",
+    }),
+  };
+}
+
+export interface LoginLinkEmailParams {
+  actionLink: string;
+  /** The 6-digit one-time code (`properties.email_otp` of generateLink). */
+  code: string;
+}
+
+// Passwordless sign-in email: one CTA link AND the equivalent one-time code —
+// same underlying token, so using either consumes the other. No password is
+// ever mentioned or transported. The code stays OUT of the subject on purpose:
+// notification previews would put it on a locked screen.
+export function loginLinkEmail({ actionLink, code }: LoginLinkEmailParams): {
+  subject: string;
+  html: string;
+} {
+  const safeLink = escapeHtml(actionLink);
+  const safeCode = escapeHtml(code);
+  const body = `<h1 style="margin:0 0 14px;font-size:20px;font-weight:700;color:#0f172a;">Accedi a NC Performance Hub</h1>
+<p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#334155;">
+  Hai richiesto di accedere al tuo account. Entra con il pulsante qui sotto: link e codice valgono una sola volta e scadono a breve.
+</p>
+${ctaBlock("Accedi", safeLink)}
+${codeBlock(safeCode)}
+${fallbackBlock(safeLink)}`;
+  return {
+    subject: "Il tuo accesso a NC Performance Hub",
+    html: wrapLayout(body, {
+      reason: "Ricevi questa email perché è stato richiesto un accesso per questo indirizzo.",
+      closing: "Se non l'hai richiesto tu, puoi ignorarla in tutta sicurezza.",
     }),
   };
 }

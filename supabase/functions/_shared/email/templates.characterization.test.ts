@@ -7,7 +7,7 @@
 // determinism (any timestamp or random in the output would break equality).
 
 import { assertEquals } from "jsr:@std/assert@1";
-import { inviteEmail, recoveryEmail } from "./templates.ts";
+import { inviteEmail, loginLinkEmail, recoveryEmail } from "./templates.ts";
 import { CHARACTERIZATION_SCENARIOS } from "./templates.characterization.fixture.ts";
 import expected from "./templates.characterization.expected.json" with { type: "json" };
 
@@ -22,7 +22,12 @@ Deno.test("characterization: subject+html pinnati, byte-identici su ogni scenari
             firstName: scenario.input.firstName,
             actionLink: scenario.input.actionLink,
           })
-        : recoveryEmail({ actionLink: scenario.input.actionLink });
+        : scenario.kind === "login-link"
+          ? loginLinkEmail({
+              actionLink: scenario.input.actionLink,
+              code: scenario.input.code,
+            })
+          : recoveryEmail({ actionLink: scenario.input.actionLink });
     assertEquals(actual.subject, expected[i].result.subject, `drift subject: ${scenario.name}`);
     assertEquals(actual.html, expected[i].result.html, `drift html: ${scenario.name}`);
   }

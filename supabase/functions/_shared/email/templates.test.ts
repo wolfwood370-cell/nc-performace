@@ -4,7 +4,7 @@
 // brand tokens, per-email footer copy. No I/O — see templates.ts header.
 
 import { assert, assertEquals, assertFalse, assertStringIncludes } from "jsr:@std/assert@1";
-import { escapeHtml, inviteEmail, recoveryEmail } from "./templates.ts";
+import { escapeHtml, inviteEmail, loginLinkEmail, recoveryEmail } from "./templates.ts";
 
 // Amp-free link so the raw form can be pinned verbatim inside href="...".
 const LINK = "https://xgxtplqlewpqjzghvbke.supabase.co/auth/v1/verify?token=abc123";
@@ -51,6 +51,7 @@ Deno.test("href = actionLink esatto quando il link non contiene &", () => {
   for (const html of [
     inviteEmail({ firstName: "Marco", actionLink: LINK }).html,
     recoveryEmail({ actionLink: LINK }).html,
+    loginLinkEmail({ actionLink: LINK, code: "123456" }).html,
   ]) {
     assertStringIncludes(html, `href="${LINK}"`);
   }
@@ -60,6 +61,7 @@ Deno.test("actionLink con &: &amp; in href e nel testo fallback, mai la forma ra
   for (const html of [
     inviteEmail({ firstName: "Marco", actionLink: LINK_AMP }).html,
     recoveryEmail({ actionLink: LINK_AMP }).html,
+    loginLinkEmail({ actionLink: LINK_AMP, code: "123456" }).html,
   ]) {
     assertStringIncludes(html, `href="${LINK_AMP_ESCAPED}"`);
     // Escaped link appears exactly 3 times: CTA href, fallback href, fallback text.
@@ -83,6 +85,7 @@ Deno.test("brand NC: wordmark, navy, accent, lang/charset; niente viola legacy",
   for (const html of [
     inviteEmail({ firstName: "Marco", actionLink: LINK }).html,
     recoveryEmail({ actionLink: LINK }).html,
+    loginLinkEmail({ actionLink: LINK, code: "123456" }).html,
   ]) {
     assertStringIncludes(html, "NC TRAINING SYSTEMS");
     assertStringIncludes(html, "#003e62");
@@ -108,9 +111,16 @@ Deno.test("footer differenziato: motivo e chiusura propri di ogni email", () => 
   assertStringIncludes(recovery, "Se non l'hai richiesta tu, puoi ignorarla in tutta sicurezza.");
   assertFalse(recovery.includes("Se non ti aspettavi questa email"));
 
-  // Shared middle line present in both.
+  const login = loginLinkEmail({ actionLink: LINK, code: "123456" }).html;
+  assertStringIncludes(login, "Ricevi questa email perché è stato richiesto un accesso");
+  assertStringIncludes(login, "Se non l'hai richiesto tu, puoi ignorarla in tutta sicurezza.");
+  assertFalse(login.includes("un recupero password"));
+  assertFalse(login.includes("un coach ti ha invitato"));
+
+  // Shared middle line present in all three.
   assertStringIncludes(invite, "NC Training Systems · Performance Hub");
   assertStringIncludes(recovery, "NC Training Systems · Performance Hub");
+  assertStringIncludes(login, "NC Training Systems · Performance Hub");
 });
 
 Deno.test("recoveryEmail: CTA e nota di scadenza presenti", () => {
@@ -123,4 +133,43 @@ Deno.test("inviteEmail: CTA «Accetta l'invito» presente", () => {
   const { html } = inviteEmail({ firstName: "Marco", actionLink: LINK });
   assertStringIncludes(html, ">Accetta l'invito</a>");
   assert(html.includes("<strong>NC Performance Hub</strong>"));
+});
+
+Deno.test("loginLinkEmail: subject esatto e codice MAI nel subject", () => {
+  const { subject } = loginLinkEmail({ actionLink: LINK, code: "482915" });
+  assertEquals(subject, "Il tuo accesso a NC Performance Hub");
+  assertFalse(subject.includes("482915"));
+});
+
+Deno.test("loginLinkEmail: CTA «Accedi» + codice in monospace nel corpo", () => {
+  const { html } = loginLinkEmail({ actionLink: LINK, code: "482915" });
+  assertStringIncludes(html, ">Accedi</a>");
+  assertStringIncludes(html, "Oppure inserisci questo codice nell'app:");
+  assertStringIncludes(html, "monospace");
+  assertStringIncludes(html, ">482915</span>");
+});
+
+// Invariante di fetta: nessuna password viaggia — né come valore né come
+// concetto — nell'email di accesso passwordless. Pin non vacuo: fallisce
+// se qualcuno reintroduce un campo/menzione password in questo template.
+Deno.test("loginLinkEmail: la parola «password» non compare da nessuna parte", () => {
+  const { subject, html } = loginLinkEmail({ actionLink: LINK, code: "482915" });
+  assertFalse(/password/i.test(subject));
+  assertFalse(/password/i.test(html));
+});
+
+Deno.test("loginLinkEmail: markup nel codice escapato (niente <script>)", () => {
+  const { html } = loginLinkEmail({
+    actionLink: LINK,
+    code: "<script>alert(1)</script>",
+  });
+  assertFalse(html.includes("<script>"));
+  assertStringIncludes(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
+});
+
+Deno.test("loginLinkEmail: determinismo — due run byte-identici", () => {
+  const a = loginLinkEmail({ actionLink: LINK, code: "482915" });
+  const b = loginLinkEmail({ actionLink: LINK, code: "482915" });
+  assertEquals(a.subject, b.subject);
+  assertEquals(a.html, b.html);
 });

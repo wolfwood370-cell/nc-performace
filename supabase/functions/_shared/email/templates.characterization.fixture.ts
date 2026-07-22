@@ -29,4 +29,14 @@ export const CHARACTERIZATION_SCENARIOS = [
         "https://xgxtplqlewpqjzghvbke.supabase.co/auth/v1/verify?token=xyz789&type=recovery&redirect_to=https://nc-performace-mu.vercel.app",
     },
   },
+  {
+    name: "login-link",
+    kind: "login-link" as const,
+    input: {
+      firstName: "",
+      code: "482915",
+      actionLink:
+        "https://xgxtplqlewpqjzghvbke.supabase.co/auth/v1/verify?token=mno456&type=magiclink&redirect_to=https://nc-performace-mu.vercel.app/attiva",
+    },
+  },
 ];
