@@ -7,9 +7,12 @@ project_id = "xgxtplqlewpqjzghvbke"
 # authenticated function so the policy is auditable in one place and a new
 # function added in the future inherits the safe default.
 #
-# Only three functions intentionally bypass the gateway check:
+# Only four functions intentionally bypass the gateway check:
 #   - stripe-webhook           → caller is Stripe; auth via Stripe-Signature
 #   - forgot-password          → caller is unauthenticated by definition
+#   - request-login-link       → same: passwordless sign-in starts logged out.
+#     In-function guards: account-existence check before minting anything,
+#     redirectTo on the closed host list, best-effort rate limit
 #   - compute-nutrition-target → caller-service with no JWT; auth via the
 #     x-cron-secret header (dedicated CRON_SECRET env, timing-safe in-function)
 # =============================================================================
@@ -69,4 +72,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.forgot-password]
+verify_jwt = false
+
+[functions.request-login-link]
 verify_jwt = false
