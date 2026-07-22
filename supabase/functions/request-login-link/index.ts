@@ -17,7 +17,9 @@
 // ANTI-ENUMERATION: unknown address and delivered email return the exact same
 // body. Only three things can produce a non-200: a malformed request (400), the
 // rate limit (429), and a server/provider failure (5xx) — none of which depend
-// on whether the account exists.
+// on whether the account exists. The unknown branch is also padded to the
+// latency the known branch is currently showing, so the two cannot be told
+// apart with a stopwatch either (see timingEqualizer.ts).
 //
 // ⚠ KNOWN, ACCEPTED SIDE EFFECT: `generateLink(magiclink)` rotates the target's
 // `recovery_token` (magiclink and recovery share that slot in GoTrue — the
@@ -43,6 +45,7 @@ import {
   PER_EMAIL_LIMIT,
   PER_INSTANCE_LIMIT,
 } from "./rateLimit.ts";
+import { createTimingEqualizer } from "./timingEqualizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +67,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const emailLimiter = createRateLimiter(PER_EMAIL_LIMIT);
 const instanceLimiter = createRateLimiter(PER_INSTANCE_LIMIT);
 
+// Same reason: the latency target is learned across requests of one isolate.
+const timing = createTimingEqualizer();
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 interface Payload {
   email?: string;
   redirectTo?: string;
@@ -76,6 +84,10 @@ serve(async (req) => {
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
+
+  // Both branches are measured from the same point, so the pad below compares
+  // like with like.
+  const startedAt = Date.now();
 
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -100,8 +112,7 @@ serve(async (req) => {
 
     // Instance ceiling first: when it trips, the per-address budget is left
     // untouched, so a flood of other addresses cannot burn a real user's quota.
-    const now = Date.now();
-    if (!instanceLimiter.allow(INSTANCE_KEY, now) || !emailLimiter.allow(email, now)) {
+    if (!instanceLimiter.allow(INSTANCE_KEY, startedAt) || !emailLimiter.allow(email, startedAt)) {
       return json({ error: "Troppe richieste. Riprova tra qualche minuto." }, 429);
     }
 
@@ -137,6 +148,11 @@ serve(async (req) => {
     }
 
     if (!lookup.user) {
+      // This branch skips BOTH generateLink and Resend, so without a pad it
+      // answers measurably sooner than the known one and the stopwatch says
+      // what the body refuses to. Padding happens here only: the known branch
+      // is already slow and must not be slowed further.
+      await sleep(timing.padMs(Date.now() - startedAt, Math.random));
       return json({ success: true }, 200);
     }
 
@@ -183,6 +199,11 @@ serve(async (req) => {
       // Provider detail stays in the server log: no internals to clients.
       return json({ error: "Failed to send email" }, 502);
     }
+
+    // The sample the unknown branch pads itself to. Only completed successes
+    // feed it: a 502 has its own timing and would drag the target off the
+    // shape of the normal path.
+    timing.observe(Date.now() - startedAt);
 
     return json({ success: true }, 200);
   } catch (err) {
