@@ -4,7 +4,26 @@
 // friendly Italian messages for the end user.
 // ============================================
 
+// ORDER IS PART OF THE CONTRACT: the first match wins, so the specific
+// passwordless entries must stay ABOVE the generic auth ones. Moving them
+// below would silently hand an expired sign-in code the wrong message
+// ("Sessione scaduta") — pinned by errorMapping.test.ts.
 const ERROR_MAP: Array<{ pattern: RegExp; message: string }> = [
+  // Passwordless sign-in — real GoTrue strings, verified against the live
+  // responses (both the API message and the `error_code` of the redirect).
+  {
+    pattern: /otp[_ ]expired|email link is invalid or has expired|token has expired or is invalid/i,
+    message: "Codice o link non più valido. Richiedi un nuovo accesso.",
+  },
+  {
+    pattern: /signups? not allowed|signup is disabled|signup_disabled/i,
+    message: "Le registrazioni sono chiuse: si entra su invito del coach.",
+  },
+  {
+    pattern: /for security purposes.*(after|second)/i,
+    message: "Troppi tentativi ravvicinati. Attendi qualche istante e riprova.",
+  },
+
   // Auth errors
   { pattern: /invalid login credentials/i, message: "Credenziali non valide. Riprova." },
   {
@@ -12,10 +31,6 @@ const ERROR_MAP: Array<{ pattern: RegExp; message: string }> = [
     message: "Email non confermata. Controlla la tua casella di posta.",
   },
   { pattern: /user already registered/i, message: "Utente già registrato con questa email." },
-  {
-    pattern: /signup is disabled/i,
-    message: "Le registrazioni sono temporaneamente disabilitate.",
-  },
   {
     pattern: /password should be at least/i,
     message: "La password deve contenere almeno 6 caratteri.",
