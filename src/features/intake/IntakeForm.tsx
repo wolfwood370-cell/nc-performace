@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -41,6 +42,8 @@ export default function IntakeForm() {
   const [submitting, setSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<SubmitOutcome | null>(null);
   const [showResume, setShowResume] = useState(false);
+  const [showExit, setShowExit] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const claimedRef = useRef(false);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -138,7 +141,11 @@ export default function IntakeForm() {
     // Clear the draft ONLY on terminal outcomes. authError and network
     // errors keep it: nothing was persisted server-side and the outcome
     // copy promises the answers are still on this device.
-    if (result.kind === "success" || result.kind === "routedOut" || result.kind === "alreadySubmitted") {
+    if (
+      result.kind === "success" ||
+      result.kind === "routedOut" ||
+      result.kind === "alreadySubmitted"
+    ) {
       clearIntakeDraft();
     }
     setOutcome(result);
@@ -162,14 +169,41 @@ export default function IntakeForm() {
     if (stepIndex > 0) draft.setStepIndex(stepIndex - 1);
   };
 
+  // Leaving mid-wizard goes through useAuth().signOut and nothing else: it is
+  // the only path that wipes the health draft (art. 9) before redirecting to
+  // /auth. On failure we deliberately do NOT fall back to a manual redirect —
+  // that would strand intake_draft_v1 on the device; we stay on the step.
+  const confirmExit = async () => {
+    setExiting(true);
+    try {
+      await signOut();
+    } catch {
+      toast.error("Errore durante il logout.");
+      setExiting(false);
+      setShowExit(false);
+    }
+  };
+
   const isLast = stepIndex === steps.length - 1;
 
   return (
     <div className="theme-athlete flex min-h-[100dvh] flex-col bg-[var(--nc-surface)] text-[var(--nc-ink)]">
       <header className="mx-auto w-full max-w-lg px-5 pb-4 pt-[calc(1.5rem+env(safe-area-inset-top))]">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--nc-muted)]">
-          Passo {stepIndex + 1} di {steps.length}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--nc-muted)]">
+            Passo {stepIndex + 1} di {steps.length}
+          </p>
+          <button
+            type="button"
+            aria-label="Esci"
+            onClick={() => setShowExit(true)}
+            disabled={submitting}
+            className="-mr-2 -mt-1.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-[var(--nc-muted)] disabled:opacity-60"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            Esci
+          </button>
+        </div>
         <h1 className="font-display mt-1 text-2xl font-bold">{step.title}</h1>
         {step.subtitle && <p className="mt-1 text-sm text-[var(--nc-muted)]">{step.subtitle}</p>}
         <div className="mt-3 h-1.5 w-full rounded-full bg-[var(--nc-track)]">
@@ -263,6 +297,38 @@ export default function IntakeForm() {
               className="h-12 w-full rounded-full border border-[var(--nc-track)] text-sm font-semibold text-[var(--nc-ink)]"
             >
               Ricomincia da capo
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exit confirmation. Lives in the wizard branch only: the outcome
+          screen has its own "Esci" (IntakeOutcome) and the early returns
+          (loading / no user / coach) never reach this markup. */}
+      <Dialog open={showExit} onOpenChange={(open) => !open && !exiting && setShowExit(false)}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Vuoi uscire?</DialogTitle>
+            <DialogDescription>
+              Le risposte non ancora inviate su questo dispositivo verranno rimosse.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <button
+              type="button"
+              onClick={() => setShowExit(false)}
+              disabled={exiting}
+              className="h-12 w-full rounded-full bg-[var(--nc-primary)] text-sm font-semibold text-[var(--nc-surface)] disabled:opacity-60"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmExit()}
+              disabled={exiting}
+              className="h-12 w-full rounded-full border border-[var(--nc-track)] text-sm font-semibold text-[var(--nc-ink)] disabled:opacity-60"
+            >
+              {exiting ? "Uscita…" : "Esci"}
             </button>
           </DialogFooter>
         </DialogContent>
