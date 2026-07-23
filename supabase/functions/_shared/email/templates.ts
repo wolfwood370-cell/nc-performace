@@ -73,7 +73,7 @@ function ctaBlock(label: string, safeHref: string): string {
 }
 
 // Boxed one-time code, monospace. `safeCode` must already be escaped.
-// letter-spacing makes the six digits readable at a glance; the box is a
+// letter-spacing makes the digits readable at a glance; the box is a
 // table (not a <div>) because Outlook drops padding/background on divs.
 function codeBlock(safeCode: string): string {
   return `<p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:#64748b;">Oppure inserisci questo codice nell'app:</p>
@@ -151,7 +151,13 @@ ${fallbackBlock(safeLink)}`;
 
 export interface LoginLinkEmailParams {
   actionLink: string;
-  /** The 6-digit one-time code (`properties.email_otp` of generateLink). */
+  /**
+   * The one-time code (`properties.email_otp` of generateLink). Its LENGTH is
+   * a project setting (GoTrue allows 6 to 10 digits) — this project issues 8,
+   * verified live on 2026-07-22. Nothing here depends on the count: the
+   * template renders whatever it is given, and the client must accept the
+   * whole range rather than pin a number that a dashboard change would break.
+   */
   code: string;
 }
 

@@ -1,7 +1,7 @@
 // =============================================================================
 // supabase/functions/request-login-link/index.ts
 // =============================================================================
-// Passwordless sign-in for EXISTING accounts: mints a magic link + its 6-digit
+// Passwordless sign-in for EXISTING accounts: mints a magic link + its numeric
 // code with admin.generateLink({ type: 'magiclink' }) and delivers both in one
 // NC-brand email through Resend — same shape as `forgot-password`, so the
 // Supabase mailer rate limit is never in the way and the sender is our own

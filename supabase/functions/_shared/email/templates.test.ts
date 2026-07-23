@@ -167,6 +167,16 @@ Deno.test("loginLinkEmail: markup nel codice escapato (niente <script>)", () => 
   assertStringIncludes(html, "&lt;script&gt;alert(1)&lt;/script&gt;");
 });
 
+// La lunghezza del codice e' una impostazione di progetto (GoTrue 6-10 cifre):
+// questo progetto ne emette 8, verificato live il 2026-07-22. Il template non
+// deve dipendere dal conteggio, ne' troncare.
+Deno.test("loginLinkEmail: rende il codice qualunque sia la lunghezza (6, 8, 10)", () => {
+  for (const code of ["482915", "93391701", "1234567890"]) {
+    const { html } = loginLinkEmail({ actionLink: LINK, code });
+    assertStringIncludes(html, `>${code}</span>`);
+  }
+});
+
 Deno.test("loginLinkEmail: determinismo — due run byte-identici", () => {
   const a = loginLinkEmail({ actionLink: LINK, code: "482915" });
   const b = loginLinkEmail({ actionLink: LINK, code: "482915" });
