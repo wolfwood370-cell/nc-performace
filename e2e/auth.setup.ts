@@ -29,6 +29,9 @@ setup("authenticate coach", async ({ page }) => {
 
   await page.goto("/auth");
   await page.locator("#login-email").fill(EMAIL);
+  // Password login is the SECONDARY path since the passwordless rewrite: the
+  // field is not mounted until the toggle is opened.
+  await page.getByRole("button", { name: /Accedi con password/ }).click();
   await page.locator("#login-password").fill(PASSWORD);
   await page.getByRole("button", { name: "Accedi", exact: true }).click();
 

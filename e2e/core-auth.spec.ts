@@ -8,11 +8,14 @@ test.describe("Core Auth & Navigation", () => {
     await expect(page).toHaveTitle(/NC Performance Hub/i);
   });
 
-  // 2. Auth page renders login form (label "Email"/"Password"; i placeholder sono esempi)
-  test("Auth page renders email and password fields", async ({ page }) => {
+  // 2. Auth page: l'email e' il campo primario; la password vive dietro il
+  //    toggle secondario (login passwordless-first).
+  test("Auth page renders email, and password behind the secondary toggle", async ({ page }) => {
     await page.goto("/auth");
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+
+    await page.getByRole("button", { name: /Accedi con password/ }).click();
+    await expect(page.getByLabel(/^password$/i)).toBeVisible();
   });
 
   // 3. Protected route /coach redirects unauthenticated users
