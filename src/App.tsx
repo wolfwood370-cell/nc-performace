@@ -18,6 +18,7 @@ import { CelebrationOverlay } from "@/components/celebration/Confetti";
 
 // Lazy-loaded pages
 const Auth = lazy(() => import("./pages/Auth"));
+const Attiva = lazy(() => import("./pages/Attiva"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const CoachHome = lazy(() => import("./pages/coach/CoachHome"));
 const CoachAthletes = lazy(() => import("./pages/coach/CoachAthletes"));
@@ -83,6 +84,10 @@ const App = () => (
                   directly to /auth; this redirect only catches bare `/`. */}
               <Route path="/" element={<Navigate to="/auth" replace />} />
               <Route path="/auth" element={<Auth />} />
+              {/* Atterraggio di OGNI action link auth (invito + accesso
+                  passwordless). Deve restare pubblica: chi ci arriva non ha
+                  ancora una sessione, e il link scaduto va spiegato qui. */}
+              <Route path="/attiva" element={<Attiva />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Coach Routes — wrapped in SubscriptionGuard */}
