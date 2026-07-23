@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { LOGIN_OTP_TYPE, normalizeOtpInput } from "@/lib/auth/otp";
 
 interface Profile {
   id: string;
@@ -98,6 +99,23 @@ export function useAuth() {
     return data;
   };
 
+  /**
+   * Passwordless sign-in with the code delivered by `request-login-link`.
+   * The email itself is sent by that edge function (Resend, NC-brand domain),
+   * NOT by `signInWithOtp` — one source only, so a login never produces two
+   * different emails.
+   */
+  const verifyOtp = async (email: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: normalizeOtpInput(token),
+      type: LOGIN_OTP_TYPE,
+    });
+
+    if (error) throw error;
+    return data;
+  };
+
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -154,6 +172,7 @@ export function useAuth() {
     ...state,
     signUp,
     signIn,
+    verifyOtp,
     signOut,
     isCoach: state.profile?.role === "coach",
     isAthlete: state.profile?.role === "athlete",
