@@ -81,24 +81,6 @@ export function useAuth() {
     };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          // No role here: handle_new_user ignores client-supplied roles —
-          // public signups are always athletes, coaches are created admin-side.
-          full_name: fullName,
-        },
-      },
-    });
-
-    if (error) throw error;
-    return data;
-  };
-
   /**
    * Passwordless sign-in with the code delivered by `request-login-link`.
    * The email itself is sent by that edge function (Resend, NC-brand domain),
@@ -170,7 +152,6 @@ export function useAuth() {
 
   return {
     ...state,
-    signUp,
     signIn,
     verifyOtp,
     signOut,

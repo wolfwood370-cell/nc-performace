@@ -1,34 +1,35 @@
+// =============================================================================
+// src/pages/Auth.tsx
+// =============================================================================
+// Passwordless-first sign-in: type your address, get one email carrying a link
+// AND a code, use whichever is handier.
+//
+// There is NO public registration. The platform is invite-only, so the door is
+// the coach's invitation, not a form — a self-service tab could only ever lead
+// to a dead end. Password login survives as a SECONDARY, collapsed option
+// because coach accounts have one; athletes never need it.
+//
+// The login email comes from the `request-login-link` edge function (Resend,
+// NC-brand sender) and NOT from `signInWithOtp`: one source, one email.
+// =============================================================================
+
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Dumbbell } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { ChevronDown, Dumbbell, MailCheck } from "lucide-react";
 import { mapSupabaseError } from "@/lib/errorMapping";
 import { supabase } from "@/integrations/supabase/client";
 import { MetaHead } from "@/components/MetaHead";
 import { Footer } from "@/components/layout/Footer";
-
-/** Resolve where to send an authenticated user based on their profile role. */
-async function resolveHomePath(): Promise<string> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return "/auth";
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (profile?.role === "coach") return "/coach";
-  if (profile?.role === "athlete") return "/athlete";
-  // No role yet → onboarding wizard picks the role.
-  return "/onboarding";
-}
+import { resolveHomePath } from "@/lib/auth/resolveHomePath";
+import { describeLoginLinkError } from "@/lib/auth/loginLinkError";
+import { isCompleteOtp, normalizeOtpInput, OTP_MAX_LENGTH } from "@/lib/auth/otp";
 
 const GoogleIcon = () => (
   <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -53,25 +54,17 @@ const GoogleIcon = () => (
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const inviteToken = searchParams.get("token");
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, verifyOtp, user } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  // One address for every path on this page: passwordless, password login and
+  // "Password dimenticata?" all read it.
+  const [email, setEmail] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
+  const [code, setCode] = useState("");
 
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
-
-  // Invite-flow state. `prefillReady === true` switches the visible tab to
-  // "signup"; `inviteCoachId` is captured at prefill time so we can pass it
-  // to the post-signup RPC even if the row gets marked-used between prefill
-  // and submit.
-  const [prefillReady, setPrefillReady] = useState(false);
-  const [inviteCoachId, setInviteCoachId] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [password, setPassword] = useState("");
 
   // Already authenticated? Skip the form entirely — route to the role home.
   useEffect(() => {
@@ -79,8 +72,54 @@ export default function Auth() {
     resolveHomePath().then((path) => navigate(path, { replace: true }));
   }, [user, navigate]);
 
-  // Invite tokens are redeemed automatically by the `handle_new_user` DB
-  // trigger via email match against `invite_tokens`. No client prefill needed.
+  const goHome = async () => {
+    const path = await resolveHomePath();
+    navigate(path, { replace: true });
+  };
+
+  /** Core of the primary path; reused by "Invia di nuovo". */
+  const requestLink = async () => {
+    const address = email.trim().toLowerCase();
+    if (!address) {
+      toast.error("Inserisci la tua email");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke("request-login-link", {
+        body: { email: address, redirectTo: `${window.location.origin}/attiva` },
+      });
+      if (error) throw error;
+      setLinkSent(true);
+      // Deliberately generic: the endpoint does not reveal whether the address
+      // has an account, and neither may this copy.
+      toast.success("Controlla la tua casella di posta");
+    } catch (error: unknown) {
+      const status = error instanceof FunctionsHttpError ? error.context.status : null;
+      toast.error(describeLoginLinkError(status));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRequestLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await requestLink();
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await verifyOtp(email, code);
+      toast.success("Accesso effettuato!");
+      await goHome();
+    } catch (error: unknown) {
+      toast.error(mapSupabaseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
     setLoading(true);
@@ -108,15 +147,29 @@ export default function Auth() {
     }
   };
 
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await signIn(email, password);
+      toast.success("Login effettuato!");
+      await goHome();
+    } catch (error: unknown) {
+      toast.error(mapSupabaseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleForgotPassword = async () => {
-    if (!loginEmail) {
+    if (!email) {
       toast.error("Inserisci la tua email prima di procedere");
       return;
     }
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("forgot-password", {
-        body: { email: loginEmail, redirectTo: `${window.location.origin}/reset-password` },
+        body: { email, redirectTo: `${window.location.origin}/reset-password` },
       });
       if (error) throw error;
       if (data && (data as { error?: string }).error) {
@@ -130,47 +183,11 @@ export default function Auth() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await signIn(loginEmail, loginPassword);
-      toast.success("Login effettuato!");
-      const path = await resolveHomePath();
-      navigate(path, { replace: true });
-    } catch (error: unknown) {
-      toast.error(mapSupabaseError(error));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      // Public signups are always athletes: handle_new_user ignores any
-      // client-supplied role. Coach accounts are created administratively.
-      await signUp(signupEmail, signupPassword, signupName);
-      // Invite tokens are auto-redeemed by the `handle_new_user` DB trigger
-      // (email match against `invite_tokens`). No client-side RPC needed.
-      toast.success("Account creato! Benvenuto!");
-      // Invite-flow signups go straight to /athlete because the coach
-      // already prefilled the relationship; non-invite signups still pass
-      // through /onboarding to capture profile data.
-      navigate(inviteToken ? "/athlete" : "/onboarding", { replace: true });
-    } catch (error: unknown) {
-      toast.error(mapSupabaseError(error));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <>
       <MetaHead
         title="Accedi"
-        description="Accedi o registrati alla piattaforma NC Performance Hub."
+        description="Accedi alla piattaforma NC Performance Hub con un link o un codice, senza password."
       />
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <Card className="w-full max-w-md border-0 shadow-lg">
@@ -182,71 +199,143 @@ export default function Auth() {
             <CardDescription>Piattaforma per coaching ibrido</CardDescription>
           </CardHeader>
           <CardContent>
-            {inviteError && (
-              <div
-                role="alert"
-                className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-              >
-                {inviteError}
+            <form onSubmit={handleRequestLink} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="mario@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-            )}
-            {prefillReady && !inviteError && (
-              <div
-                role="status"
-                className="mb-4 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm text-primary"
-              >
-                Sei stato invitato dal tuo coach. Completa la registrazione per iniziare.
-              </div>
-            )}
-            <Tabs defaultValue={inviteToken ? "signup" : "login"} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="login">Accedi</TabsTrigger>
-                <TabsTrigger value="signup">Registrati</TabsTrigger>
-              </TabsList>
+              {!linkSent && (
+                <>
+                  <Button type="submit" className="w-full gradient-primary" disabled={loading}>
+                    {loading ? "Invio in corso..." : "Ricevi il link di accesso"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Ti inviamo un link per entrare. Nessuna password da ricordare.
+                  </p>
+                </>
+              )}
+            </form>
 
-              <TabsContent value="login">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11 mb-4"
-                  onClick={handleGoogle}
-                  disabled={loading}
+            {linkSent && (
+              <div className="mt-4 space-y-4">
+                <div
+                  role="status"
+                  className="flex gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-3 text-sm text-primary"
                 >
-                  <GoogleIcon />
-                  Continua con Google
-                </Button>
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">oppure</span>
-                  </div>
+                  <MailCheck className="h-5 w-5 shrink-0" />
+                  <span>
+                    Se l'indirizzo è registrato, ti abbiamo inviato un'email con un link per entrare
+                    e un codice.
+                  </span>
                 </div>
-                <form onSubmit={handleLogin} className="space-y-4">
+
+                <form onSubmit={handleVerifyCode} className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label htmlFor="login-code">Codice dall'email</Label>
                     <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="coach@example.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      required
+                      id="login-code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="12345678"
+                      maxLength={OTP_MAX_LENGTH}
+                      value={code}
+                      onChange={(e) => setCode(normalizeOtpInput(e.target.value))}
+                      className="font-mono tracking-[0.3em]"
                     />
                   </div>
+                  <Button
+                    type="submit"
+                    className="w-full gradient-primary"
+                    disabled={loading || !isCompleteOtp(code)}
+                  >
+                    {loading ? "Verifica in corso..." : "Entra"}
+                  </Button>
+                </form>
+
+                <div className="flex items-center justify-between text-sm">
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    onClick={requestLink}
+                    disabled={loading}
+                  >
+                    Invia di nuovo
+                  </button>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    onClick={() => {
+                      setLinkSent(false);
+                      setCode("");
+                    }}
+                    disabled={loading}
+                  >
+                    Usa un altro indirizzo
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">oppure</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11"
+              onClick={handleGoogle}
+              disabled={loading}
+            >
+              <GoogleIcon />
+              Continua con Google
+            </Button>
+
+            {/* Secondary and collapsed: coaches have a password, athletes never
+                need one. Plain state rather than a Collapsible primitive — the
+                repo has none, and this needs no library. */}
+            <div className="mt-4 border-t border-border pt-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
+                onClick={() => setPasswordOpen((open) => !open)}
+                aria-expanded={passwordOpen}
+                aria-controls="password-login"
+              >
+                Accedi con password
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${passwordOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {passwordOpen && (
+                <form id="password-login" onSubmit={handlePasswordLogin} className="mt-3 space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
                     <Input
                       id="login-password"
                       type="password"
+                      autoComplete="current-password"
                       placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full gradient-primary" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Accesso in corso..." : "Accedi"}
                   </Button>
                   <button
@@ -258,73 +347,8 @@ export default function Auth() {
                     Password dimenticata?
                   </button>
                 </form>
-              </TabsContent>
-
-              <TabsContent value="signup">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11 mb-4"
-                  onClick={handleGoogle}
-                  disabled={loading}
-                >
-                  <GoogleIcon />
-                  Registrati con Google
-                </Button>
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">oppure</span>
-                  </div>
-                </div>
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Nome completo</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="Mario Rossi"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      required
-                      readOnly={prefillReady}
-                      aria-readonly={prefillReady}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="mario@example.com"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required
-                      readOnly={prefillReady}
-                      aria-readonly={prefillReady}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  <Button type="submit" className="w-full gradient-primary" disabled={loading}>
-                    {loading ? "Creazione account..." : "Crea account"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+              )}
+            </div>
           </CardContent>
         </Card>
         <div className="mt-auto w-full">

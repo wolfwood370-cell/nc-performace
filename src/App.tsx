@@ -79,9 +79,9 @@ const App = () => (
         <BrowserRouter>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
-              {/* Root path: redirect to the auth gate (login/signup).
-                  Any deep link (`/auth?token=XYZ`) is preserved by routing
-                  directly to /auth; this redirect only catches bare `/`. */}
+              {/* Root path: redirect to the auth gate. The gate is
+                  passwordless and invite-only — there is no public
+                  registration. This redirect only catches bare `/`. */}
               <Route path="/" element={<Navigate to="/auth" replace />} />
               <Route path="/auth" element={<Auth />} />
               {/* Atterraggio di OGNI action link auth (invito + accesso
