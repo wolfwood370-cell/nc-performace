@@ -18,6 +18,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
 import { inviteEmail } from "../_shared/email/templates.ts";
+import { resolveOriginFromEnv } from "../_shared/origins.ts";
 import { decideAlreadyExists } from "./invite/decision.ts";
 
 const corsHeaders = {
@@ -218,11 +219,18 @@ serve(async (req) => {
       ...(tier ? { tier } : {}),
     };
 
+    // Where the athlete lands after clicking. Derived SERVER-side from the
+    // caller Origin (validated, falling back to the project default) so the
+    // request contract stays unchanged — no new payload field, and a coach
+    // cannot steer the invitee's destination. `/attiva` captures the session
+    // and routes on: no password step anywhere in the invite flow.
+    const activationRedirect = `${resolveOriginFromEnv(req.headers.get("Origin"))}/attiva`;
+
     // Generate the invite link WITHOUT triggering Supabase's rate-limited mailer.
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "invite",
       email: athleteEmail,
-      options: { data: userMetadata },
+      options: { data: userMetadata, redirectTo: activationRedirect },
     });
 
     if (linkError) {
@@ -316,6 +324,7 @@ serve(async (req) => {
           const { data: relink, error: relinkError } = await supabaseAdmin.auth.admin.generateLink({
             type: "magiclink",
             email: athleteEmail,
+            options: { redirectTo: activationRedirect },
           });
           const resendLink = relink?.properties?.action_link;
           if (relinkError || !resendLink) {
