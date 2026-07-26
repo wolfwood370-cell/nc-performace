@@ -11,11 +11,25 @@
 import { describe, expect, it } from "vitest";
 
 import { hasActiveAccess } from "@/lib/billing/access";
+import { hasActiveAccess as sharedHasActiveAccess } from "../../../../supabase/functions/_shared/billing.ts";
 
-/** Frozen decision instant — the clock is never consulted. */
-const NOW = new Date("2026-07-26T12:00:00Z");
-const FUTURE = "2026-08-01T00:00:00Z";
-const PAST = "2026-07-01T00:00:00Z";
+// Frozen decision instant, anchored in the REAL past on purpose (review
+// 2026-07-26): with fixtures near the present, a mutant that consults the wall
+// clock instead of the injected `now` would keep the whole suite green until
+// the fixture dates expired. Anchored in 2001, FUTURE is a real-world past
+// instant: any wall-clock read denies it and fails loudly, today and forever.
+const NOW = new Date("2001-01-01T00:00:00Z");
+const FUTURE = "2001-02-01T00:00:00Z";
+const PAST = "2000-12-01T00:00:00Z";
+
+describe("hasActiveAccess — single definition", () => {
+  it("is the very function object the edge gate runs (re-export, not a copy)", () => {
+    // Kills the silent-drift scenario: a diverging copy pasted into
+    // src/lib/billing/access.ts would keep this truth table green while the
+    // server gate ran different code. Identity, not equivalence.
+    expect(hasActiveAccess).toBe(sharedHasActiveAccess);
+  });
+});
 
 describe("hasActiveAccess — coached branch", () => {
   it("grants access to a coached athlete with NO access_until at all", () => {
@@ -37,7 +51,19 @@ describe("hasActiveAccess — access_until branch", () => {
     // Postgres/PostgREST spells the same instant with an offset, not a Z.
     expect(
       hasActiveAccess(
-        { coaching_mode: "autonomous", access_until: "2026-08-01T00:00:00+00:00" },
+        { coaching_mode: "autonomous", access_until: "2001-02-01T00:00:00+00:00" },
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("grants access one millisecond past now (the boundary closes from BOTH sides)", () => {
+    // Together with the exact-instant denial below this pins the strict `>`
+    // exactly: a mutant that widens (>=) or shrinks (now + delta) the window
+    // fails one of the two sides.
+    expect(
+      hasActiveAccess(
+        { coaching_mode: "autonomous", access_until: "2001-01-01T00:00:00.001Z" },
         NOW,
       ),
     ).toBe(true);
@@ -50,12 +76,12 @@ describe("hasActiveAccess — access_until branch", () => {
   it("denies at the exact expiry instant (strict comparison)", () => {
     // access_until === now is EXPIRED: kills a loose >= comparison.
     expect(
-      hasActiveAccess({ coaching_mode: "autonomous", access_until: "2026-07-26T12:00:00Z" }, NOW),
+      hasActiveAccess({ coaching_mode: "autonomous", access_until: "2001-01-01T00:00:00Z" }, NOW),
     ).toBe(false);
     // Same instant in the offset spelling: still expired.
     expect(
       hasActiveAccess(
-        { coaching_mode: "autonomous", access_until: "2026-07-26T12:00:00+00:00" },
+        { coaching_mode: "autonomous", access_until: "2001-01-01T00:00:00+00:00" },
         NOW,
       ),
     ).toBe(false);
@@ -68,6 +94,17 @@ describe("hasActiveAccess — access_until branch", () => {
       false,
     );
     expect(hasActiveAccess({ coaching_mode: "autonomous", access_until: "" }, NOW)).toBe(false);
+  });
+
+  it("denies a non-string access_until (fail-closed under loose call sites)", () => {
+    // tsconfig strict:false weakens call sites: a Date object smuggled where a
+    // string belongs must not become access. Pins the typeof guard in isoToMs.
+    expect(
+      hasActiveAccess(
+        { coaching_mode: "autonomous", access_until: new Date("2099-01-01") as unknown as string },
+        NOW,
+      ),
+    ).toBe(false);
   });
 });
 
