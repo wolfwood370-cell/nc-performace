@@ -12,8 +12,92 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      access_grants: {
+        Row: {
+          athlete_id: string
+          created_at: string
+          granted_by: string | null
+          granted_until: string
+          id: string
+          payment_ref: string | null
+          source: string
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string
+          granted_by?: string | null
+          granted_until: string
+          id?: string
+          payment_ref?: string | null
+          source: string
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string
+          granted_by?: string | null
+          granted_until?: string
+          id?: string
+          payment_ref?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_grants_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "access_grants_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage_tracking: {
         Row: {
           daily_limit: number
@@ -381,6 +465,8 @@ export type Database = {
           price_amount: number
           stripe_price_id: string | null
           stripe_product_id: string | null
+          term_days: number | null
+          tier: string
           updated_at: string
         }
         Insert: {
@@ -395,6 +481,8 @@ export type Database = {
           price_amount?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
+          term_days?: number | null
+          tier?: string
           updated_at?: string
         }
         Update: {
@@ -409,6 +497,8 @@ export type Database = {
           price_amount?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
+          term_days?: number | null
+          tier?: string
           updated_at?: string
         }
         Relationships: []
@@ -2072,6 +2162,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          access_until: string | null
           address: string | null
           avatar_url: string | null
           bio: string | null
@@ -2105,6 +2196,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_until?: string | null
           address?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -2138,6 +2230,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_until?: string | null
           address?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -3194,6 +3287,15 @@ export type Database = {
         Args: { user_a: string; user_b: string }
         Returns: string
       }
+      grant_athlete_access: {
+        Args: {
+          p_athlete_id: string
+          p_payment_ref?: string
+          p_source: string
+          p_until: string
+        }
+        Returns: Json
+      }
       is_coach_of_athlete: { Args: { p_athlete_id: string }; Returns: boolean }
       is_my_athlete: { Args: { _athlete_id: string }; Returns: boolean }
       is_my_coach: { Args: { _coach_id: string }; Returns: boolean }
@@ -3451,6 +3553,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       billing_sub_status: [
