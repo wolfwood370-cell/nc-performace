@@ -27,6 +27,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1
 import { assembleWeek, buildExcludedZones } from "../_shared/method/assembleWeek.ts";
 import { hasGeneralBlock } from "../_shared/method/zoneMap.ts";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
+import { hasActiveAccess } from "../_shared/billing.ts";
 import { buildConsentBlockedAudit, buildStopAlert, decideGate, stopFor } from "./release/decide.ts";
 import type { ConsentRow, StopDecision } from "./release/decide.ts";
 import { goalForObjective } from "./release/objectiveDriver.ts";
@@ -166,7 +167,7 @@ serve(async (req) => {
     const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select(
-        "id, role, coach_id, full_name, coaching_mode, onboarding_completed, onboarding_data, objective, experience_level, neurotype, one_rm_data, fms_exclusion_zones, red_flags, medical_clearance_required",
+        "id, role, coach_id, full_name, coaching_mode, onboarding_completed, onboarding_data, objective, experience_level, neurotype, one_rm_data, fms_exclusion_zones, red_flags, medical_clearance_required, access_until",
       )
       .eq("id", user.id)
       .single();
@@ -184,6 +185,15 @@ serve(async (req) => {
     }
     if (profile.onboarding_completed !== true) {
       return json({ ok: false, error: "onboarding_incomplete" }, 403);
+    }
+
+    // Payment gate (2026-07-26): the SAME predicate the FE mirror re-exports
+    // (single rule in _shared/billing.ts, reader of access_until). Refused
+    // BEFORE anything is served or written. 403 like the sibling precondition
+    // refusals above; the caller branches on the BODY flag, never on the HTTP
+    // status (header contract). Additive: no existing field changes shape.
+    if (!hasActiveAccess(profile, new Date())) {
+      return json({ ok: false, error: "payment_required", paymentRequired: true }, 403);
     }
 
     // Idempotency (D3/FIX-M7): the active program is the DERIVED tail of the
