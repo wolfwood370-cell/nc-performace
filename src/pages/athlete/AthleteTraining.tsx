@@ -746,6 +746,13 @@ function DiarioView({
           });
         } else if (res.alreadyActive) {
           toast.info("Hai già un programma attivo");
+        } else if (res.paymentRequired) {
+          // The one honest message of the silent barrier: the athlete asked for
+          // something and deserves to know why it did not arrive. No upsell.
+          toast.info("Abbonamento non attivo", {
+            description:
+              "Per generare il programma serve un abbonamento attivo. Lo trovi nel tuo profilo.",
+          });
         } else {
           toast.error("Generazione non riuscita", { description: "Riprova più tardi." });
         }

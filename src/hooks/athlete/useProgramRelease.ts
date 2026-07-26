@@ -97,6 +97,7 @@ export interface ReleaseResponse {
   consentRequired?: boolean;
   missing?: string[];
   alreadyActive?: boolean;
+  paymentRequired?: boolean;
   error?: string;
 }
 
