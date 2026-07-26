@@ -56,7 +56,7 @@ const ACTION_ROWS: ActionRow[] = [
 ];
 
 export default function AthleteProfile() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   // Stripe's cancel_url lands here with ?payment=cancelled.
   usePaymentOutcome();
@@ -158,8 +158,12 @@ export default function AthleteProfile() {
          Hidden ONLY for explicitly coached athletes (billed off-platform,
          they never buy for themselves). A null/unknown coaching_mode still
          SEES it: a useless section is cheaper than a customer who cannot pay.
+         The authLoading guard only skips the window where the profile has
+         not arrived yet — it avoids flashing purchase UI at coached athletes
+         on every visit; loading turns false even when the profile stays
+         null, so the fail-visible direction above is preserved.
          --------------------------------------------------------------- */}
-      {profile?.coaching_mode !== "coached" && <SubscriptionSection />}
+      {!authLoading && profile?.coaching_mode !== "coached" && <SubscriptionSection />}
 
       {/* ---------------------------------------------------------------
          Settings / actions list — single glass card, internal dividers
