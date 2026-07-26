@@ -13,7 +13,7 @@
 // Why step 3 is a poll and not a single invalidation: the redirect from Stripe
 // and the webhook delivery are independent, so the athlete usually arrives BEFORE
 // the subscription has been recorded. And the flags that decide whether paid
-// features appear (tier, subscription_status) live on `profile`, which useAuth
+// features appear (tier, access_until) live on `profile`, which useAuth
 // keeps in local component state and only ever fills from onAuthStateChange —
 // there is no refetch to call. Refreshing the session is what makes that listener
 // fire, so the profile is re-read everywhere without a full page reload.
@@ -91,7 +91,7 @@ export function usePaymentOutcome() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("coaching_mode, subscription_status")
+          .select("coaching_mode, access_until")
           .eq("id", userId as string)
           .maybeSingle();
         if (abandoned) return;
@@ -99,7 +99,7 @@ export function usePaymentOutcome() {
           log.error("[usePaymentOutcome] profile poll failed", error);
           continue;
         }
-        if (!hasActiveAccess(data)) continue;
+        if (!hasActiveAccess(data, new Date())) continue;
 
         // Closed BEFORE refreshing: refreshSession() fires onAuthStateChange, which
         // hands useAuth a new user object. Leaving the flag up would re-enter this

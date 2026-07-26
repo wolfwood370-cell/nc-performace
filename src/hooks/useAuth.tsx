@@ -14,6 +14,7 @@ interface Profile {
   onboarding_completed: boolean;
   subscription_status: string | null;
   subscription_tier: string | null;
+  access_until?: string | null;
   coaching_mode: Database["public"]["Enums"]["coaching_mode"] | null;
   tier: Database["public"]["Enums"]["tier"] | null;
   objective: Database["public"]["Enums"]["objective"] | null;

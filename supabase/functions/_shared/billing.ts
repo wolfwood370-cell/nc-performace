@@ -87,10 +87,11 @@ export function effectiveBillingStatus(stripeStatus: unknown, cancelAtPeriodEnd:
 }
 
 /**
- * PURE. Which profile statuses actually entitle the account to something. Kept
- * here, next to the map that produces them, so the two cannot drift: the FE
- * mirror (src/lib/billing/access.ts) adds the coached shortcut on top of exactly
- * this set.
+ * PURE. Which profile statuses labelled the account as entitled. Kept here,
+ * next to the map that produces them, so the two cannot drift. Since the
+ * predicate flip (2026-07-26) ACCESS is decided by hasActiveAccess below, on
+ * access_until: this set only classifies the subscription_status CACHE (webhook
+ * tier writes, UI badges) and gates nothing anymore.
  */
 export function grantsAccess(status: ProfileSubscriptionStatus): boolean {
   return status === "active" || status === "trial";
@@ -331,6 +332,45 @@ export function resolveAccessUntil(rows: unknown, latestGrantIso: unknown): stri
   consider(latestGrantIso);
 
   return bestMs === null ? null : new Date(bestMs).toISOString();
+}
+
+/** The two profile fields the access rule reads. access_until is the
+ * timestamptz ISO string written by the webhook / grant RPC (see above). */
+export interface AccessProfile {
+  coaching_mode?: string | null;
+  access_until?: string | null;
+}
+
+/**
+ * PURE. The one rule that answers "is this athlete's account currently entitled
+ * to anything?" — the READER of access_until, exact mirror of resolveAccessUntil
+ * above (the writer). It lives here so front-end and edge functions share ONE
+ * definition: src/lib/billing/access.ts re-exports it unchanged, and
+ * release-autonomous-program gates the paid release on it.
+ *
+ * Two ways in, and BOTH are needed:
+ *   - coaching_mode === 'coached' -> the coach sells and bills the relationship
+ *     off-platform; there is no Stripe subscription and access_until may well
+ *     be null. Without this branch every coached athlete would be locked out of
+ *     the features their tier grants them, which is the opposite of the intent.
+ *   - access_until STRICTLY in the future -> the athlete pays for themselves;
+ *     the instant covers subscription, prepaid term and manual grant at once,
+ *     because resolveAccessUntil already folds all three into the max.
+ *
+ * Fail-closed everywhere else: a missing profile, a null/absent/unparsable
+ * access_until, and an access_until exactly equal to `now` all read as "no
+ * access". subscription_status is deliberately NOT consulted anymore — it stays
+ * a display cache. `now` is injected and no clock is ever read in this module,
+ * so the rule stays deterministic and testable. This is a COMMERCIAL barrier
+ * and a UX one — the data defense stays RLS plus the server-side checks in the
+ * edge functions.
+ */
+export function hasActiveAccess(profile: AccessProfile | null | undefined, now: Date): boolean {
+  if (!profile) return false;
+  if (profile.coaching_mode === "coached") return true;
+  const ms = isoToMs(profile.access_until);
+  if (ms === null) return false;
+  return ms > now.getTime();
 }
 
 // ------------------------------------------------------- multi-row resolution

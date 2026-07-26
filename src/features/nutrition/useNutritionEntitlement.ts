@@ -50,7 +50,7 @@ export function useNutritionEntitlement() {
   return {
     // Fail-closed: no tier, missing row, query error or an account that is not
     // currently entitled to anything all read as false.
-    entitled: tier !== null && query.data === true && hasActiveAccess(profile),
+    entitled: tier !== null && query.data === true && hasActiveAccess(profile, new Date()),
     // Still loading while auth resolves, while this hook's own profile fetch
     // is in flight (each useAuth call has independent state), or while the
     // entitlement query runs. Prevents a spurious redirect in that window.

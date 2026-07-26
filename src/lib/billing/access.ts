@@ -1,31 +1,20 @@
 // =============================================================================
 // src/lib/billing/access.ts
 // =============================================================================
-// The one rule that answers "is this athlete's account currently entitled to
-// anything?", kept apart from any hook so it can be pinned by a unit test.
+// FE entry point for the ONE access rule. The predicate itself lives in
+// supabase/functions/_shared/billing.ts, right next to resolveAccessUntil —
+// the writer of the access_until value it reads — so the front-end and the
+// edge functions (release-autonomous-program's payment gate) can never drift:
+// this file only re-exports it, keeping every "@/lib/billing/access" import
+// stable and the truth table in __tests__/access.test.ts pointed at the same
+// function object the server runs.
 //
-// Two ways in, and BOTH are needed:
-//
-//   - coaching_mode === 'coached'  → the coach sells and bills the relationship
-//     off-platform; there is no Stripe subscription to look for. Without this
-//     branch every coached athlete would be locked out of the features their
-//     tier grants them, which is the opposite of the intent.
-//   - subscription_status ∈ {active, trial} → the athlete pays for themselves
-//     (autonomous), so access follows the subscription.
-//
-// Fail-closed everywhere else: a missing profile, a null coaching_mode, a
-// past_due/canceled/none status all read as "no access". This is a COMMERCIAL
-// barrier and a UX one — the data defense stays RLS plus the server-side checks
-// in the edge functions, never this predicate.
+// Since the 2026-07-26 flip the rule reads profiles.access_until (strictly
+// future = entitled) with the coached shortcut on top — the coach bills those
+// athletes off-platform, so no paid-for date exists for them by design.
+// subscription_status is a display cache and is not consulted anymore. Full
+// reasoning lives with the predicate in billing.ts.
 // =============================================================================
 
-export interface AccessProfile {
-  coaching_mode?: string | null;
-  subscription_status?: string | null;
-}
-
-export function hasActiveAccess(profile: AccessProfile | null | undefined): boolean {
-  if (!profile) return false;
-  if (profile.coaching_mode === "coached") return true;
-  return profile.subscription_status === "active" || profile.subscription_status === "trial";
-}
+export { hasActiveAccess } from "../../../supabase/functions/_shared/billing.ts";
+export type { AccessProfile } from "../../../supabase/functions/_shared/billing.ts";
