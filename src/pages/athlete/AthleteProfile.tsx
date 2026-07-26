@@ -154,9 +154,12 @@ export default function AthleteProfile() {
       </section>
 
       {/* ---------------------------------------------------------------
-         Subscription — plans + checkout, or state + Customer Portal
+         Subscription — plans + checkout, or state + Customer Portal.
+         Hidden ONLY for explicitly coached athletes (billed off-platform,
+         they never buy for themselves). A null/unknown coaching_mode still
+         SEES it: a useless section is cheaper than a customer who cannot pay.
          --------------------------------------------------------------- */}
-      <SubscriptionSection />
+      {profile?.coaching_mode !== "coached" && <SubscriptionSection />}
 
       {/* ---------------------------------------------------------------
          Settings / actions list — single glass card, internal dividers
