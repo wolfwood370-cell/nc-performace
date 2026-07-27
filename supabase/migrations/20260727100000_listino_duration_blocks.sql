@@ -12,8 +12,20 @@
 -- billing_plans_one_time_requires_term fu applicata FUORI-REPO il 2026-07-26
 -- (spec listino-3a §2), in contrasto con l'header di 20260721150000 che
 -- argomentava contro un CHECK one_time=>term_days finche' il form non scriveva
--- la durata. Da questa fetta il form la scrive (duration_blocks) e l'invariante
--- vive nel passo 9 qui sotto.
+-- la durata. Il passo 9 la ri-esprime su duration_blocks: per il form live il
+-- delta e' ZERO (i one_time falliscono gia' oggi per la guardia fuori-repo);
+-- il form impara a scrivere duration_blocks nei commit FE di questa stessa
+-- fetta, che arrivano al merge PRIMA del deploy.
+--
+-- FINESTRA DICHIARATA (accettata all'OK del piano, 2026-07-27): fra l'apply di
+-- questo file e la publish del front-end della stessa fetta, "Nuovo Piano"
+-- dalla UI coach fallisce per QUALUNQUE cadenza (23502 su coaching_mode NOT
+-- NULL, esposto nel toast generico): il form live non scrive ancora le colonne
+-- nuove. Niente DEFAULT apposta — la modalita' si dichiara alla vendita, non
+-- si deduce (spec, passo 5). Mitigazione: eseguire apply -> advisors -> regen
+-- types -> commit FE -> merge+publish back-to-back; unico coach in prod =
+-- Nick, che governa la sequenza. Tutto il resto (checkout, webhook, liste
+-- piani, sottoscrizioni vive) resta funzionante nella finestra.
 --
 -- Ri-eseguibile a vuoto: IF EXISTS / IF NOT EXISTS + ON CONFLICT DO NOTHING.
 -- CHI APPLICA (COWORK.md r.17/r.60, §4-bis): Cowork via apply_migration,
@@ -139,10 +151,10 @@ ALTER TABLE public.billing_plans
   ALTER COLUMN coaching_mode SET NOT NULL;
 
 COMMENT ON COLUMN public.billing_plans.duration_blocks IS
-  'Durata del servizio venduto in BLOCCHI da 4 settimane (28 giorni). Obbligatoria e positiva per i piani prepagati (billing_interval=''one_time'', CHECK billing_plans_prepaid_needs_duration); NULL per i piani a rinnovo, dove il periodo lo detta Stripe. La scrive il form del coach alla creazione del piano.';
+  'Durata del servizio venduto in BLOCCHI da 4 settimane (28 giorni). Obbligatoria e positiva per i piani prepagati (billing_interval=''one_time'', CHECK billing_plans_prepaid_needs_duration); NULL per i piani a rinnovo, dove il periodo lo detta Stripe. La scrive chi vende alla creazione del piano (form coach, aggiornato dai commit FE della fetta listino-3a).';
 
 COMMENT ON COLUMN public.billing_plans.term_days IS
-  'GENERATA: duration_blocks * 28. Unica versione AUTOREVOLE dei giorni-per-blocco (il 28 in TypeScript e'' solo anteprima del form). Letta da stripe-webhook su checkout.session.completed in mode=payment per calcolare access_until. Non scrivibile: un INSERT/UPDATE che la includa viene rifiutato da Postgres.';
+  'GENERATA: duration_blocks * 28. Unica versione AUTOREVOLE dei giorni-per-blocco: qualunque 28 nel codice TypeScript e'' solo anteprima di visualizzazione e deve combaciare con questa espressione. Letta da stripe-webhook su checkout.session.completed in mode=payment per calcolare access_until. Non scrivibile: un INSERT/UPDATE che la includa viene rifiutato da Postgres.';
 
 COMMENT ON COLUMN public.billing_plans.coaching_mode IS
   'A CHI e'' venduto il piano: ''autonomous'' (Servizio 1, programmazione a rinnovo) o ''coached'' (Servizio 2, percorso premium prepagato). NON dedotto dalla cadenza. create-checkout-session rifiuta con 403 un checkout il cui atleta ha coaching_mode diverso (o NULL).';
