@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
+import { stripeCadenceFor } from "../_shared/billing.ts";
 import { resolveOriginFromEnv } from "../_shared/origins.ts";
 
 const corsHeaders = {
@@ -77,6 +78,19 @@ serve(async (req) => {
     if (planError || !plan) throw new Error("Plan not found");
     logStep("Plan fetched", { planName: plan.name, amount: plan.price_amount });
 
+    // The ONE billing_interval -> Stripe cadence translation (shared map,
+    // fail-closed): a plan whose cadence this build does not know is a 400,
+    // never a silent monthly price. Resolved BEFORE any Stripe call so no
+    // product is ever created for a sale we cannot price.
+    const cadence = stripeCadenceFor(plan.billing_interval);
+    if (cadence === null) {
+      logStep("Unsupported billing_interval", { planId: plan.id });
+      return new Response(JSON.stringify({ error: "plan_interval_unsupported" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Init Stripe
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
@@ -93,18 +107,17 @@ serve(async (req) => {
         metadata: { plan_id: plan.id, coach_id: plan.coach_id },
       });
 
-      // Create Stripe price
-      const isRecurring = plan.billing_interval !== "one_time";
+      // Create Stripe price. Cadence comes ONLY from the shared map above:
+      // the old local ternary silently priced every unknown interval as
+      // monthly, which is exactly the defect the map removed.
       const priceParams: Stripe.PriceCreateParams = {
         product: product.id,
         unit_amount: plan.price_amount,
         currency: plan.currency,
       };
 
-      if (isRecurring) {
-        priceParams.recurring = {
-          interval: plan.billing_interval === "year" ? "year" : "month",
-        };
+      if (cadence.kind === "recurring") {
+        priceParams.recurring = cadence.recurring;
       }
 
       const price = await stripe.prices.create(priceParams);
@@ -141,7 +154,6 @@ serve(async (req) => {
     }
 
     // Create Checkout session
-    const isSubscription = plan.billing_interval !== "one_time";
     // Origin whitelist rationale: see _shared/origins.ts (anti-redirect-hijack).
     const origin = resolveOriginFromEnv(req.headers.get("origin"));
 
@@ -149,7 +161,7 @@ serve(async (req) => {
       customer: customerId,
       customer_email: customerId ? undefined : athleteEmail || undefined,
       line_items: [{ price: stripePriceId!, quantity: 1 }],
-      mode: isSubscription ? "subscription" : "payment",
+      mode: cadence.kind === "recurring" ? "subscription" : "payment",
       success_url: `${origin}/athlete/dashboard?payment=success`,
       cancel_url: `${origin}/athlete/profile?payment=cancelled`,
       metadata: {
