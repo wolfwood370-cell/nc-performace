@@ -31,7 +31,7 @@
 // retry recomputes the same instant from billing_plans.term_days) and the latest
 // row of access_grants (the coach's manual grant, third source). Because both the
 // webhook and the grant RPC recompute that max from durable rows, neither can wipe
-// the other. Nothing READS access_until yet: the predicate flip is the next slice.
+// the other. access_until IS read since the 2026-07-26 predicate flip: hasActiveAccess (_shared/billing.ts) gates FE and release-autonomous-program on it.
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
