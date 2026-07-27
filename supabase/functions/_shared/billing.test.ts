@@ -17,6 +17,7 @@ import {
   priceIdFromSubscription,
   resolveAccessUntil,
   resolveAccountState,
+  stripeCadenceFor,
   subscriptionIdFromInvoice,
   tierForPlan,
   type ProfileSubscriptionStatus,
@@ -500,6 +501,61 @@ Deno.test("prepaidTermEndIso: ancora assente o malformata → null, mai la data 
   // Ancora fuori scala (millisecondi passati per secondi): la data risultante
   // non e' rappresentabile e va rifiutata, non troncata.
   assertEquals(prepaidTermEndIso({ created: 1e15 }, 180), null);
+});
+
+// --------------------------------------------------------------- stripeCadenceFor
+
+Deno.test("stripeCadenceFor: 'block' → ricorrenza {week, 4}, mai mensile", () => {
+  // Il pin commerciale della fetta: un blocco e' una RICORRENZA di 4 settimane.
+  // Il mutante 'block' -> {month, 1} (il vecchio ripiego) muore qui.
+  assertEquals(stripeCadenceFor("block"), {
+    kind: "recurring",
+    recurring: { interval: "week", interval_count: 4 },
+  });
+});
+
+Deno.test("stripeCadenceFor: valori storici 'month'/'year' → traduzioni vere", () => {
+  // Le righe archiviate vendute a queste cadenze restano rappresentabili.
+  assertEquals(stripeCadenceFor("month"), {
+    kind: "recurring",
+    recurring: { interval: "month", interval_count: 1 },
+  });
+  assertEquals(stripeCadenceFor("year"), {
+    kind: "recurring",
+    recurring: { interval: "year", interval_count: 1 },
+  });
+});
+
+Deno.test("stripeCadenceFor: 'one_time' → kind 'one_time', MAI null", () => {
+  // I due esiti "negativi" hanno significati OPPOSTI e non si devono confondere:
+  // null = cadenza non supportata (il chiamante risponde 400);
+  // {kind:'one_time'} = supportata, pagamento singolo (Checkout mode 'payment').
+  // Un'inversione manderebbe in 400 ogni checkout premium: questo pin la uccide.
+  assertEquals(stripeCadenceFor("one_time"), { kind: "one_time" });
+  assert(stripeCadenceFor("one_time") !== null, "one_time e' supportata, non un 400");
+});
+
+Deno.test("stripeCadenceFor: fuori dominio → null, mai il ripiego silenzioso a mensile", () => {
+  // 'quarter' e' il valore inventato dell'Acceptance; gli altri coprono
+  // maiuscole, sinonimi plausibili e tipi sbagliati. Il vecchio codice mandava
+  // TUTTO questo a un prezzo mensile senza errore e senza log.
+  for (const bad of [
+    "quarter",
+    "weekly",
+    "monthly",
+    "Month",
+    "BLOCK",
+    "block ",
+    "",
+    null,
+    undefined,
+    42,
+    {},
+    ["block"],
+    true,
+  ]) {
+    assertEquals(stripeCadenceFor(bad), null, JSON.stringify(bad ?? String(bad)));
+  }
 });
 
 // ---------------------------------------------------------- priceIdFromSubscription

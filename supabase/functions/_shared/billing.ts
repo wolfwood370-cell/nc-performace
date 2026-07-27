@@ -203,6 +203,55 @@ export function nextProfileTier(currentTier: unknown, planTier: PlanTier): PlanT
   return planTier;
 }
 
+// ---------------------------------------------------------------- plan cadence
+
+/**
+ * The Stripe cadence of a billing_plans.billing_interval value, as a CLOSED
+ * discriminated union. Deliberately NOT `recurring | null`: the map's own
+ * "unsupported" answer is null, and two nulls with opposite meanings
+ * (unsupported -> 400 vs one_time -> Checkout mode 'payment') would be one
+ * inversion away from 400-ing every premium checkout. The `kind` tag keeps the
+ * two outcomes impossible to confuse at the type level.
+ */
+export type StripeCadence =
+  | {
+      kind: "recurring";
+      recurring: { interval: "week" | "month" | "year"; interval_count: number };
+    }
+  | { kind: "one_time" };
+
+/**
+ * PURE. The ONE translation billing_interval -> Stripe cadence: every consumer
+ * (today only create-checkout-session) goes through here, so no local ternary
+ * can silently disagree with the domain.
+ *
+ * UNIT NOTE: {week, 4} is a RECURRENCE of 4 weeks, not a duration of 28 days.
+ * The authoritative days-per-block lives in the DB generated column
+ * billing_plans.term_days (duration_blocks * 28) — no 28 belongs in this file.
+ *
+ * 'month' and 'year' are historic values (archived rows sold at those
+ * cadences): true translations, kept representable on purpose. Anything
+ * outside the four-value domain returns null — FAIL CLOSED, the caller turns
+ * it into a 400. The old code mapped every unrecognized value to a silent
+ * monthly price; that fallback is exactly the defect this map removes.
+ */
+export function stripeCadenceFor(billingInterval: unknown): StripeCadence | null {
+  switch (billingInterval) {
+    // The commercial block: a 4-week recurrence. NOT a month.
+    case "block":
+      return { kind: "recurring", recurring: { interval: "week", interval_count: 4 } };
+    case "month":
+      return { kind: "recurring", recurring: { interval: "month", interval_count: 1 } };
+    case "year":
+      return { kind: "recurring", recurring: { interval: "year", interval_count: 1 } };
+    // One-off purchase: no recurrence, Checkout mode 'payment'.
+    case "one_time":
+      return { kind: "one_time" };
+    default:
+      return null;
+  }
+}
+
 // ------------------------------------------------------------ Stripe payloads
 
 /**
