@@ -132,7 +132,10 @@ export default function CoachBusiness() {
   const [selectedAthlete, setSelectedAthlete] = useState<{ id: string; name: string } | null>(null);
 
   const isPremiumService = newPlan.service === "coached_premium";
-  const previewBlocks = Number.parseInt(newPlan.durationBlocks, 10);
+  // Number(), NOT parseInt: "2.5" must be rejected (preview null, button
+  // disabled), never silently truncated to a duration different from what
+  // the coach typed. The duration IS the commercial number of the sale.
+  const previewBlocks = Number(newPlan.durationBlocks);
   const durationPreview =
     Number.isInteger(previewBlocks) && previewBlocks >= 1
       ? `${previewBlocks} ${previewBlocks === 1 ? "blocco" : "blocchi"} = ${previewBlocks * GIORNI_PER_BLOCCO} giorni ≈ ${previewBlocks * 4} settimane`
@@ -384,7 +387,7 @@ export default function CoachBusiness() {
                       <div className="flex items-start justify-between">
                         <div>
                           <CardTitle className="text-base">{plan.name}</CardTitle>
-                          <CardDescription className="text-xs capitalize">
+                          <CardDescription className="text-xs">
                             {plan.billing_interval === "block"
                               ? "Ogni 4 settimane"
                               : plan.billing_interval === "one_time"

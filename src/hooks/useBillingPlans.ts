@@ -55,7 +55,13 @@ export function useBillingPlans() {
   const qc = useQueryClient();
 
   const plansQuery = useQuery({
-    queryKey: ["billing-plans", user?.id],
+    // "v2" is a cache-shape version, not decoration: with staleTime Infinity +
+    // IndexedDB persist (src/main.tsx), the pre-migration listino would be
+    // rehydrated as fresh for up to 24h after the publish — archived monthly
+    // plan still sellable from RequestPaymentDialog, new block plan missing.
+    // A new key makes the old entry unreachable. Prefix invalidation on
+    // ["billing-plans"] below keeps matching.
+    queryKey: ["billing-plans", "v2", user?.id],
     queryFn: async () => {
       if (!user) return [];
       const { data, error } = await supabase
