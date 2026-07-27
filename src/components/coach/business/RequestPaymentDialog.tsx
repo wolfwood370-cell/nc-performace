@@ -59,7 +59,10 @@ export function RequestPaymentDialog({
   const handleCopy = async () => {
     if (!checkoutUrl) return;
     await navigator.clipboard.writeText(checkoutUrl);
-    toast({ title: "Link copiato!", description: "Il link di pagamento è stato copiato negli appunti." });
+    toast({
+      title: "Link copiato!",
+      description: "Il link di pagamento è stato copiato negli appunti.",
+    });
   };
 
   const handleClose = (v: boolean) => {
@@ -94,7 +97,13 @@ export function RequestPaymentDialog({
                       <SelectItem key={plan.id} value={plan.id}>
                         <span className="flex items-center gap-2">
                           {plan.name} — €{(plan.price_amount / 100).toFixed(2)}
-                          /{plan.billing_interval === "month" ? "mese" : plan.billing_interval === "year" ? "anno" : ""}
+                          {plan.billing_interval === "block"
+                            ? "/4 settimane"
+                            : plan.billing_interval === "month"
+                              ? "/mese"
+                              : plan.billing_interval === "year"
+                                ? "/anno"
+                                : " una tantum"}
                         </span>
                       </SelectItem>
                     ))}
@@ -106,7 +115,14 @@ export function RequestPaymentDialog({
                 <div className="rounded-lg border bg-muted/50 p-3 text-sm space-y-1">
                   <p className="font-medium">{selectedPlan.name}</p>
                   <p className="text-muted-foreground">
-                    €{(selectedPlan.price_amount / 100).toFixed(2)} / {selectedPlan.billing_interval === "month" ? "mese" : selectedPlan.billing_interval === "year" ? "anno" : "una tantum"}
+                    €{(selectedPlan.price_amount / 100).toFixed(2)}{" "}
+                    {selectedPlan.billing_interval === "block"
+                      ? "/ 4 settimane"
+                      : selectedPlan.billing_interval === "month"
+                        ? "/ mese"
+                        : selectedPlan.billing_interval === "year"
+                          ? "/ anno"
+                          : "una tantum"}
                   </p>
                   {selectedPlan.description && (
                     <p className="text-muted-foreground text-xs">{selectedPlan.description}</p>

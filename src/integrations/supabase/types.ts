@@ -457,9 +457,11 @@ export type Database = {
           active: boolean
           billing_interval: string
           coach_id: string
+          coaching_mode: Database["public"]["Enums"]["coaching_mode"]
           created_at: string
           currency: string
           description: string | null
+          duration_blocks: number | null
           id: string
           name: string
           price_amount: number
@@ -473,9 +475,11 @@ export type Database = {
           active?: boolean
           billing_interval?: string
           coach_id: string
+          coaching_mode: Database["public"]["Enums"]["coaching_mode"]
           created_at?: string
           currency?: string
           description?: string | null
+          duration_blocks?: number | null
           id?: string
           name: string
           price_amount?: number
@@ -489,9 +493,11 @@ export type Database = {
           active?: boolean
           billing_interval?: string
           coach_id?: string
+          coaching_mode?: Database["public"]["Enums"]["coaching_mode"]
           created_at?: string
           currency?: string
           description?: string | null
+          duration_blocks?: number | null
           id?: string
           name?: string
           price_amount?: number

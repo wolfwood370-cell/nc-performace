@@ -56,6 +56,16 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** The two sellable services. Everything else about the plan row (cadence,
+ * tier, coaching_mode, whether a duration is required) derives from this
+ * single choice — the coach never edits those fields directly. */
+type PlanService = "autonomous_monthly" | "coached_premium";
+
+/** Display-only preview: the AUTHORITATIVE days-per-block is the DB generated
+ * column billing_plans.term_days (duration_blocks * 28). If the two diverge,
+ * the preview lies — keep them in sync. */
+const GIORNI_PER_BLOCCO = 28;
+
 function getInitials(name: string | null): string {
   return (
     name
@@ -108,31 +118,56 @@ export default function CoachBusiness() {
   } = useBillingPlans();
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newPlan, setNewPlan] = useState({
+  const emptyPlanForm = {
+    service: "autonomous_monthly" as PlanService,
     name: "",
     price: "",
-    billing_interval: "month",
+    durationBlocks: "",
     description: "",
-  });
+  };
+  const [newPlan, setNewPlan] = useState(emptyPlanForm);
 
   // Payment request dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState<{ id: string; name: string } | null>(null);
 
+  const isPremiumService = newPlan.service === "coached_premium";
+  const previewBlocks = Number.parseInt(newPlan.durationBlocks, 10);
+  const durationPreview =
+    Number.isInteger(previewBlocks) && previewBlocks >= 1
+      ? `${previewBlocks} ${previewBlocks === 1 ? "blocco" : "blocchi"} = ${previewBlocks * GIORNI_PER_BLOCCO} giorni ≈ ${previewBlocks * 4} settimane`
+      : null;
+
   const handleCreatePlan = () => {
     const priceInCents = Math.round(parseFloat(newPlan.price) * 100);
     if (!newPlan.name || priceInCents <= 0) return;
+    // A premium path is prepaid: it MUST carry its duration (the DB CHECK
+    // billing_plans_prepaid_needs_duration would reject it anyway).
+    if (isPremiumService && !durationPreview) return;
     createPlan(
-      {
-        name: newPlan.name,
-        price_amount: priceInCents,
-        billing_interval: newPlan.billing_interval,
-        description: newPlan.description || undefined,
-      },
+      isPremiumService
+        ? {
+            name: newPlan.name,
+            price_amount: priceInCents,
+            billing_interval: "one_time",
+            tier: "premium",
+            coaching_mode: "coached",
+            duration_blocks: previewBlocks,
+            description: newPlan.description || undefined,
+          }
+        : {
+            name: newPlan.name,
+            price_amount: priceInCents,
+            billing_interval: "block",
+            tier: "monthly",
+            coaching_mode: "autonomous",
+            duration_blocks: null,
+            description: newPlan.description || undefined,
+          },
       {
         onSuccess: () => {
           setIsCreateDialogOpen(false);
-          setNewPlan({ name: "", price: "", billing_interval: "month", description: "" });
+          setNewPlan(emptyPlanForm);
         },
       },
     );
@@ -186,6 +221,25 @@ export default function CoachBusiness() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
+                  <Label>Servizio</Label>
+                  <Select
+                    value={newPlan.service}
+                    onValueChange={(v) => setNewPlan({ ...newPlan, service: v as PlanService })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="autonomous_monthly">
+                        Programmazione mensile (cliente autonomo)
+                      </SelectItem>
+                      <SelectItem value="coached_premium">
+                        Percorso premium (cliente seguito)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="plan-name">Nome Piano</Label>
                   <Input
                     id="plan-name"
@@ -196,7 +250,9 @@ export default function CoachBusiness() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="plan-price">Prezzo (€)</Label>
+                    <Label htmlFor="plan-price">
+                      {isPremiumService ? "Prezzo totale (€)" : "Prezzo per blocco (€)"}
+                    </Label>
                     <Input
                       id="plan-price"
                       type="number"
@@ -207,23 +263,27 @@ export default function CoachBusiness() {
                       onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Fatturazione</Label>
-                    <Select
-                      value={newPlan.billing_interval}
-                      onValueChange={(v) => setNewPlan({ ...newPlan, billing_interval: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="month">Mensile</SelectItem>
-                        <SelectItem value="year">Annuale</SelectItem>
-                        <SelectItem value="one_time">Una Tantum</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {isPremiumService && (
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-duration">Durata in blocchi da 4 settimane</Label>
+                      <Input
+                        id="plan-duration"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="6"
+                        value={newPlan.durationBlocks}
+                        onChange={(e) => setNewPlan({ ...newPlan, durationBlocks: e.target.value })}
+                      />
+                    </div>
+                  )}
                 </div>
+                {isPremiumService && (
+                  <p className="text-sm text-muted-foreground">
+                    {durationPreview ??
+                      "Indica la durata: es. 6 blocchi = 168 giorni ≈ 24 settimane"}
+                  </p>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="plan-desc">Descrizione</Label>
                   <Textarea
@@ -238,7 +298,10 @@ export default function CoachBusiness() {
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Annulla
                 </Button>
-                <Button onClick={handleCreatePlan} disabled={isCreatingPlan}>
+                <Button
+                  onClick={handleCreatePlan}
+                  disabled={isCreatingPlan || (isPremiumService && !durationPreview)}
+                >
                   {isCreatingPlan ? "Creazione..." : "Crea Piano"}
                 </Button>
               </DialogFooter>
@@ -322,11 +385,15 @@ export default function CoachBusiness() {
                         <div>
                           <CardTitle className="text-base">{plan.name}</CardTitle>
                           <CardDescription className="text-xs capitalize">
-                            {plan.billing_interval === "month"
-                              ? "Mensile"
-                              : plan.billing_interval === "year"
-                                ? "Annuale"
-                                : "Una Tantum"}
+                            {plan.billing_interval === "block"
+                              ? "Ogni 4 settimane"
+                              : plan.billing_interval === "one_time"
+                                ? "Una Tantum"
+                                : plan.billing_interval === "month"
+                                  ? "Mensile"
+                                  : plan.billing_interval === "year"
+                                    ? "Annuale"
+                                    : "—"}
                           </CardDescription>
                         </div>
                         <DropdownMenu>
@@ -356,12 +423,13 @@ export default function CoachBusiness() {
                       <div className="text-2xl font-bold">
                         €{(plan.price_amount / 100).toFixed(2)}
                         <span className="text-sm font-normal text-muted-foreground">
-                          /
-                          {plan.billing_interval === "month"
-                            ? "mese"
-                            : plan.billing_interval === "year"
-                              ? "anno"
-                              : ""}
+                          {plan.billing_interval === "block"
+                            ? "/4 settimane"
+                            : plan.billing_interval === "month"
+                              ? "/mese"
+                              : plan.billing_interval === "year"
+                                ? "/anno"
+                                : ""}
                         </span>
                       </div>
                       {plan.stripe_price_id && (

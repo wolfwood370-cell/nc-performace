@@ -9,16 +9,26 @@ export interface BillingPlan {
   name: string;
   price_amount: number; // cents
   currency: string;
+  /** Closed domain (CHECK billing_plans_interval_domain): the form writes only
+   * 'block' | 'one_time'; 'month' | 'year' stay representable on archived rows
+   * sold at those cadences. */
   billing_interval: string;
   stripe_price_id: string | null;
   stripe_product_id: string | null;
   active: boolean;
   description: string | null;
   created_at: string;
-  /** Canonical entitlement key (billing_plans.tier). Optional because the column
-   * ships with the checkout slice: before that migration is applied the select
-   * simply does not return it. */
-  tier?: "monthly" | "premium" | null;
+  /** Canonical entitlement key (billing_plans.tier). */
+  tier: "monthly" | "premium";
+  /** Who the plan is sold to. create-checkout-session refuses a mismatched
+   * athlete with a 403 — this field is the coherence key, not a label. */
+  coaching_mode: "coached" | "autonomous";
+  /** Duration in 4-week blocks for prepaid plans; NULL for renewal plans,
+   * where Stripe dictates the period. */
+  duration_blocks: number | null;
+  /** GENERATED column (duration_blocks * 28), read-only: Postgres rejects any
+   * write that includes it. */
+  term_days: number | null;
 }
 
 interface AthleteSubscriptionRow {
@@ -64,7 +74,10 @@ export function useBillingPlans() {
     mutationFn: async (payload: {
       name: string;
       price_amount: number;
-      billing_interval: string;
+      billing_interval: "block" | "one_time";
+      tier: "monthly" | "premium";
+      coaching_mode: "coached" | "autonomous";
+      duration_blocks: number | null;
       description?: string;
     }) => {
       if (!user) throw new Error("Non autenticato");
@@ -75,6 +88,9 @@ export function useBillingPlans() {
           name: payload.name,
           price_amount: payload.price_amount,
           billing_interval: payload.billing_interval,
+          tier: payload.tier,
+          coaching_mode: payload.coaching_mode,
+          duration_blocks: payload.duration_blocks,
           description: payload.description || null,
         })
         .select()
