@@ -177,27 +177,38 @@ export function useAthleteSubscription() {
 
 /**
  * The plans the athlete can actually subscribe to: the ACTIVE ones published by
- * their own coach. Mirrors the "Athletes can view coach plans" RLS policy, which
- * joins on profiles.coach_id — an athlete without a coach legitimately sees none,
- * and the caller renders an empty state for that.
+ * their own coach, FOR the athlete's own coaching_mode. Mirrors the "Athletes
+ * can view coach plans" RLS policy (joined on profiles.coach_id) plus the
+ * commercial coherence gate of create-checkout-session: showing a plan the
+ * checkout would refuse with a 403 is a dead end, not an offer.
+ *
+ * The mode filter here is CONVENIENCE, not security — anyone can call the edge
+ * function directly, and the server-side 403 stays the real defense. A NULL
+ * coaching_mode yields an empty list (client mirror of athlete_mode_unset:
+ * fail closed), and an athlete without a coach legitimately sees none; the
+ * caller renders an empty state for both.
  */
 export function useAthleteCoachPlans() {
   const { user, profile } = useAuth();
   const coachId = profile?.coach_id ?? null;
+  const mode = profile?.coaching_mode ?? null;
 
   return useQuery({
-    queryKey: ["athlete-coach-plans", coachId],
+    // mode is part of the key: a cached list for one mode must never be
+    // served to a profile whose mode has changed.
+    queryKey: ["athlete-coach-plans", coachId, mode],
     queryFn: async () => {
-      if (!coachId) return [];
+      if (!coachId || !mode) return [];
       const { data, error } = await supabase
         .from("billing_plans")
         .select("*")
         .eq("coach_id", coachId)
         .eq("active", true)
+        .eq("coaching_mode", mode)
         .order("price_amount", { ascending: true });
       if (error) throw error;
       return data as BillingPlan[];
     },
-    enabled: !!user && !!coachId,
+    enabled: !!user && !!coachId && !!mode,
   });
 }

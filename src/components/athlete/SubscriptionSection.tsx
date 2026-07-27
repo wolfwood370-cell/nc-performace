@@ -33,16 +33,21 @@ import {
 import { cn } from "@/lib/utils";
 import { log } from "@/lib/logger";
 
-/** Amounts are stored in cents. */
+/** Amounts are stored in cents. Every cadence of the closed domain gets an
+ * explicit branch — the old `/mese` catch-all was the same silent-fallback
+ * defect the cadence map removed server-side. An unknown value shows the bare
+ * price rather than a wrong cadence. */
 function formatPrice(plan: BillingPlan): string {
   const amount = (plan.price_amount ?? 0) / 100;
   const formatted = new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: (plan.currency || "eur").toUpperCase(),
   }).format(amount);
+  if (plan.billing_interval === "block") return `${formatted}/4 settimane`;
+  if (plan.billing_interval === "month") return `${formatted}/mese`;
   if (plan.billing_interval === "year") return `${formatted}/anno`;
   if (plan.billing_interval === "one_time") return `${formatted} una tantum`;
-  return `${formatted}/mese`;
+  return formatted;
 }
 
 /**
