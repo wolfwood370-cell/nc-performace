@@ -78,6 +78,39 @@ serve(async (req) => {
     if (planError || !plan) throw new Error("Plan not found");
     logStep("Plan fetched", { planName: plan.name, amount: plan.price_amount });
 
+    // Commercial coherence gate (slice 3a): who can buy what. Runs AFTER the
+    // identity check above (is_coach_of_athlete — a different question) and
+    // BEFORE any Stripe call: no product is ever created for a sale we are
+    // about to refuse. Responses carry the error code only — no plan or
+    // profile details.
+    const { data: modeRows, error: modeError } = await adminClient
+      .from("profiles")
+      .select("coaching_mode")
+      .eq("id", targetAthleteId)
+      .limit(1);
+    // A transient DB error is not "mode unset": generic 500 via the catch.
+    if (modeError) throw new Error(`Athlete profile read failed: ${modeError.message}`);
+    const athleteMode = modeRows?.[0]?.coaching_mode ?? null;
+    if (!athleteMode) {
+      // Fail closed on purpose: a profile without a mode (or no profile row at
+      // all) has no service it belongs to.
+      logStep("Commercial gate: athlete mode unset", { targetAthleteId });
+      return new Response(JSON.stringify({ error: "athlete_mode_unset" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (plan.coaching_mode !== athleteMode) {
+      logStep("Commercial gate: plan/athlete mode mismatch", {
+        planId: plan.id,
+        targetAthleteId,
+      });
+      return new Response(JSON.stringify({ error: "plan_mode_mismatch" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // The ONE billing_interval -> Stripe cadence translation (shared map,
     // fail-closed): a plan whose cadence this build does not know is a 400,
     // never a silent monthly price. Resolved BEFORE any Stripe call so no
