@@ -698,7 +698,8 @@ Deno.test("resolveAccountState: lo stato risolto resta dentro l'enum riga", () =
 
 // ------------------------------------------------------------- resolveAccessUntil
 // access_until = max(copertura-abbonamento fra le righe che danno accesso,
-// ultima-concessione). Il confronto e' per istante, non per stringa, e nessun
+// grazia di OGNI riga — v. sezione dedicata in coda — e ultima-concessione).
+// Il confronto e' per istante, non per stringa, e nessun
 // orologio viene consultato: una data passata torna com'e' (fail-closed a valle).
 
 const FUT_1 = "2027-01-31T00:00:00.000Z";

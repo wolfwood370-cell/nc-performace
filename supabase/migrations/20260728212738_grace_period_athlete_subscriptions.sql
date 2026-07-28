@@ -4,14 +4,22 @@
 -- Fetta grazia-4a. Periodo di grazia di 14 giorni sull'ACCESSO quando il
 -- pagamento di un RINNOVO fallisce: la colonna athlete_subscriptions.grace_until
 -- registra la fine della finestra (emissione della fattura non pagata + 14 gg),
--- scritta SOLO da stripe-webhook (invoice.payment_failed, decisione pura
--- graceDecision in _shared/billing.ts) e azzerata da invoice.payment_succeeded.
+-- scritta dal solo stripe-webhook PER CONTRATTO APPLICATIVO (invoice.
+-- payment_failed, decisione pura graceDecision in _shared/billing.ts) e
+-- azzerata da invoice.payment_succeeded. NB: la policy pre-esistente
+-- "Coaches can update athlete subscriptions" (20260215195929) consente al
+-- coach l'UPDATE diretto di ogni colonna delle righe dei propri atleti,
+-- grace_until inclusa, senza audit: superficie NON introdotta da questa fetta
+-- (valeva gia' per status/current_period_end), hardening RLS demandato a
+-- fetta dedicata (v. HANDOFF).
 -- Nessun job pianificato: access_until e' un massimo di istanti fissi, quindi
 -- allo scadere della finestra l'accesso si spegne da solo (fail-closed a valle).
 --
 -- Dipende da 20260721150300 (grant_athlete_access), di cui questo file
--- ridefinisce il corpo con UNA SOLA differenza: il terzo termine nel GREATEST.
--- Il file storico resta com'e'; la modifica vive qui.
+-- ridefinisce il corpo con una sola differenza FUNZIONALE — il terzo termine
+-- nel GREATEST — piu' l'aggiornamento del commento in-body sopra il GREATEST
+-- (il testo storico descriveva un massimo a due termini: lasciarlo avrebbe
+-- fatto mentire il commento). Il file storico resta com'e'; la modifica vive qui.
 --
 -- PERCHE' IL TERZO TERMINE (convergenza dei due scrittori di access_until):
 -- la concessione manuale resta AUTORITATIVA e puo' avvicinare o allontanare la
@@ -33,8 +41,9 @@ ALTER TABLE public.athlete_subscriptions
 COMMENT ON COLUMN public.athlete_subscriptions.grace_until IS
   'Finestra di tolleranza sull''ACCESSO dopo il fallimento di un RINNOVO: = data di emissione della fattura non pagata + 14 giorni. Entra nel massimo di access_until INDIPENDENTEMENTE dallo stato della riga. NULL = nessun episodio aperto, ed e'' la condizione che permette di aprirne uno nuovo. Si azzera quando il pagamento va a buon fine. NON e'' una data di fatturazione e non va confusa con current_period_end.';
 
--- Corpo IDENTICO a 20260721150300, con la sola aggiunta del terzo termine nel
--- GREATEST (la grazia in corso non e' cancellabile dalla concessione manuale).
+-- Corpo IDENTICO a 20260721150300 salvo DUE hunk testuali: il terzo termine nel
+-- GREATEST (la grazia in corso non e' cancellabile dalla concessione manuale)
+-- e il commento in-body sopra di esso, aggiornato al massimo a tre termini.
 CREATE OR REPLACE FUNCTION public.grant_athlete_access(
   p_athlete_id  uuid,
   p_until       timestamptz,

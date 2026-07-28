@@ -498,8 +498,9 @@ export interface AccessProfile {
  *     be null. Without this branch every coached athlete would be locked out of
  *     the features their tier grants them, which is the opposite of the intent.
  *   - access_until STRICTLY in the future -> the athlete pays for themselves;
- *     the instant covers subscription, prepaid term and manual grant at once,
- *     because resolveAccessUntil already folds all three into the max.
+ *     the instant covers subscription, prepaid term, payment-failure grace and
+ *     manual grant at once, because resolveAccessUntil already folds them all
+ *     into the max.
  *
  * Fail-closed everywhere else: a missing profile, a null/absent/unparsable
  * access_until, and an access_until exactly equal to `now` all read as "no

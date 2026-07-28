@@ -147,8 +147,9 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
     // access_until: the single authority for access (slice F1). It is NOT
     // resolveAccountState's single winner (which is precedence-first, so an
     // 'active' row with a PAST date would beat a 'canceling' one still paid, and
-    // would ignore a coach grant). It is the MAX over the two durable sources —
-    // furthest access-granting subscription period end, and the latest manual
+    // would ignore a coach grant). It is the MAX over the three durable sources —
+    // furthest access-granting subscription period end, the grace window of ANY
+    // row (grazia-4a, no status filter), and the latest manual
     // grant — computed by the pure resolveAccessUntil. Fixed value from durable
     // rows: safe to re-run (invariant 2), and neither writer can wipe the other.
     // A past/None result reads as no access downstream (fail-closed).
@@ -248,9 +249,13 @@ serve(async (req) => {
     // the first is still in flight both find processed_at NULL and both proceed, on
     // purpose — the alternative is stranding an event whose first run died halfway.
     // That is safe because the handlers are fixed-value writes (invariant 2), with
-    // one residue: syncProfileFromAthlete is a read-modify-write, so concurrent runs
-    // can interleave and leave the cache one recompute behind. Self-healing on the
-    // next event; a real lease (claimed_at + expiry) is the fix if it ever bites.
+    // two residues: syncProfileFromAthlete is a read-modify-write, so concurrent runs
+    // can interleave and leave the cache one recompute behind (self-healing on the
+    // next event); and the payment_failed notice is a check-then-insert with no
+    // UNIQUE behind it, so two OVERLAPPING deliveries of the same event can write
+    // it twice (cosmetic: a duplicate bell entry, no effect on access or money —
+    // sequential retries converge through the dedupe lookup). A real lease
+    // (claimed_at + expiry) is the fix if either ever bites.
     const claimed = unwrap(
       await adminClient
         .from("stripe_events")
@@ -507,7 +512,10 @@ serve(async (req) => {
               throw new Error("unreachable:grace_created_unreadable");
             }
             // Dedupe FAIL-CLOSED: a lookup error throws (500, Stripe retries),
-            // never "insert just in case".
+            // never "insert just in case". Sequential retries converge here;
+            // only OVERLAPPING deliveries of the same event can slip past this
+            // check-then-insert and double the notice — declared residue, see
+            // the ledger note above.
             const existing = unwrap(
               await adminClient
                 .from("notifications")
