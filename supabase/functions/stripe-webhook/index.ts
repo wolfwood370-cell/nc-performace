@@ -32,6 +32,13 @@
 // row of access_grants (the coach's manual grant, third source). Because both the
 // webhook and the grant RPC recompute that max from durable rows, neither can wipe
 // the other. access_until IS read since the 2026-07-26 predicate flip: hasActiveAccess (_shared/billing.ts) gates FE and release-autonomous-program on it.
+//
+// Slice grazia-4a (2026-07-28) folds ONE more durable source into that same max:
+// athlete_subscriptions.grace_until — the 14-day window after a failed RENEWAL,
+// opened here on invoice.payment_failed (decided by the pure graceDecision),
+// cleared on invoice.payment_succeeded, counted with NO status filter so it
+// survives the subscription's own closure. Same rule, mirrored by the third
+// GREATEST term of grant_athlete_access: the two writers stay convergent.
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
@@ -40,6 +47,8 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.57.2";
 import { secretKey } from "../_shared/apiKeys.ts";
 import {
   effectiveBillingStatus,
+  epochSecondsToIso,
+  graceDecision,
   grantsAccess,
   mapBillingStatusToProfile,
   mapBillingStatusToRow,
@@ -97,7 +106,7 @@ async function syncProfileFromAthlete(admin: AdminClient, athleteId: string): Pr
   const rows = unwrap(
     await admin
       .from("athlete_subscriptions")
-      .select("status, plan_id, current_period_end")
+      .select("status, plan_id, current_period_end, grace_until")
       .eq("athlete_id", athleteId),
     "athlete_subscriptions select for profile sync",
   );
@@ -192,7 +201,7 @@ async function rowForSubscription(admin: AdminClient, subscriptionId: string) {
   const rows = unwrap(
     await admin
       .from("athlete_subscriptions")
-      .select("id, athlete_id, status, plan_id")
+      .select("id, athlete_id, status, plan_id, current_period_end, grace_until")
       .eq("stripe_subscription_id", subscriptionId)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -412,6 +421,9 @@ serve(async (req) => {
                 effectiveBillingStatus(sub.status, sub.cancel_at_period_end),
               ),
               current_period_end: periodEndIso(sub),
+              // A successful payment closes the grace episode; clearing it is
+              // exactly what allows the next episode to open (grazia-4a).
+              grace_until: null,
             })
             .eq("id", row.id)
             .select("id"),
@@ -442,19 +454,128 @@ serve(async (req) => {
           break;
         }
 
+        // Every grace RULE lives in the pure graceDecision (_shared/billing.ts):
+        // this branch only reads, writes and orders. Merit conditions on durable
+        // data, no "already done" shortcuts (invariant 2).
+        const decision = graceDecision(invoice, row);
+
+        if (!decision.grant && decision.reason === "stale_after_recovery") {
+          // An old event delivered after a recovery was already recorded:
+          // anything written here would move truth backwards, so touch NOTHING.
+          logStep("Grazia negata: evento stantio dopo incasso registrato", { subscriptionId });
+          break;
+        }
+
+        // THE NOTICE COMES FIRST (Nick's call). Of the two writes, the one that
+        // must never be missing is the NOTICE, not the grace: keeping access on
+        // during grace costs nothing (the app and the content already exist),
+        // while the only thing that truly costs — the coach's hours — is
+        // protected only by the coach KNOWING. Were grace_until written first,
+        // a crash before the insert would flip the retry to episode_open and
+        // suppress the notice forever. Declared residue, not solved: if the row
+        // update below failed PERMANENTLY after the notice went out, the coach
+        // would be told of a grace never materialized — acceptable, because it
+        // takes a selective and permanent DB failure, and the load-bearing fact
+        // ("the payment failed") is true and delivered either way.
+        if (decision.grant) {
+          const profileRows = unwrap(
+            await adminClient
+              .from("profiles")
+              .select("coach_id, full_name")
+              .eq("id", row.athlete_id)
+              .limit(1),
+            "profiles select for payment_failed notice",
+          );
+          const athleteProfile = profileRows?.[0];
+          const coachId = (athleteProfile?.coach_id as string | null | undefined) ?? null;
+          if (!coachId) {
+            // No recipient exists: throwing would make Stripe retry for days
+            // over a notice that can never be delivered. Loud, then move on.
+            console.error("[STRIPE-WEBHOOK] payment_failed notice without a coach", {
+              athleteId: row.athlete_id,
+            });
+          } else {
+            // The row id makes the dedupe key exact — an athlete can own
+            // SEVERAL subscriptions (UNIQUE athlete_id+plan_id), so the
+            // coach+athlete pair is not enough — and the window anchored on
+            // the invoice emission separates one episode from the next.
+            const linkUrl = `/coach/business?subscription=${row.id}`;
+            const createdIso = epochSecondsToIso(invoice.created);
+            if (!createdIso) {
+              // Unreachable by construction (grant implies a readable created):
+              // a silent skip would degrade the dedupe, so fail loud instead.
+              throw new Error("unreachable:grace_created_unreadable");
+            }
+            // Dedupe FAIL-CLOSED: a lookup error throws (500, Stripe retries),
+            // never "insert just in case".
+            const existing = unwrap(
+              await adminClient
+                .from("notifications")
+                .select("id")
+                .eq("user_id", coachId)
+                .eq("type", "payment_failed")
+                .eq("link_url", linkUrl)
+                .gte("created_at", createdIso)
+                .limit(1),
+              "notifications dedupe lookup for payment_failed",
+            );
+            if (!existing?.[0]) {
+              const fullNameRaw = athleteProfile?.full_name;
+              const fullName =
+                typeof fullNameRaw === "string" && fullNameRaw.trim().length > 0
+                  ? fullNameRaw
+                  : "un tuo atleta";
+              // The date format is never a reason not to notify: the timezone
+              // rendering is cosmetic, so it may fall back — never throw.
+              let untilLabel: string;
+              try {
+                untilLabel = new Date(decision.until).toLocaleDateString("it-IT", {
+                  timeZone: "Europe/Rome",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                });
+              } catch (_formatError) {
+                untilLabel = decision.until.slice(0, 10);
+              }
+              unwrap(
+                await adminClient
+                  .from("notifications")
+                  .insert({
+                    user_id: coachId,
+                    sender_id: row.athlete_id,
+                    type: "payment_failed",
+                    message: `Pagamento non riuscito per ${fullName}. L'accesso resta attivo fino al ${untilLabel}.`,
+                    link_url: linkUrl,
+                    read: false,
+                  })
+                  .select("id"),
+                "notifications insert for payment_failed",
+              );
+            }
+          }
+        }
+
         // Forced rather than derived: the business fact IS "a payment failed", and
-        // Stripe may not have moved the subscription off 'active' yet.
+        // Stripe may not have moved the subscription off 'active' yet. Fixed
+        // values, safe to re-run (invariant 2): grace_until only on a granted
+        // decision, untouched otherwise.
+        const failureUpdate: Record<string, unknown> = { status: "past_due" };
+        if (decision.grant) failureUpdate.grace_until = decision.until;
         unwrap(
           await adminClient
             .from("athlete_subscriptions")
-            .update({ status: "past_due" })
+            .update(failureUpdate)
             .eq("id", row.id)
             .select("id"),
           "athlete_subscriptions update on payment failure",
         );
 
         await syncProfileFromAthlete(adminClient, row.athlete_id as string);
-        logStep("Payment failed, marked past_due", { subscriptionId });
+        logStep("Payment failed, marked past_due", {
+          subscriptionId,
+          grace: decision.grant ? decision.until : decision.reason,
+        });
         break;
       }
 
