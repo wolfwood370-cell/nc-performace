@@ -7,7 +7,10 @@
 
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import {
+  ACCESS_GRACE_DAYS,
   effectiveBillingStatus,
+  epochSecondsToIso,
+  graceDecision,
   grantsAccess,
   mapBillingStatusToProfile,
   mapBillingStatusToRow,
@@ -15,6 +18,7 @@ import {
   periodEndIso,
   prepaidTermEndIso,
   priceIdFromSubscription,
+  RENEWAL_BILLING_REASON,
   resolveAccessUntil,
   resolveAccountState,
   stripeCadenceFor,
@@ -799,3 +803,274 @@ Deno.test("resolveAccessUntil: normalizza l'output in ISO canonico (Z)", () => {
   const out = resolveAccessUntil([{ status: "active", current_period_end: FUT_1 }], null);
   assertEquals(out, new Date(FUT_1).toISOString());
 });
+
+// ------------------------------------------------------------ epochSecondsToIso
+// Ora esportata (fetta grazia-4a): il webhook la usa per la finestra di dedupe
+// dell'avviso. Conversione, non regola — ma da export va pinnata direttamente.
+
+Deno.test("epochSecondsToIso: epoch valido → ISO esatto", () => {
+  assertEquals(epochSecondsToIso(CREATED), new Date(CREATED * 1000).toISOString());
+});
+
+Deno.test("epochSecondsToIso: fuori dominio → null, mai Invalid Date né 1970", () => {
+  for (const bad of [
+    0,
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    1e15,
+    "1767225600",
+    null,
+    undefined,
+    {},
+  ]) {
+    assertEquals(epochSecondsToIso(bad), null, String(bad));
+  }
+});
+
+// ----------------------------------------------------- costanti della grazia
+// Pin LETTERALI (lezione CONSENT_VERSION): una costante-contratto mutata deve
+// far fallire la suite, non sopravvivere attraverso i fixture.
+
+Deno.test("ACCESS_GRACE_DAYS: 14, pinnato letteralmente", () => {
+  assertEquals(ACCESS_GRACE_DAYS, 14);
+});
+
+Deno.test("RENEWAL_BILLING_REASON: 'subscription_cycle', pinnato letteralmente", () => {
+  assertEquals(RENEWAL_BILLING_REASON, "subscription_cycle");
+});
+
+// ----------------------------------------------------------------- graceDecision
+// I fixture usano i LETTERALI (mai le costanti): così il mutante che cambia la
+// costante diverge dai fixture e muore, invece di co-mutare con loro.
+
+/** Fine finestra attesa per una fattura emessa a CREATED. */
+const GRACE_END = new Date((CREATED + 14 * DAY) * 1000).toISOString();
+/** Un istante DOPO la fine finestra (stale dal lato stretto del confine). */
+const AFTER_GRACE_END = new Date((CREATED + 14 * DAY) * 1000 + 1000).toISOString();
+
+Deno.test(
+  "graceDecision: rinnovo fallito, nessun episodio aperto → grant con istante ESATTO (created + 14gg)",
+  () => {
+    const decision = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status: "past_due", grace_until: null, current_period_end: null },
+    );
+    assertEquals(decision, { grant: true, until: GRACE_END });
+  },
+);
+
+Deno.test(
+  "graceDecision: deterministica sullo stesso evento, ancorata alla fattura (mai all'orologio)",
+  () => {
+    const invoice = { created: CREATED, billing_reason: "subscription_cycle" };
+    const row = { status: "past_due", grace_until: null, current_period_end: null };
+    assertEquals(graceDecision(invoice, row), graceDecision(invoice, row));
+    // Fatture emesse in istanti diversi → finestre diverse: non è una costante.
+    const a = graceDecision(invoice, row);
+    const b = graceDecision({ created: CREATED + DAY, billing_reason: "subscription_cycle" }, row);
+    if (!a.grant || !b.grant) throw new Error("attesi due grant");
+    assert(a.until !== b.until);
+  },
+);
+
+Deno.test("graceDecision: la grazia non dipende dallo stato della riga", () => {
+  // past_due (il caso normale), canceled (fattura in ritardo su sub chiusa),
+  // canceling, incomplete: la decisione è di merito, non di stato.
+  for (const status of ["past_due", "canceled", "canceling", "incomplete"]) {
+    const decision = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status, grace_until: null, current_period_end: null },
+    );
+    assertEquals(decision, { grant: true, until: GRACE_END }, status);
+  }
+});
+
+Deno.test("graceDecision: ancora illeggibile → unreadable_date (MAI una data da 'adesso')", () => {
+  for (const bad of [undefined, null, 0, -1, "1767225600", Number.NaN, 1e15]) {
+    const decision = graceDecision(
+      { created: bad, billing_reason: "subscription_cycle" },
+      { status: "past_due", grace_until: null, current_period_end: null },
+    );
+    assertEquals(decision, { grant: false, reason: "unreadable_date" }, String(bad));
+  }
+});
+
+Deno.test("graceDecision: ordine dei motivi — ancora illeggibile vince su not_a_renewal", () => {
+  const decision = graceDecision({ created: null, billing_reason: "subscription_create" }, {});
+  assertEquals(decision, { grant: false, reason: "unreadable_date" });
+});
+
+Deno.test(
+  "graceDecision: solo il RINNOVO concede — prima fattura e ogni altro valore → not_a_renewal",
+  () => {
+    // 'subscription_create' è la prima fattura: chi non ha MAI pagato non ottiene
+    // grazia. Tutto il resto (incluso il case diverso e l'assenza) è fail-closed.
+    for (const reason of [
+      "subscription_create",
+      "subscription_update",
+      "manual",
+      "upcoming",
+      "SUBSCRIPTION_CYCLE",
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
+      const decision = graceDecision(
+        { created: CREATED, billing_reason: reason },
+        { status: "past_due", grace_until: null, current_period_end: null },
+      );
+      assertEquals(decision, { grant: false, reason: "not_a_renewal" }, String(reason));
+    }
+  },
+);
+
+Deno.test("graceDecision: episodio già aperto → episode_open, la finestra non si estende", () => {
+  const decision = graceDecision(
+    { created: CREATED, billing_reason: "subscription_cycle" },
+    { status: "past_due", grace_until: FUT_1, current_period_end: null },
+  );
+  assertEquals(decision, { grant: false, reason: "episode_open" });
+});
+
+Deno.test("graceDecision: ordine dei motivi — episode_open vince su stale_after_recovery", () => {
+  const decision = graceDecision(
+    { created: CREATED, billing_reason: "subscription_cycle" },
+    { status: "active", grace_until: FUT_1, current_period_end: FUT_2 },
+  );
+  assertEquals(decision, { grant: false, reason: "episode_open" });
+});
+
+Deno.test(
+  "graceDecision: riga active con scadenza OLTRE la finestra → stale_after_recovery",
+  () => {
+    // Un incasso già registrato dopo l'emissione: l'evento è vecchio, non toccare nulla.
+    const decision = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status: "active", grace_until: null, current_period_end: AFTER_GRACE_END },
+    );
+    assertEquals(decision, { grant: false, reason: "stale_after_recovery" });
+  },
+);
+
+Deno.test(
+  "graceDecision: confine pinnato da ENTRAMBI i lati — cpe UGUALE alla finestra non è stale",
+  () => {
+    // Il confronto è STRETTO (>): all'istante esatto la grazia si concede ancora;
+    // un millisecondo oltre (qui +1s) no. Un mutante >= muore qui.
+    const equal = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status: "active", grace_until: null, current_period_end: GRACE_END },
+    );
+    assertEquals(equal, { grant: true, until: GRACE_END });
+    const beyond = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status: "active", grace_until: null, current_period_end: AFTER_GRACE_END },
+    );
+    assertEquals(beyond, { grant: false, reason: "stale_after_recovery" });
+  },
+);
+
+Deno.test(
+  "graceDecision: stale SOLO su riga active — past_due con scadenza lontana concede",
+  () => {
+    const decision = graceDecision(
+      { created: CREATED, billing_reason: "subscription_cycle" },
+      { status: "past_due", grace_until: null, current_period_end: FUT_2 },
+    );
+    assertEquals(decision, { grant: true, until: GRACE_END });
+  },
+);
+
+Deno.test(
+  "graceDecision: active con scadenza assente o illeggibile → grant (la staleness va PROVATA)",
+  () => {
+    for (const cpe of [null, undefined, "non-una-data", 1767225600]) {
+      const decision = graceDecision(
+        { created: CREATED, billing_reason: "subscription_cycle" },
+        { status: "active", grace_until: null, current_period_end: cpe },
+      );
+      assertEquals(decision, { grant: true, until: GRACE_END }, String(cpe));
+    }
+  },
+);
+
+Deno.test("graceDecision: payload degeneri → mai un throw, sempre un rifiuto motivato", () => {
+  for (const bad of [null, undefined, 42, "x", [], {}]) {
+    const decision = graceDecision(bad, bad);
+    assertEquals(decision.grant, false, String(bad));
+  }
+});
+
+// ------------------------------------------- resolveAccessUntil + grace_until
+// La grazia entra nel massimo FUORI dal filtro ACCESS_GRANTING_ROW (i 14 giorni
+// sono dovuti anche a sottoscrizione chiusa) e può solo allungare (invariante 10).
+
+Deno.test(
+  "resolveAccessUntil: la grazia su una riga past_due conta (fuori dal filtro-status)",
+  () => {
+    assertEquals(
+      resolveAccessUntil(
+        [{ status: "past_due", current_period_end: null, grace_until: FUT_1 }],
+        null,
+      ),
+      FUT_1,
+    );
+  },
+);
+
+Deno.test(
+  "resolveAccessUntil: la grazia sopravvive alla sottoscrizione CHIUSA (riga canceled)",
+  () => {
+    // La cpe della riga canceled resta esclusa dal filtro; la grazia no.
+    assertEquals(
+      resolveAccessUntil(
+        [{ status: "canceled", current_period_end: FUT_2, grace_until: FUT_1 }],
+        null,
+      ),
+      FUT_1,
+    );
+  },
+);
+
+Deno.test(
+  "resolveAccessUntil: la grazia può solo ALLUNGARE, mai accorciare (invariante 10)",
+  () => {
+    // Grazia più vicina di una copertura pagata → vince la copertura...
+    assertEquals(
+      resolveAccessUntil(
+        [{ status: "active", current_period_end: FUT_2, grace_until: FUT_1 }],
+        null,
+      ),
+      FUT_2,
+    );
+    // ...grazia più lontana → vince la grazia...
+    assertEquals(
+      resolveAccessUntil(
+        [{ status: "active", current_period_end: FUT_1, grace_until: FUT_2 }],
+        null,
+      ),
+      FUT_2,
+    );
+    // ...e la concessione manuale più lontana non ne risente.
+    assertEquals(resolveAccessUntil([{ status: "past_due", grace_until: FUT_1 }], FUT_2), FUT_2);
+  },
+);
+
+Deno.test(
+  "resolveAccessUntil: grace_until spazzatura ignorata; righe senza grace invariate",
+  () => {
+    assertEquals(
+      resolveAccessUntil(
+        [{ status: "active", current_period_end: FUT_1, grace_until: 1767225600 }],
+        null,
+      ),
+      FUT_1,
+    );
+    assertEquals(
+      resolveAccessUntil([{ status: "past_due", grace_until: "non-una-data" }], null),
+      null,
+    );
+  },
+);

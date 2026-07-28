@@ -62,8 +62,10 @@ function idOf(value: unknown): string | null {
 }
 
 /** Epoch seconds -> ISO string. Rejects non-finite, non-positive and out-of-range
- * values so the caller can never persist "Invalid Date" or 1970-01-01. */
-function epochSecondsToIso(value: unknown): string | null {
+ * values so the caller can never persist "Invalid Date" or 1970-01-01.
+ * Exported for the webhook's notification dedupe window (anchored on
+ * invoice.created): a CONVERSION the I/O layer may use, not a rule. */
+export function epochSecondsToIso(value: unknown): string | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
   const date = new Date(value * 1000);
   const time = date.getTime();
@@ -343,10 +345,97 @@ function isoToMs(value: unknown): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+// ------------------------------------------------ grace period (failed renewal)
+
 /**
- * PURE. The ONE authority for access (slice F1):
+ * Days of access still owed after a RENEWAL payment fails, counted from the
+ * invoice creation instant (frozen in the signed event — never the wall clock).
+ * A code constant, not DB config, on purpose: it belongs to the access rule
+ * itself, this module must stay pure (no config reads), and the SQL writer
+ * (grant_athlete_access) reads the STORED grace_until — so the number exists in
+ * exactly one place. Pinned literally by the tests: changing it is a deliberate
+ * slice, not a knob.
+ */
+export const ACCESS_GRACE_DAYS = 14;
+
+/**
+ * The invoice.billing_reason value of a subscription RENEWAL, per the real
+ * stripe@18.5.0 typings (BillingReason union): 'subscription_cycle' is "a
+ * subscription advanced into a new period". The FIRST invoice of a
+ * subscription is 'subscription_create' and earns NO grace (who never paid
+ * gets none). Named so that, should the live payload ever disagree, the fix is
+ * this constant — never the logic around it.
+ */
+export const RENEWAL_BILLING_REASON = "subscription_cycle";
+
+/**
+ * Outcome of the grace evaluation: the exact instant access is owed until, or
+ * the reason no grace is due. `stale_after_recovery` is special to the caller:
+ * the event arrived after a recovery was already recorded, so the right move
+ * is to touch NOTHING at all.
+ */
+export type GraceDecision =
+  | { grant: true; until: string }
+  | {
+      grant: false;
+      reason: "unreadable_date" | "not_a_renewal" | "episode_open" | "stale_after_recovery";
+    };
+
+/**
+ * PURE, TOTAL, no clock, never throws. Decides whether a failed invoice opens
+ * the ACCESS_GRACE_DAYS window on the athlete's access. Every condition is a
+ * MERIT check on durable data — re-running the same event against the same
+ * rows yields the same answer — never an "already done" shortcut (webhook
+ * invariant 2). In order:
+ *  a. the window end is invoice.created + ACCESS_GRACE_DAYS: an unreadable
+ *     anchor fails closed (unreadable_date) and is NEVER replaced by "now" —
+ *     a wall-clock fallback would hand out a fresh window on every retry;
+ *  b. only a RENEWAL earns grace: any other billing_reason — including
+ *     'subscription_create', the first invoice, i.e. the never-paid case —
+ *     is not_a_renewal, fail-closed on unknown/missing values;
+ *  c. an open episode (row.grace_until not null) is never extended: a new one
+ *     can only open after a successful payment cleared it (episode_open);
+ *  d. a row still 'active' with a period end BEYOND the would-be window means
+ *     a recovery was recorded after this invoice was emitted: the event is
+ *     stale and must touch nothing (stale_after_recovery).
+ */
+export function graceDecision(invoice: unknown, row: unknown): GraceDecision {
+  const created = prop(invoice, "created");
+  if (typeof created !== "number" || !Number.isFinite(created) || created <= 0) {
+    return { grant: false, reason: "unreadable_date" };
+  }
+  const until = epochSecondsToIso(created + ACCESS_GRACE_DAYS * 86400);
+  if (until === null) return { grant: false, reason: "unreadable_date" };
+
+  if (prop(invoice, "billing_reason") !== RENEWAL_BILLING_REASON) {
+    return { grant: false, reason: "not_a_renewal" };
+  }
+
+  const openGrace = prop(row, "grace_until");
+  if (openGrace !== null && openGrace !== undefined) {
+    return { grant: false, reason: "episode_open" };
+  }
+
+  const periodEndMs = isoToMs(prop(row, "current_period_end"));
+  const untilMs = isoToMs(until);
+  if (
+    prop(row, "status") === "active" &&
+    periodEndMs !== null &&
+    untilMs !== null &&
+    periodEndMs > untilMs
+  ) {
+    return { grant: false, reason: "stale_after_recovery" };
+  }
+
+  return { grant: true, until };
+}
+
+/**
+ * PURE. The ONE authority for access (slice F1; grace added by slice grazia-4a):
  *   access_until = max( furthest current_period_end among ACCESS-GRANTING
- *                       athlete_subscriptions rows, latest manual grant )
+ *                       athlete_subscriptions rows,
+ *                       grace_until of ALL rows (no status filter),
+ *                       latest manual grant )
  *
  * Computed from durable rows, so BOTH writers (this webhook and the RPC
  * grant_athlete_access) converge on the same value and neither can wipe the
@@ -374,6 +463,12 @@ export function resolveAccessUntil(rows: unknown, latestGrantIso: unknown): stri
 
   if (Array.isArray(rows)) {
     for (const row of rows) {
+      // Grace is deliberately NOT behind the ACCESS_GRANTING_ROW filter: the
+      // 14 days are owed even when the row itself no longer grants access (a
+      // canceled or past_due subscription keeps its open window). Still a max,
+      // so grace can only extend access, never shorten it. Mirrors the third
+      // GREATEST term of grant_athlete_access — the two writers must converge.
+      consider(prop(row, "grace_until"));
       if (!ACCESS_GRANTING_ROW.has(mapBillingStatusToRow(prop(row, "status")))) continue;
       consider(prop(row, "current_period_end"));
     }
