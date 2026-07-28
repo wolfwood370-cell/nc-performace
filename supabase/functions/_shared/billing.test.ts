@@ -936,6 +936,17 @@ Deno.test(
   },
 );
 
+Deno.test("graceDecision: grace_until nullo O assente = nessun episodio aperto → grant", () => {
+  // null (la select l'ha chiesta, colonna vuota) e chiave assente sono la
+  // stessa cosa: nessun episodio. Un mutante che tratta l'assenza come
+  // episodio aperto renderebbe la grazia inerte su una select monca.
+  const decision = graceDecision(
+    { created: CREATED, billing_reason: "subscription_cycle" },
+    { status: "past_due", current_period_end: null },
+  );
+  assertEquals(decision, { grant: true, until: GRACE_END });
+});
+
 Deno.test("graceDecision: episodio già aperto → episode_open, la finestra non si estende", () => {
   const decision = graceDecision(
     { created: CREATED, billing_reason: "subscription_cycle" },
