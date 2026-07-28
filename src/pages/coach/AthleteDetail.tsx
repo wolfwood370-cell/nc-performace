@@ -157,7 +157,7 @@ import { HealthProfileTab } from "@/components/coach/athlete/HealthProfileTab";
 import { PeriodizationTab } from "@/components/coach/athlete/PeriodizationTab";
 import type { Tables } from "@/integrations/supabase/types";
 import { isArchived, type ProfileSettings } from "@/types/profile";
-import type { PostgrestError } from "@supabase/supabase-js";
+import { FunctionsHttpError, type PostgrestError } from "@supabase/supabase-js";
 
 /** Narrow the JSONB `settings` column to its known shape. The DB stores
  *  the blob as free-form Json — this helper centralises the cast so each
@@ -2090,18 +2090,55 @@ function SettingsContent({
     },
   });
 
-  // Permanent delete mutation
+  // Permanent delete mutation. The edge function fails CLOSED with stable error
+  // codes in the non-2xx body; supabase-js wraps non-2xx in a FunctionsHttpError
+  // whose message is a generic English sentence, so the body is read from
+  // error.context (same pattern as InviteAthleteDialog.invokeErrorToMessage).
   const deleteAthleteMutation = useMutation({
     mutationFn: async () => {
       if (!athleteId) throw new Error("No athlete ID");
       const { data, error } = await supabase.functions.invoke("delete-athlete", {
         body: { athlete_id: athleteId },
       });
-      if (error) throw error;
+      if (error) {
+        if (error instanceof FunctionsHttpError) {
+          let body: { error?: string; profileDeleted?: boolean } | null = null;
+          try {
+            body = await error.context.json();
+          } catch {
+            body = null; // non-JSON body: fall through to the generic error below
+          }
+          // Profile gone but login user left behind: the deletion DID happen, so
+          // this is a success-with-warning — the UI must clean up and navigate,
+          // not leave the coach on a page for an athlete that no longer exists.
+          if (body?.error === "auth_user_deletion_failed" && body.profileDeleted) {
+            return { authUserDeletionFailed: true };
+          }
+          if (body?.error === "stripe_cancel_failed") {
+            throw new Error(
+              "Disdetta dell'abbonamento Stripe non riuscita: nessun dato è stato cancellato. Riprova.",
+            );
+          }
+          if (body?.error === "stripe_events_scrub_failed") {
+            throw new Error(
+              "Pulizia del registro pagamenti non riuscita: nessun dato è stato cancellato. Riprova.",
+            );
+          }
+          if (body?.error) throw new Error(body.error);
+        }
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
+      return { authUserDeletionFailed: false };
     },
-    onSuccess: async () => {
-      toast.success("Atleta eliminato definitivamente");
+    onSuccess: async ({ authUserDeletionFailed }) => {
+      if (authUserDeletionFailed) {
+        toast.warning(
+          "Profilo eliminato, ma l'utenza di accesso non è stata rimossa: da segnalare.",
+        );
+      } else {
+        toast.success("Atleta eliminato definitivamente");
+      }
       // Remove every cached query that references this athlete (roster, risk overview,
       // live sessions, scheduled workouts, readiness, etc.) so nothing stale lingers in the UI.
       queryClient.removeQueries({
