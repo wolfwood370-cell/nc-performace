@@ -9,8 +9,9 @@
 -- Deliberately NOT here:
 --   * analytics_athlete_progress / analytics_athlete_summary — VIEWS (relkind='v',
 --     verified live 2026-07-28): an FK on a view is impossible, and unnecessary — they
---     read from workout_logs/profiles, which already cascade. (Erratum to the original
---     12-column list: the new FKs are 10 CASCADE + 1 SET NULL.)
+--     read from workout_logs/profiles, which already cascade. (Erratum arithmetic:
+--     the original CASCADE list had 12 columns, 2 of which are views → 10 CASCADE
+--     here; notifications.sender_id SET NULL was always a separate, 11th constraint.)
 --   * the append-only machinery of the two ledgers (trg_program_releases_immutable_*,
 --     trg_nutrition_releases_immutable_*, prevent_program_release_mutation(),
 --     prevent_nutrition_release_mutation()) — UNTOUCHED. Acceptance criterion, to be

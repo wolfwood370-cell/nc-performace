@@ -158,6 +158,12 @@ import { PeriodizationTab } from "@/components/coach/athlete/PeriodizationTab";
 import type { Tables } from "@/integrations/supabase/types";
 import { isArchived, type ProfileSettings } from "@/types/profile";
 import { FunctionsHttpError, type PostgrestError } from "@supabase/supabase-js";
+import { log } from "@/lib/logger";
+
+// Marks the deletion errors whose message is OUR Italian user copy: onError
+// shows these verbatim and falls back to a generic Italian sentence for
+// everything else (raw English server/library text must never hit the toast).
+class DeleteAthleteUiError extends Error {}
 
 /** Narrow the JSONB `settings` column to its known shape. The DB stores
  *  the blob as free-form Json — this helper centralises the cast so each
@@ -2115,17 +2121,19 @@ function SettingsContent({
             return { authUserDeletionFailed: true };
           }
           if (body?.error === "stripe_cancel_failed") {
-            throw new Error(
+            throw new DeleteAthleteUiError(
               "Disdetta dell'abbonamento Stripe non riuscita: nessun dato è stato cancellato. Riprova.",
             );
           }
           if (body?.error === "stripe_events_scrub_failed") {
-            throw new Error(
+            throw new DeleteAthleteUiError(
               "Pulizia del registro pagamenti non riuscita: nessun dato è stato cancellato. Riprova.",
             );
           }
-          if (body?.error) throw new Error(body.error);
         }
+        // Unmapped code, non-JSON body, network failure: onError shows the
+        // generic Italian copy — raw English server/library text never reaches
+        // the toast (spec: stringhe-utente in italiano).
         throw error;
       }
       if (data?.error) throw new Error(data.error);
@@ -2175,8 +2183,16 @@ function SettingsContent({
       ]);
       navigate("/coach/athletes");
     },
-    onError: (error: Error | PostgrestError) => {
-      toast.error(`Errore nell'eliminazione: ${error.message}`);
+    onError: (error: unknown) => {
+      // Only OUR Italian copy reaches the coach; every other failure (unmapped
+      // code, network, non-JSON body) gets the generic fallback. The raw error
+      // stays available for diagnostics via the logger.
+      log.error("delete-athlete failed", error);
+      toast.error(
+        error instanceof DeleteAthleteUiError
+          ? error.message
+          : "Errore nell'eliminazione: l'atleta NON è stato eliminato. Riprova.",
+      );
     },
   });
 

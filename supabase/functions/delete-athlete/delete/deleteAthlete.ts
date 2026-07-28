@@ -59,14 +59,18 @@ export const TERMINAL_STRIPE_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The jsonb containment filters that reach every stored Stripe payload of this
- * person. PostgREST forbids casts in filters (no payload::text LIKE), so the
- * scrub is N targeted containments instead of one text match:
+ * The jsonb containment filters for the stored Stripe payloads that carry this
+ * person's customer id or athlete metadata. PostgREST forbids casts in filters
+ * (no payload::text LIKE), so the scrub is N targeted containments instead of
+ * one text match:
  *  - data.object.customer = cus  → checkout.session / invoice / subscription / charge events
  *  - data.object.id       = cus  → customer.* events (the object IS the customer)
  *  - data.object.metadata.athlete_id → PREPAID checkout sessions, where
  *    session.customer can be null but create-checkout-session always stamps the
  *    athlete_id in metadata (approved extension, 2026-07-28).
+ * NOT a total guarantee: the ledger stores EVERY delivered event, and a payload
+ * carrying neither field escapes these filters — that residue is MEASURED by
+ * the E2E acceptance (count of rows still naming the customer), not assumed away.
  * A scrubbed row (payload '{}') matches none of these again: re-runs are idempotent
  * and summing the per-filter counts never counts a row twice.
  */
