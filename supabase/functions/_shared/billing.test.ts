@@ -901,6 +901,16 @@ Deno.test("graceDecision: ordine dei motivi — ancora illeggibile vince su not_
   assertEquals(decision, { grant: false, reason: "unreadable_date" });
 });
 
+Deno.test("graceDecision: ordine dei motivi — not_a_renewal vince su episode_open", () => {
+  // Pin del dispatch b-prima-di-c: un mutante che scambia i due check darebbe
+  // episode_open a una prima fattura con episodio aperto, e sopravvivrebbe.
+  const decision = graceDecision(
+    { created: CREATED, billing_reason: "subscription_create" },
+    { status: "past_due", grace_until: FUT_1, current_period_end: null },
+  );
+  assertEquals(decision, { grant: false, reason: "not_a_renewal" });
+});
+
 Deno.test(
   "graceDecision: solo il RINNOVO concede — prima fattura e ogni altro valore → not_a_renewal",
   () => {
