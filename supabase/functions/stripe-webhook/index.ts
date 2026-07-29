@@ -202,7 +202,7 @@ async function rowForSubscription(admin: AdminClient, subscriptionId: string) {
   const rows = unwrap(
     await admin
       .from("athlete_subscriptions")
-      .select("id, athlete_id, status, plan_id, current_period_end, grace_until")
+      .select("id, athlete_id, status, plan_id, grace_until")
       .eq("stripe_subscription_id", subscriptionId)
       .order("created_at", { ascending: false })
       .limit(1),
@@ -460,9 +460,19 @@ serve(async (req) => {
         }
 
         // Every grace RULE lives in the pure graceDecision (_shared/billing.ts):
-        // this branch only reads, writes and orders. Merit conditions on durable
-        // data, no "already done" shortcuts (invariant 2).
-        const decision = graceDecision(invoice, row);
+        // this branch only reads, writes and orders. Merit conditions, not
+        // "already done" shortcuts: (a)(b)(c) read durable data, (d) reads the
+        // authoritative CURRENT fact — is this invoice paid? That the outcome
+        // flips after a recovery is the WANTED behavior (a failure re-delivered
+        // after the customer paid must decide differently), not an idempotency
+        // guard. The invoice is RELOADED from Stripe because the event snapshot
+        // says 'open' forever and could never prove a recovery — and the row
+        // cannot either: after a cycle rollover, fresh failure and recovery
+        // leave it in the IDENTICAL state. Reloaded always, even on fresh
+        // events: one signature beats a saved call. Stripe API down -> throw
+        // -> 500 -> Stripe retries (invariant 1).
+        const liveInvoice = await stripe.invoices.retrieve(invoice.id);
+        const decision = graceDecision(liveInvoice, row);
 
         if (!decision.grant && decision.reason === "stale_after_recovery") {
           // An old event delivered after a recovery was already recorded:
@@ -505,7 +515,7 @@ serve(async (req) => {
             // coach+athlete pair is not enough — and the window anchored on
             // the invoice emission separates one episode from the next.
             const linkUrl = `/coach/business?subscription=${row.id}`;
-            const createdIso = epochSecondsToIso(invoice.created);
+            const createdIso = epochSecondsToIso(liveInvoice.created);
             if (!createdIso) {
               // Unreachable by construction (grant implies a readable created):
               // a silent skip would degrade the dedupe, so fail loud instead.

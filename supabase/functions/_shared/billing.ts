@@ -384,9 +384,11 @@ export type GraceDecision =
 /**
  * PURE, TOTAL, no clock, never throws. Decides whether a failed invoice opens
  * the ACCESS_GRACE_DAYS window on the athlete's access. Every condition is a
- * MERIT check on durable data — re-running the same event against the same
- * rows yields the same answer — never an "already done" shortcut (webhook
- * invariant 2). In order:
+ * MERIT check, never an "already done" shortcut: (a)(b)(c) read durable data,
+ * (d) reads the authoritative CURRENT fact about the invoice — that its
+ * outcome flips after a recovery is the WANTED behavior, not an idempotency
+ * guard (an event re-delivered after the customer paid must decide
+ * differently). In order:
  *  a. the window end is invoice.created + ACCESS_GRACE_DAYS: an unreadable
  *     anchor fails closed (unreadable_date) and is NEVER replaced by "now" —
  *     a wall-clock fallback would hand out a fresh window on every retry;
@@ -395,9 +397,15 @@ export type GraceDecision =
  *     is not_a_renewal, fail-closed on unknown/missing values;
  *  c. an open episode (row.grace_until not null) is never extended: a new one
  *     can only open after a successful payment cleared it (episode_open);
- *  d. a row still 'active' with a period end BEYOND the would-be window means
- *     a recovery was recorded after this invoice was emitted: the event is
- *     stale and must touch nothing (stale_after_recovery).
+ *  d. invoice.status === 'paid' proves a recovery was recorded after the
+ *     failure: the event is stale and must touch nothing. The CALLER must
+ *     pass the invoice RELOADED from Stripe, not the event snapshot — the
+ *     snapshot says 'open' forever and can never prove recovery. The row is
+ *     deliberately NOT consulted: after a cycle rollover the row state of a
+ *     fresh failure and of a recovery are IDENTICAL (both 'active' with the
+ *     advanced period end), so any row-based proxy misfires on the canonical
+ *     first failure. Only the literal 'paid' stops the grace: an unreadable
+ *     or different status leaves staleness UNPROVEN, hence grant.
  */
 export function graceDecision(invoice: unknown, row: unknown): GraceDecision {
   const created = prop(invoice, "created");
@@ -416,14 +424,7 @@ export function graceDecision(invoice: unknown, row: unknown): GraceDecision {
     return { grant: false, reason: "episode_open" };
   }
 
-  const periodEndMs = isoToMs(prop(row, "current_period_end"));
-  const untilMs = isoToMs(until);
-  if (
-    prop(row, "status") === "active" &&
-    periodEndMs !== null &&
-    untilMs !== null &&
-    periodEndMs > untilMs
-  ) {
+  if (prop(invoice, "status") === "paid") {
     return { grant: false, reason: "stale_after_recovery" };
   }
 

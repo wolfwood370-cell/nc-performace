@@ -847,14 +847,12 @@ Deno.test("RENEWAL_BILLING_REASON: 'subscription_cycle', pinnato letteralmente",
 
 /** Fine finestra attesa per una fattura emessa a CREATED. */
 const GRACE_END = new Date((CREATED + 14 * DAY) * 1000).toISOString();
-/** Un istante DOPO la fine finestra (stale dal lato stretto del confine). */
-const AFTER_GRACE_END = new Date((CREATED + 14 * DAY) * 1000 + 1000).toISOString();
 
 Deno.test(
   "graceDecision: rinnovo fallito, nessun episodio aperto → grant con istante ESATTO (created + 14gg)",
   () => {
     const decision = graceDecision(
-      { created: CREATED, billing_reason: "subscription_cycle" },
+      { created: CREATED, billing_reason: "subscription_cycle", status: "open" },
       { status: "past_due", grace_until: null, current_period_end: null },
     );
     assertEquals(decision, { grant: true, until: GRACE_END });
@@ -958,63 +956,61 @@ Deno.test("graceDecision: episodio già aperto → episode_open, la finestra non
 
 Deno.test("graceDecision: ordine dei motivi — episode_open vince su stale_after_recovery", () => {
   const decision = graceDecision(
-    { created: CREATED, billing_reason: "subscription_cycle" },
+    { created: CREATED, billing_reason: "subscription_cycle", status: "paid" },
     { status: "active", grace_until: FUT_1, current_period_end: FUT_2 },
   );
   assertEquals(decision, { grant: false, reason: "episode_open" });
 });
 
 Deno.test(
-  "graceDecision: riga active con scadenza OLTRE la finestra → stale_after_recovery",
+  "graceDecision: fattura RICARICATA 'paid' → stale_after_recovery (il payload direbbe 'open')",
   () => {
-    // Un incasso già registrato dopo l'emissione: l'evento è vecchio, non toccare nulla.
+    // Pin della decisione di Nick: il chiamante passa la fattura RICARICATA da
+    // Stripe, mai lo snapshot dell'evento — lo snapshot dice 'open' per sempre
+    // e non può provare un incasso. Qui lo status 'paid' È la prova.
     const decision = graceDecision(
-      { created: CREATED, billing_reason: "subscription_cycle" },
-      { status: "active", grace_until: null, current_period_end: AFTER_GRACE_END },
+      { created: CREATED, billing_reason: "subscription_cycle", status: "paid" },
+      { status: "active", grace_until: null, current_period_end: FUT_2 },
     );
     assertEquals(decision, { grant: false, reason: "stale_after_recovery" });
   },
 );
 
 Deno.test(
-  "graceDecision: confine pinnato da ENTRAMBI i lati — cpe UGUALE alla finestra non è stale",
+  "graceDecision: solo il LETTERALE 'paid' ferma — ogni altro status → grant (staleness va PROVATA)",
   () => {
-    // Il confronto è STRETTO (>): all'istante esatto la grazia si concede ancora;
-    // un millisecondo oltre (qui +1s) no. Un mutante >= muore qui.
-    const equal = graceDecision(
-      { created: CREATED, billing_reason: "subscription_cycle" },
-      { status: "active", grace_until: null, current_period_end: GRACE_END },
-    );
-    assertEquals(equal, { grant: true, until: GRACE_END });
-    const beyond = graceDecision(
-      { created: CREATED, billing_reason: "subscription_cycle" },
-      { status: "active", grace_until: null, current_period_end: AFTER_GRACE_END },
-    );
-    assertEquals(beyond, { grant: false, reason: "stale_after_recovery" });
+    for (const status of [
+      "open",
+      "uncollectible",
+      "void",
+      "draft",
+      "PAID",
+      "",
+      null,
+      undefined,
+      42,
+    ]) {
+      const decision = graceDecision(
+        { created: CREATED, billing_reason: "subscription_cycle", status },
+        { status: "past_due", grace_until: null, current_period_end: null },
+      );
+      assertEquals(decision, { grant: true, until: GRACE_END }, String(status));
+    }
   },
 );
 
 Deno.test(
-  "graceDecision: stale SOLO su riga active — past_due con scadenza lontana concede",
+  "graceDecision: la RIGA non entra nella staleness — active con cpe avanzato e fattura open → grant",
   () => {
+    // Pin del major di review: dopo il rollover di ciclo la riga di un
+    // fallimento FRESCO è {active, cpe avanzato} — identica a quella di un
+    // recupero. Un mutante che reintroduce il proxy sul cpe della riga
+    // marcherebbe stantio il caso canonico, e muore qui.
     const decision = graceDecision(
-      { created: CREATED, billing_reason: "subscription_cycle" },
-      { status: "past_due", grace_until: null, current_period_end: FUT_2 },
+      { created: CREATED, billing_reason: "subscription_cycle", status: "open" },
+      { status: "active", grace_until: null, current_period_end: FUT_2 },
     );
     assertEquals(decision, { grant: true, until: GRACE_END });
-  },
-);
-
-Deno.test(
-  "graceDecision: active con scadenza assente o illeggibile → grant (la staleness va PROVATA)",
-  () => {
-    for (const cpe of [null, undefined, "non-una-data", 1767225600]) {
-      const decision = graceDecision(
-        { created: CREATED, billing_reason: "subscription_cycle" },
-        { status: "active", grace_until: null, current_period_end: cpe },
-      );
-      assertEquals(decision, { grant: true, until: GRACE_END }, String(cpe));
-    }
   },
 );
 
