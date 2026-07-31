@@ -12,10 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import type {
-  Tables,
-  TablesInsert,
-} from "@/integrations/supabase/types";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 export type DailyReadinessRow = Tables<"daily_readiness">;
 
@@ -27,8 +24,16 @@ const readinessKey = (athleteId: string | undefined, date: string) =>
  *
  * Returns `null` when no row exists (i.e. the check-in hasn't been done
  * yet). Consumers should treat `null` as "not completed today".
+ *
+ * `opts.staleTime` lets a consumer opt out of the app-wide fresh-forever
+ * cache (global staleTime Infinity + IndexedDB persist). The daily
+ * check-in seeds a clinical answer (has_pain) from this row: with
+ * staleTime 0 the row is re-read from the server whenever the observer
+ * lands on the key — including the switch from the pre-auth "anon" key
+ * to the real one — instead of trusting whatever another tab, device or
+ * session left in the persisted cache.
  */
-export function useDailyReadinessQuery(date: string) {
+export function useDailyReadinessQuery(date: string, opts?: { staleTime?: number }) {
   const { user } = useAuth();
   return useQuery({
     queryKey: readinessKey(user?.id, date),
@@ -44,6 +49,7 @@ export function useDailyReadinessQuery(date: string) {
       return data ?? null;
     },
     enabled: Boolean(user?.id),
+    ...opts,
   });
 }
 
