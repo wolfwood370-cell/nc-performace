@@ -1,0 +1,83 @@
+# Task: canale-dolore — riaccendere il canale `has_pain` nel check-in atleta
+
+> Prompt-file trascritto dal blocco «IL PROMPT» di `app/spec-canale-dolore-2026-07-31.md` (Cowork, OK di Nick 2026-07-31).
+> Committato da Code come primo atto del branch `claude/canale-dolore`.
+> Esiti e decisioni in coda al file (§Aggiornamenti in esecuzione).
+
+**Task:** dare all'atleta un modo esplicito di segnalare dolore nel check-in giornaliero, cablando il campo `daily_readiness.has_pain` che oggi non viene mai inviato. Riaccende due meccanismi di sicurezza già scritti e oggi inerti: l'avviso «Dolore Segnalato» al coach e il gate `safety_capture` del motore nutrizionale. NESSUNA migration. NESSUNA modifica a supabase/functions/\*\*. NESSUNA modifica alla logica dell'avviso al coach.
+**Data:** 2026-07-31
+**Strumento di destinazione:** [x] Claude Code
+**Branch previsto:** `claude/canale-dolore`
+
+Lavori sul repo NC Performance Hub (frontend Vite SPA; edge functions = Deno). Piccoli passi: proponi un PIANO e ti FERMI per il mio OK PRIMA di toccare codice. Il contratto di scrittura non cambia: il campo esiste già ed è già accettato dal hook.
+
+## VERITÀ DI RIFERIMENTO (leggi PRIMA di toccare codice)
+
+- `src/pages/athlete/DailyCheckin.tsx` — la pagina da modificare. Struttura attuale: card biofeedback (5 metriche 1..5, selezione singola, `biofeedback` in stato locale) + card indolenzimento muscolare (`soreness`, multi-selezione con intensità, :263-285). Il submit è a :342-360 e NON invia `has_pain`. Leggi tutta la funzione di submit prima di toccarla.
+- `src/hooks/athlete/useAthleteReadinessHooks.ts:55-70` — `SubmitReadinessInput` prevede già `has_pain?: boolean | null`. :99 lo mappa nel payload con `input.has_pain ?? null`. Non serve modificare questo file: verifica e conferma nel PIANO.
+- `src/hooks/useCoachData.tsx:287-300` — l'avviso `pain_reported`. SOLA LETTURA. La condizione è già giusta: oggi è monca perché manca l'ingresso, non perché sia scritta male. Il ramo «Dolore generico» a :300 deve diventare raggiungibile, NON va rimosso.
+- `supabase/functions/compute-nutrition-target/target/processAthlete.ts:163-184` — il gate `safety_capture`. SOLA LETTURA, VIETATO MODIFICARE. Serve solo perché tu sappia cosa stai riaccendendo.
+- `src/pages/athlete/DailyReadiness.tsx` — esiste ed è nella stessa area. Verifica se è un secondo punto d'ingresso che scrive `daily_readiness`: se lo è, dillo nel PIANO e fermati — non deciderlo da solo. Se è solo di lettura, dichiaralo.
+- `src/hooks/useAthleteHealthProfile.ts:125` e `:218` — legge `has_pain` e lo mappa con `r.has_pain || false`. SOLA LETTURA: segnala nel PIANO se quel `|| false` diventa fuorviante ora che il campo sarà valorizzato, ma non cambiarlo in questa fetta.
+- Schema REALE verificato il 2026-07-31: `daily_readiness.has_pain` è boolean nullable, già presente nei tipi generati. Nessuna migration serve.
+
+## OBIETTIVO
+
+Nel check-in giornaliero l'atleta trova una domanda esplicita sul dolore, e può rispondere sì anche senza selezionare nessuna zona. La risposta finisce in `daily_readiness.has_pain`.
+
+## UI — dove va e come si comporta
+
+- Posizione: una card propria, PRIMA della card dell'indolenzimento muscolare. Il dolore è la domanda che apre; le zone sono il dettaglio, non il contrario.
+- Tre stati, non due: non risposta (null) · sì (true) · no (false). All'apertura la domanda è non risposta, e resta tale finché l'atleta non tocca nulla. Nessun valore preimpostato.
+- Testo: italiano, chiaro, non allarmistico, e deve distinguere il dolore dall'indolenzimento normale post-allenamento. Proposta da usare salvo tua obiezione nel PIANO:
+  - domanda: «Hai dolore oggi?»
+  - riga di aiuto: «Un dolore diverso dal normale indolenzimento dopo l'allenamento.»
+- Selezionare una zona NON accende `has_pain`. Sono due segnali distinti e restano distinti: se li unissi, ogni indolenzimento fisiologico dopo una seduta pesante fermerebbe il rilascio nutrizionale e produrrebbe un'escalation al coach — nel giro di due settimane nessuno guarderebbe più quegli avvisi. Questo è un invariante, non una preferenza.
+- Accessibilità: la nuova domanda si usa da tastiera (focus visibile, attivabile con Invio/Spazio, etichette collegate). Il progetto ha un debito noto di accessibilità e un varco che blocca il peggioramento: questa fetta non deve farlo salire.
+
+## OUTPUT / CONTRATTO
+
+- Al submit, `submitReadiness.mutate({...})` porta in più SOLO `has_pain`, col valore dello stato a tre vie.
+- Nessun'altra chiave cambia. Nessun contratto di funzione cambia. Nessuna scrittura nuova.
+
+## INVARIANTI DA NON ROMPERE
+
+1. Non risposta = null. Mai false per assenza di risposta: il registro forense a valle dichiara esplicitamente che un dato mancante non va forgiato.
+2. Indolenzimento non è dolore. Le zone non accendono `has_pain`, e `has_pain` non popola le zone.
+3. Nessuna modifica sotto `supabase/functions/**`. Il gate si riaccende dall'ingresso, non toccandolo.
+4. Nessuna migration, nessun DDL, nessuna scrittura DB.
+5. La logica dell'avviso al coach resta invariata. Deve solo tornare raggiungibile in tutti e due i rami.
+6. Il conteggio di eslint non sale rispetto a `.eslint-baseline`.
+7. Stringhe utente in italiano. Dati salute = art. 9: niente nuovi campi di testo libero, niente log del valore.
+8. RLS invariata.
+
+## FILE
+
+- MODIFICATI: `src/pages/athlete/DailyCheckin.tsx`
+- COMMIT SEPARATO E DICHIARATO (facoltativo, stessa sessione): `src/integrations/supabase/types.ts` rigenerato — è il debito delle due migration arretrate, non fa parte di questa fetta
+- VIETATI (non aprire per modificarli): tutto `supabase/**` · `src/hooks/useCoachData.tsx` · `src/hooks/useAthleteHealthProfile.ts` · `src/hooks/athlete/useAthleteReadinessHooks.ts` (salvo tu dimostri nel PIANO che serve, con la riga) · `.eslint-baseline` · `.github/**` · niente «già che ci sono»
+
+## COME LAVORI
+
+- Prima il PIANO (dove metti la card, come modelli i tre stati, come provi ogni criterio) → STOP per l'OK di Nick → poi esegui.
+- Commit atomici, in italiano, con `Co-Authored-By: Claude <noreply@anthropic.com>`.
+- Merge/push = Nick, e ora passa da una Pull request: su `main` non si spinge più direttamente.
+- A fine fetta, review indipendente prima di dichiararla finita.
+
+---
+
+## Aggiornamenti in esecuzione
+
+> Registro degli scostamenti e delle decisioni, contestuale ai commit (lezione ci-varchi: gli scostamenti si scrivono qui, non solo nei commit message).
+
+1. **[pre-piano] Correzione di realtà — l'avviso coach è dead code.** Panel avversariale (4 lenti) + verifica diretta: `useCoachDashboardData()` (`src/hooks/useCoachData.tsx:109`) e `useCoachData()` (`:516`) non sono esportati e non hanno alcun call-site; l'unico export del file è `useCoachAthletes` (`:87`, importato solo da `CoachAnalytics.tsx:3`). L'avviso «Dolore Segnalato»/«Dolore generico» non è renderizzato da nessuna UI. La superficie coach VIVA di `has_pain` è `useAthleteHealthProfile.ts:289` («Dolore riportato negli ultimi N giorni», finestra 7gg) → `HealthProfileTab.tsx:52`, montata in `AthleteDetail.tsx:3341`. **Decisione Nick (2026-07-31, verificata da lui su `useCoachData.tsx`):** acceptance #3/#4 riformulate sulla superficie viva (v. §Acceptance aggiornata); ricognizione dell'intero strato di avvisi coach non renderizzato = fetta separata (chip flaggata).
+2. **[pre-piano] Aggiunta BLOCCANTE di Nick — niente auto-sblocco silenzioso del gate.** L'upsert è full-row: un re-submit lo stesso giorno senza toccare la domanda avrebbe sovrascritto un `has_pain=true` con `null`, spegnendo il gate `safety_capture` in silenzio (CORE §0: mai aggirare in silenzio). Chiusura minima ordinata da Nick: all'apertura della pagina `hasPain` si inizializza dal valore della riga di OGGI se esiste (una lettura, solo quel campo; il precaricamento degli altri campi NON si tocca — il loro azzeramento al re-submit è comportamento pre-esistente e non è un gate: chip flaggata). Nuovo criterio: «sì» → secondo invio senza toccare la domanda → `has_pain` resta `true`; se torna `null` la fetta è bocciata. Deroga dichiarata alla riga «all'apertura la domanda è non risposta»: vale per il primo check-in del giorno; se oggi è già stata data una risposta, la card la mostra (niente stato nascosto).
+3. **[pre-piano] Decisioni dichiarate nel PIANO (OK di Nick in blocco):** (a) il seed usa l'hook già esportato `useDailyReadinessQuery(date)` (`useAthleteReadinessHooks.ts:31` — import, nessuna modifica al file: la clausola «salvo tu dimostri che serve» non si attiva); la lettura è la riga di oggi via queryKey già invalidata dal submit; si consuma SOLO `has_pain`. (b) Tre stati senza deselezione, pattern `ScoreScaleRow` replicato (button nativi `role="radio"`/`aria-checked`, soli token, focus outline nativo — il CSS del progetto non lo azzera). (c) «Salva» disabilitato finché la lettura della riga di oggi è in volo, per non spedire `null` in corsa su un giorno già risposto; su errore di rete della lettura il fallback resta `null` (dato mancante non si forgia) — residuo dichiarato. (d) Lo store Zustand locale non modella il dolore e non si tocca: i trend dashboard non lo consumano. (e) `.env.local` NON si copia nel worktree (decisione Nick): verifica da tastiera = statica in-fetta + collaudo di Nick post-merge.
+4. **[pre-piano] `DEFAULT false` a schema su `has_pain`** (migration `20260109192244`:51): l'invariante «non risposta = null» è garantito solo dal payload esplicito del hook. La rimozione del DEFAULT è DDL in corsia Cowork, la esegue Nick — fuori da questa fetta.
+5. **[pre-piano] `DailyReadiness.tsx` dichiarato:** non è un secondo punto d'ingresso — non tocca Supabase affatto (vista presentazionale, zero query). Secondo scrittore nel codice: `useOfflineSync.ts:242` (modulo dormiente, zero import; il suo payload non porta `has_pain` — chip flaggata per l'eventuale rianimazione).
+
+### Acceptance aggiornata (delta rispetto al blocco sopra, decisione Nick 2026-07-31)
+
+- #3 (riformulata): «sì» senza zone → `has_pain=true` e `soreness_map` vuota in riga; nel tab Salute di AthleteDetail (`HealthProfileTab`) il riepilogo diventa rosso con «Dolore riportato negli ultimi N giorni». Il ramo «Dolore generico» di `useCoachData.tsx:300` resta pinnato solo a livello di dato (hook senza consumer, v. Aggiornamento 1).
+- #4 (riformulata): solo zone, domanda non toccata → `has_pain` `null`; comportamento coach invariato per costruzione (zero file toccati su quei percorsi).
+- NUOVO (bloccante, Aggiornamento 2): risposta «sì», poi secondo invio nello stesso giorno senza toccare la domanda → `has_pain` resta `true`.
