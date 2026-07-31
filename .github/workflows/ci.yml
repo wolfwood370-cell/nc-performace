@@ -112,8 +112,10 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────
   # VARCO 4 — end-to-end (Playwright)
-  # Le spec autenticate si auto-saltano se i segreti non ci sono:
-  # senza credenziali il job resta verde ma copre meno.
+  # Le 2 spec autenticate si auto-saltano senza credenziali; le 5 spec
+  # non autenticate richiedono comunque i secrets VITE_*: senza, il job
+  # è ROSSO (client Supabase con URL undefined). Vedi Aggiornamento 4
+  # del prompt-file 2026-07-30-ci-varchi.
   # ─────────────────────────────────────────────────────────────
   e2e:
     name: End-to-end (Playwright)
