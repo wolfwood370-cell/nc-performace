@@ -566,9 +566,12 @@ export default function DailyCheckin() {
           <button
             type="button"
             onClick={handleSave}
-            // Guard while today's row is still loading: submitting before the
-            // pain seed resolves could ship null over an already-given answer.
-            disabled={todayReadiness.isLoading}
+            // Guard while today's row is being (re)fetched: submitting before
+            // the pain seed settles could ship a stale value over an
+            // already-given answer. isFetching (not isLoading) also covers the
+            // post-invalidation refetch when the page is reopened on a day
+            // that already has a row in the persisted cache.
+            disabled={todayReadiness.isFetching}
             className={cn(
               "w-full py-4 rounded-full",
               "disabled:opacity-50 disabled:pointer-events-none",
