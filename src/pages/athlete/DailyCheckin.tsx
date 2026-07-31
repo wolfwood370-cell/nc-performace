@@ -579,13 +579,14 @@ export default function DailyCheckin() {
           <button
             type="button"
             onClick={handleSave}
-            // Fail-closed guard: Salva stays off until this mount has
-            // CONFIRMED today's row with a server response — never on the
-            // persisted cache alone. isFetchedAfterMount is false through
-            // the pre-auth phase, while offline-paused and until the first
-            // fetch on the real key settles; isError keeps it off when that
-            // fetch failed (errors flip isFetchedAfterMount true); isPending
-            // stops a double tap from firing twice.
+            // Fail-closed guard. isFetchedAfterMount stays false through the
+            // pre-auth phase and until the first fetch on the real key
+            // settles in the normal restore→switch order (in the rare
+            // inverse race the flag can flip early — isFetching/isError
+            // still cover every paintable frame today; re-evaluate before
+            // ever adding retry>0 or resumable mutations here). isError
+            // keeps Salva off when the fetch failed (errors flip
+            // isFetchedAfterMount true); isPending stops a double tap.
             disabled={
               !todayReadiness.isFetchedAfterMount ||
               todayReadiness.isFetching ||
