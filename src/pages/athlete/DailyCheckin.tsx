@@ -20,7 +20,7 @@
 // inside the layout would produce two competing bars.
 // =============================================================================
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -264,6 +264,17 @@ export default function DailyCheckin() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayReadiness = useDailyReadinessQuery(todayIso);
 
+  // The global QueryClient marks cached data fresh forever (staleTime
+  // Infinity + IndexedDB persist), so on reopen this query would trust
+  // whatever another tab, another device or an earlier session left behind.
+  // Refetch once per mount: the pain seed must come from the server. While
+  // the fetch is in flight, the Salva guard below holds. (Auth is resolved
+  // before mount — ProtectedAthleteRoute — so the key is the real one.)
+  const { refetch: refetchToday } = todayReadiness;
+  useEffect(() => {
+    void refetchToday();
+  }, [refetchToday]);
+
   // -- State ----------------------------------------------------------------
   // Biofeedback: per-metric 1..5 single select. Partial: a metric is "unset"
   // until the user taps a value.
@@ -355,6 +366,13 @@ export default function DailyCheckin() {
     // before the network round-trip completes.
     submitDailyCheckin(payload);
 
+    // Re-check the day at submit time (the hook stamps the row date when the
+    // mutation runs): if midnight (UTC) slipped past while the page was open,
+    // yesterday's stored seed must not be forged into the new day's row —
+    // only an explicit tap survives the day change.
+    const submitDate = new Date().toISOString().slice(0, 10);
+    const painAnswer = painTouched ? painChoice : submitDate === todayIso ? storedPain : null;
+
     // Persist to `daily_readiness`. The hook handles error toasts; on
     // success we close the page. The composite `score` is currently a
     // placeholder (85) to match prior mock behaviour — a server-side
@@ -369,7 +387,7 @@ export default function DailyCheckin() {
         soreness_map: soreness,
         // Three-way pain answer: null = unanswered (never forged to false).
         // Independent from soreness by contract: zones never imply pain.
-        has_pain: hasPain,
+        has_pain: painAnswer,
         score: 85,
       },
       {
@@ -566,12 +584,11 @@ export default function DailyCheckin() {
           <button
             type="button"
             onClick={handleSave}
-            // Guard while today's row is being (re)fetched: submitting before
-            // the pain seed settles could ship a stale value over an
-            // already-given answer. isFetching (not isLoading) also covers the
-            // post-invalidation refetch when the page is reopened on a day
-            // that already has a row in the persisted cache.
-            disabled={todayReadiness.isFetching}
+            // Hold Salva while the pain seed is unsettled or a save is
+            // already in flight. Every mount refetches today's row (effect
+            // above), so isFetching covers first load, reopen and cross-tab
+            // staleness; isPending stops a double tap from firing twice.
+            disabled={todayReadiness.isFetching || submitReadiness.isPending}
             className={cn(
               "w-full py-4 rounded-full",
               "disabled:opacity-50 disabled:pointer-events-none",
