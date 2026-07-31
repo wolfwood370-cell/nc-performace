@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # VARCO 1 — tipi, lint, unit del front-end
+  # ─────────────────────────────────────────────────────────────
+  web:
+    name: Tipi · lint · unit (web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Primo passo di proposito: `npm ci` rifiuta un lockfile incoerente.
+      # È il varco che intercetta la deriva delle dipendenze (F1).
+      - name: Installazione deterministica
+        run: npm ci
+
+      # Senza `-p` è un no-op: la tsconfig di root ha `files` vuoto e usa
+      # project references. Stessa invocazione di .husky/pre-commit.
+      - name: Tipi
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      # Ratchet: non blocca i 53 errori esistenti, blocca il PEGGIORAMENTO.
+      # Quando il numero scende, si abbassa .eslint-baseline e non risale più.
+      - name: Lint (ratchet sul debito esistente)
+        run: |
+          npx eslint . -f json --no-color > eslint-report.json || true
+          COUNT=$(node -e "const r=require('./eslint-report.json');console.log(r.reduce((a,f)=>a+f.errorCount,0))")
+          BASE=$(tr -dc '0-9' < .eslint-baseline)
+          echo "errori attuali: $COUNT — baseline: $BASE"
+          if [ "$COUNT" -gt "$BASE" ]; then
+            echo "::error::Il lint è peggiorato ($COUNT > $BASE). Sistema i nuovi errori oppure spiega perché il baseline deve salire."
+            npx eslint . || true
+            exit 1
+          fi
+          if [ "$COUNT" -lt "$BASE" ]; then
+            echo "::notice::Lint migliorato ($COUNT < $BASE). Abbassa .eslint-baseline a $COUNT nello stesso commit."
+          fi
+
+      - name: Unit (vitest)
+        run: npx vitest run
+
+      - name: Report lint
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────
+  # VARCO 2 — unit delle edge function (Deno)
+  # ─────────────────────────────────────────────────────────────
+  edge:
+    name: Unit edge function (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # --no-check: i moduli importano tipi da URL remoti di Supabase, il
+      # type-check qui aggiunge rumore senza aggiungere garanzia. La logica
+      # pura (_shared/billing.ts e simili) è coperta dai test.
+      - name: Test Deno
+        run: deno test --allow-all --no-check supabase/functions/
+
+  # ─────────────────────────────────────────────────────────────
+  # VARCO 3 — catena di fornitura
+  # ─────────────────────────────────────────────────────────────
+  supply-chain:
+    name: Catena di fornitura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks deve vedere tutta la storia
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Non serve installare: audit legge il lockfile.
+      - name: Vulnerabilità note (alta e critica)
+        run: npm audit --audit-level=high
+
+      - name: Scansione segreti
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────
+  # VARCO 4 — end-to-end (Playwright)
+  # Le spec autenticate si auto-saltano se i segreti non ci sono:
+  # senza credenziali il job resta verde ma copre meno.
+  # ─────────────────────────────────────────────────────────────
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts avvia da sé `npm run dev` su :8080 e aspetta.
+      - name: Test end-to-end
+        run: npx playwright test
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
+          E2E_COACH_EMAIL: ${{ secrets.E2E_COACH_EMAIL }}
+          E2E_COACH_PASSWORD: ${{ secrets.E2E_COACH_PASSWORD }}
+
+      - name: Report Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
