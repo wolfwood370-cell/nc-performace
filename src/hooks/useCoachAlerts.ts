@@ -146,6 +146,13 @@ export function useCoachAlerts() {
   return {
     alerts: alertsQuery.data || [],
     isLoading: alertsQuery.isLoading,
+    // A failed query looks exactly like an empty one from the outside:
+    // `data` is undefined, so `alerts` is [] and `unreadCount` is 0, while
+    // `isLoading` is already false. Consumers that decide whether to
+    // reassure the coach need to tell "nothing to report" from "the channel
+    // did not answer" — and with `retry: false` on 4xx (src/main.tsx:18-24)
+    // an RLS error lands here on the first attempt.
+    isError: alertsQuery.isError,
     unreadCount,
     dismissAlert,
     markAsRead,

@@ -156,6 +156,7 @@ export default function CoachHome() {
   const {
     alerts: systemAlerts,
     isLoading: alertsLoading,
+    isError: alertsFailed,
     unreadCount,
     markAsRead,
   } = useCoachAlerts();
@@ -264,19 +265,27 @@ export default function CoachHome() {
       });
     }
 
-    // Fallback when nothing is flagged. `canReassure` decides the wording,
-    // not `out.length`: the bullets above come from
-    // `useCoachDashboardMetrics`, a different source from the alert channel,
-    // so an empty triage says nothing about an unread alert waiting in the
-    // panel underneath. While that query is still in flight the count is 0
-    // by default, which is why loading is not a reason to reassure either.
+    // Fallback when nothing is flagged. `canReassure` decides, not
+    // `out.length`: the bullets above come from `useCoachDashboardMetrics`, a
+    // different source from the alert channel, so an empty triage says
+    // nothing about an unread alert waiting in the panel underneath. Loading
+    // and failure both leave the count at 0 for lack of an answer, which is
+    // why neither earns an all-clear — and a failed channel says so out loud
+    // rather than pretending to still be checking.
     if (out.length === 0) {
+      const allClear = canReassure({
+        unreadSystemAlerts: unreadCount,
+        alertsLoading,
+        alertsFailed,
+      });
       out.push({
-        icon: CheckSquare,
+        icon: allClear ? CheckSquare : AlertTriangle,
         iconWrap: "bg-white/20",
         iconColor: "text-white",
-        text: canReassure({ unreadSystemAlerts: unreadCount, alertsLoading }) ? (
+        text: allClear ? (
           <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>
+        ) : alertsFailed ? (
+          <>Non riesco a leggere gli avvisi dal sistema. Ricarica la pagina.</>
         ) : (
           <>Sto controllando gli avvisi dal sistema…</>
         ),
@@ -284,7 +293,7 @@ export default function CoachHome() {
     }
 
     return out.slice(0, 3);
-  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading]);
+  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading, alertsFailed]);
 
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (authLoading) {

@@ -116,26 +116,53 @@ describe("sortCoachAlerts", () => {
 // alert. These pin the rule that closes it: the coach never reads that
 // everything is fine while an alert is waiting underneath.
 describe("canReassure", () => {
+  /** Answered, nothing pending — the only state that earns an all-clear. */
+  const answeredEmpty = { unreadSystemAlerts: 0, alertsLoading: false, alertsFailed: false };
+
   it("reassures when the channel has answered and nothing is unread", () => {
-    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: false })).toBe(true);
+    expect(canReassure(answeredEmpty)).toBe(true);
   });
 
   it("stays silent with a single unread alert", () => {
-    expect(canReassure({ unreadSystemAlerts: 1, alertsLoading: false })).toBe(false);
+    expect(canReassure({ ...answeredEmpty, unreadSystemAlerts: 1 })).toBe(false);
   });
 
   it("stays silent with many unread alerts", () => {
-    expect(canReassure({ unreadSystemAlerts: 7, alertsLoading: false })).toBe(false);
+    expect(canReassure({ ...answeredEmpty, unreadSystemAlerts: 7 })).toBe(false);
   });
 
   it("stays silent while the alert query is still in flight", () => {
     // The unread count defaults to 0 before the query answers: reassuring on
     // that default is the same false statement, just shorter-lived.
-    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: true })).toBe(false);
+    expect(canReassure({ ...answeredEmpty, alertsLoading: true })).toBe(false);
   });
 
   it("stays silent while loading even if a count is already known", () => {
-    expect(canReassure({ unreadSystemAlerts: 3, alertsLoading: true })).toBe(false);
+    expect(canReassure({ unreadSystemAlerts: 3, alertsLoading: true, alertsFailed: false })).toBe(
+      false,
+    );
+  });
+
+  it("stays silent when the alert query failed", () => {
+    // The state that looks most like "all good" and is not: the query is no
+    // longer loading, `data` is undefined, so the count is 0 for lack of an
+    // answer rather than for lack of alerts.
+    expect(canReassure({ ...answeredEmpty, alertsFailed: true })).toBe(false);
+  });
+
+  it("stays silent on failure even when a stale count says zero", () => {
+    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: false, alertsFailed: true })).toBe(
+      false,
+    );
+  });
+
+  it("needs all three inputs to be satisfied, not any two", () => {
+    // Guards against a future refactor that drops one term from the &&:
+    // every single-flag deviation from the all-clear state must stay silent.
+    expect(canReassure({ ...answeredEmpty, alertsLoading: true })).toBe(false);
+    expect(canReassure({ ...answeredEmpty, alertsFailed: true })).toBe(false);
+    expect(canReassure({ ...answeredEmpty, unreadSystemAlerts: 1 })).toBe(false);
+    expect(canReassure(answeredEmpty)).toBe(true);
   });
 });
 

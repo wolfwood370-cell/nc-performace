@@ -76,9 +76,12 @@ export function sortCoachAlerts<T extends SortableAlert>(alerts: readonly T[]): 
  * talked, so «Tutto sotto controllo» could be printed straight above an
  * unread `nutrition_safety` alert — measured on the live app, 2026-08-01.
  *
- * `alertsLoading` counts as "cannot reassure" on purpose: while the query is
- * in flight the unread count is 0 by default, and reassuring on a default is
- * the same false statement, just shorter-lived.
+ * Neither `alertsLoading` nor `alertsFailed` is a detail: in both states the
+ * unread count is 0 because there is no data, not because there is nothing to
+ * report. Reassuring on that 0 is the same false statement — shorter-lived
+ * while loading, indefinite when the channel is down. The three inputs are
+ * all required so that a caller cannot omit one and silently fall back to
+ * reassuring: the failure mode of this function has to be silence.
  *
  * Pure so the invariant is falsifiable by a test instead of by eye — the
  * component only renders what this decides.
@@ -86,8 +89,9 @@ export function sortCoachAlerts<T extends SortableAlert>(alerts: readonly T[]): 
 export function canReassure(input: {
   unreadSystemAlerts: number;
   alertsLoading: boolean;
+  alertsFailed: boolean;
 }): boolean {
-  return !input.alertsLoading && input.unreadSystemAlerts === 0;
+  return !input.alertsLoading && !input.alertsFailed && input.unreadSystemAlerts === 0;
 }
 
 /**
