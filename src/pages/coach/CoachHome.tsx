@@ -64,6 +64,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
 // Aura bento card — Stitch reference style
@@ -155,6 +156,15 @@ export default function CoachHome() {
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Coach";
   const hasAthletes = businessMetrics.activeClients > 0;
+
+  // The mutation has no onError of its own, and `networkMode: 'offlineFirst'`
+  // lets it fire while offline: without this the button would look inert and
+  // the badge would silently stay put. Failing closed means saying so.
+  const handleMarkRead = (alertId: string) => {
+    markAsRead.mutate(alertId, {
+      onError: () => toast.error("Non è stato possibile segnare l'avviso come letto. Riprova."),
+    });
+  };
 
   // Triage: critical + warning, top 5 for layout calmness.
   const triageAlerts = useMemo(
@@ -267,6 +277,20 @@ export default function CoachHome() {
       <>
         <MetaHead title="Aura Command Center" description="Dashboard del coach." />
         <CoachLayout title="Aura Command Center" subtitle="Inizia con il tuo primo atleta">
+          {/* An empty roster does not mean an empty inbox: alerts about an
+              athlete with no coach are routed to SAFETY_NET_COACH_ID
+              (release-autonomous-program/index.ts:70), whose roster is empty
+              by construction. Without this the sidebar badge would count
+              alerts whose text the coach cannot reach anywhere. */}
+          {systemAlerts.length > 0 && (
+            <CoachAlertsPanel
+              className={cn(bentoCard, "max-w-2xl mx-auto mb-6")}
+              alerts={systemAlerts}
+              isLoading={alertsLoading}
+              onMarkRead={handleMarkRead}
+              onOpenAthlete={(id) => navigate(`/coach/athlete/${id}`)}
+            />
+          )}
           <div className={cn(bentoCard, "max-w-2xl mx-auto text-center p-12")}>
             <div className="inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary-container to-primary mb-6 ring-4 ring-primary/10">
               <UserPlus className="h-10 w-10 text-white" strokeWidth={1.75} />
@@ -309,7 +333,7 @@ export default function CoachHome() {
             className={cn(bentoCard, "md:col-span-3 xl:col-span-4")}
             alerts={systemAlerts}
             isLoading={alertsLoading}
-            onMarkRead={(id) => markAsRead.mutate(id)}
+            onMarkRead={handleMarkRead}
             onOpenAthlete={(id) => navigate(`/coach/athlete/${id}`)}
           />
 

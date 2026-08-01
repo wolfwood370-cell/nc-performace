@@ -54,13 +54,22 @@ interface CoachAlertsPanelProps {
   className?: string;
 }
 
-/** DB severity (`high|medium|low`) → Aura status pill. */
+/**
+ * DB severity (`high|medium|low`) → Aura status pill.
+ *
+ * `high` uses the `destructive` tokens rather than the `error-container` pair
+ * the other coach widgets reach for: `error-container` is not a key in
+ * `tailwind.config.ts` (nor a CSS var in `index.css`), so those classes emit
+ * nothing and the pill renders unstyled. Shipping the most severe alert with
+ * no colour is not an option; the pre-existing occurrences elsewhere are
+ * flagged separately.
+ */
 function severityTone(severity: string): { bg: string; text: string; dot: string } {
   switch (severity) {
     case "high":
       return {
-        bg: "bg-error-container",
-        text: "text-on-error-container",
+        bg: "bg-destructive/10",
+        text: "text-destructive",
         dot: "bg-destructive",
       };
     case "medium":
@@ -210,14 +219,19 @@ function AlertRow({
               Segna come letto
             </Button>
           )}
-          <Button
-            size="sm"
-            onClick={() => onOpenAthlete(alert.athlete_id)}
-            className="gap-1 rounded-full bg-primary-container text-on-primary-container hover:bg-primary-container/80"
-          >
-            Vedi atleta
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {/* Offered only when the profile join came back: if RLS did not let
+              the coach read the athlete's row, their detail page is closed to
+              them too, and the button would lead to a dead end. */}
+          {alert.athlete && (
+            <Button
+              size="sm"
+              onClick={() => onOpenAthlete(alert.athlete_id)}
+              className="gap-1 rounded-full bg-primary-container text-on-primary-container hover:bg-primary-container/80"
+            >
+              Vedi atleta
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
     </li>
