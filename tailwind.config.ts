@@ -89,6 +89,20 @@ export default {
           DEFAULT: "var(--destructive)",
           foreground: "var(--destructive-foreground)",
         },
+        /* Material 3 error family. `error` is the strong colour,
+           `error-container` the tint that carries it on a surface — the
+           distinction the Coach severity pills rely on, and the reason these
+           are not folded into `destructive`.
+           Written as `hsl(var(--x) / <alpha-value>)` instead of the
+           `var(--x)` form used above: the latter makes Tailwind v3 drop the
+           opacity modifier entirely, and half the call sites need it
+           (`bg-error-container/40`, `/30`, `/20`). The matching vars in
+           `src/index.css` therefore hold bare HSL channels. */
+        error: {
+          DEFAULT: "hsl(var(--error) / <alpha-value>)",
+          container: "hsl(var(--error-container) / <alpha-value>)",
+        },
+        "on-error-container": "hsl(var(--on-error-container) / <alpha-value>)",
         warning: {
           DEFAULT: "var(--warning)",
           foreground: "var(--warning-foreground)",

@@ -21,7 +21,8 @@
     "audit:exports": "ts-prune -p tsconfig.app.json",
     "audit:all": "npm run audit:dead && npm run audit:deps && npm run audit:exports",
     "gen:types": "supabase gen types typescript --project-id xgxtplqlewpqjzghvbke",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:css": "node scripts/verify-css-tokens.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,css,md,json}": [

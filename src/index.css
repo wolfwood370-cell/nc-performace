@@ -73,6 +73,20 @@
     --success: hsl(160 84% 39%); /* preserved — not in Aura spec */
     --success-foreground: hsl(0 0% 100%);
 
+    /* Error family (Material 3) — declared as BARE HSL CHANNELS, unlike
+       every token above. Tailwind v3 cannot apply an opacity modifier to a
+       var that already holds a complete `hsl(...)`: it emits no rule at all,
+       so `bg-destructive/10` is silently dead (measured on the built CSS,
+       2026-08-01). The channel form lets `tailwind.config.ts` wrap these in
+       `hsl(var(--x) / <alpha-value>)`, which is what makes
+       `bg-error-container/40` actually render.
+       No new colours: `--error` is `--destructive` (error #ba1a1a); the
+       container pair is the error tone 90 / tone 10 that
+       MaterialYouProvider already computes at runtime (:497-500). */
+    --error: 0 75% 42%;
+    --error-container: 0 45% 90%;
+    --on-error-container: 0 45% 10%;
+
     /* Outlines — Aura's structural definition layer */
     --border: hsl(215 14% 79%); /* outline-variant #c1c7d0 */
     --input: hsl(215 14% 79%);
@@ -159,6 +173,13 @@
 
     --success: hsl(160 84% 39%);
     --success-foreground: hsl(0 0% 100%);
+
+    /* Error family — channel form, see the note in `:root`. Dark tones:
+       `--error` mirrors `--destructive` above; the container pair is the
+       error tone 30 / tone 90 of the same Material palette. */
+    --error: 0 62.8% 30.6%;
+    --error-container: 0 60% 30%;
+    --on-error-container: 0 45% 90%;
 
     --border: hsl(217.2 32.6% 17.5%);
     --input: hsl(217.2 32.6% 17.5%);
