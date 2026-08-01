@@ -24,7 +24,7 @@ oggi invisibili a `tsc`, a eslint e ai test.
   - `unreadCount` da `src/hooks/useCoachAlerts.ts:149` (nessun conteggio nuovo).
   - I toni error che `src/providers/MaterialYouProvider.tsx:497-500` già calcola a runtime.
 - **Output atteso:**
-  - `src/index.css` + `tailwind.config.ts` — la famiglia `error` mappata; 8 classi di gravità che
+  - `src/index.css` + `tailwind.config.ts` — la famiglia `error` mappata; 10 classi di gravità che
     finiscono davvero nel CSS costruito.
   - `src/lib/coachAlerts.ts` — `canReassure` puro, coperto da vitest; `CoachHome` lo consuma.
   - `eslint.config.js` — `tailwindcss/no-custom-classname` a `error`.
@@ -42,8 +42,11 @@ oggi invisibili a `tsc`, a eslint e ai test.
 - **Toccati:** `src/index.css` · `tailwind.config.ts` · `scripts/verify-css-tokens.mjs` (nuovo) ·
   `src/lib/coachAlerts.ts` · `src/lib/__tests__/coachAlerts.test.ts` · `src/pages/coach/CoachHome.tsx` ·
   `eslint.config.js` · `.eslint-baseline` · `package.json` + `package-lock.json`.
-- **VIETATI (rispettati):** tutto `supabase/**` · `src/hooks/useCoachAlerts.ts` ·
-  `src/components/coach/CoachAlertsPanel.tsx` · `.github/**`.
+- **VIETATI (rispettati):** tutto `supabase/**` · `src/components/coach/CoachAlertsPanel.tsx` ·
+  `.github/**`.
+- **Vietato dalla spec, aperto con deroga esplicita di Nick dopo la review:**
+  `src/hooks/useCoachAlerts.ts` — una riga additiva (`isError`), motivazione nel commit `1dc5981` e in
+  §9.
 - **Fuori dalla lista attesa della spec, approvati da Nick prima dell'esecuzione:** `src/index.css`
   (unica sede coerente per i token, v. §7) · `src/lib/coachAlerts.ts` + test (per rendere il requisito
   falsificabile da vitest invece che a occhio) · `scripts/verify-css-tokens.mjs` (richiesta di Nick
@@ -51,8 +54,9 @@ oggi invisibili a `tsc`, a eslint e ai test.
 
 ## 4. Acceptance (criteri falsificabili — ognuno può bocciare)
 
-- ☑ Con avvisi di sistema non letti, la Centrale Operativa **non** dice «Tutto sotto controllo»
-  (regola pura `canReassure`, 8 test; le due mutazioni che contano provate e uccise).
+- ☑ Con avvisi di sistema non letti, la Centrale Operativa **non** dice «Tutto sotto controllo» —
+  e nemmeno mentre la query carica o quando **fallisce** (regola pura `canReassure`, 11 test; tre
+  mutazioni provate e uccise, una per termine della condizione).
 - ☑ Le 10 classi di gravità compaiono nel CSS costruito: `npm run build && npm run verify:css`.
   Lo stesso script sul CSS di `main` pre-fix esce 1 elencandole tutte.
 - ☑ Le 5 variabili restano in forma a canali, dentro `:root`, e nessun sorgente le riscrive a
@@ -60,12 +64,12 @@ oggi invisibili a `tsc`, a eslint e ai test.
   `index.css`).
 - ☑ `no-custom-classname` attiva e provata: `bg-inventata-di-prova` iniettata in `CoachHome` viene
   segnalata (356:14), poi rimossa.
-- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 178/178 ·
+- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 181/181 ·
   eslint 105 = `.eslint-baseline` (salito una volta sola, elenco nel commit `chore(varco)`) ·
   `npm ci` esce 0 e il conteggio resta 105 da `node_modules` vergine.
 - ☑ `git diff --name-only main..HEAD`: zero file sotto `supabase/`.
-- ☐ **Non piena, e va detto:** con la query degli avvisi **in errore** (non «in caricamento») il
-  coach legge ancora l'all-clear. Vedi §9.
+- ☑ **Aperta dalla review, chiusa con deroga** (`1dc5981`): con la query degli avvisi **in errore** il
+  coach non legge più l'all-clear — il widget dichiara che il canale è caduto. Vedi §9.
 
 ## 5. Verifica (come si controlla, non a memoria)
 
@@ -79,7 +83,7 @@ git diff --name-only main..HEAD
 
 ## 6. Chiusura
 
-- 6 commit atomici su `claude/leggibilita-gravita-coach`. Gli ultimi due nascono dalla review
+- 7 commit atomici su `claude/leggibilita-gravita-coach`. Gli ultimi tre nascono dalla review
   indipendente, non dal piano.
 - Merge = Nick via Pull request.
 
@@ -139,24 +143,26 @@ scala, si guarda la scala, non il pezzo.
 - Il bullet nuovo è **cieco alla severità**: `unreadCount` conta anche i `low`, quindi un avviso di
   bassa priorità sopprime l'all-clear. Direzione conservativa e coerente col §0, dichiarata qui.
 
-## 9. Il buco che resta aperto (decisione di Nick)
+## 9. Il ramo errore — trovato dalla review, chiuso con deroga esplicita
 
-`canReassure` distingue «sto caricando» da «ho zero non letti», ma **non** «la query è fallita».
+`canReassure` distingueva «sto caricando» da «ho zero non letti», ma **non** «la query è fallita».
 In TanStack v5 con la query in errore: `isLoading` è `false` (`isPending && isFetching`), `data` è
-`undefined` → `alerts: []` → `unreadCount = 0` → il coach legge «Tutto sotto controllo». E
+`undefined` → `alerts: []` → `unreadCount = 0` → il coach tornava a leggere «Tutto sotto controllo». E
 `src/main.tsx:18-24` ha `retry: false` sui 4xx, quindi un errore RLS su `coach_alerts` ci arriva al
-primo tentativo. È la stessa falsità che la fetta esiste per togliere, sul ramo errore invece che sul
-ramo caricamento.
+primo tentativo, senza ritentare. Stessa falsità della fetta, sul ramo errore invece che sul ramo
+caricamento.
 
-Chiuderlo richiede una riga in `src/hooks/useCoachAlerts.ts` — **file vietato dalla spec**:
+Chiuderlo richiedeva una riga in `src/hooks/useCoachAlerts.ts`, **file vietato dalla spec**. Deroga
+concessa da Nick con la motivazione agli atti nel commit `1dc5981`: _il veto su quel file serviva a
+tenere stretta la fetta, non a proteggere un invariante; lasciare che il coach legga l'all-clear quando
+la query è in errore sarebbe chiudere la porta d'ingresso della bugia e lasciarne aperta una sul
+retro._ Additivo, fail-closed, nessun consumatore esistente cambia.
 
-```diff
-   return {
-     alerts: alertsQuery.data || [],
-     isLoading: alertsQuery.isLoading,
-+    isError: alertsQuery.isError,
-     unreadCount,
-```
+I tre input di `canReassure` sono **obbligatori**, non opzionali: un campo opzionale lascerebbe che un
+chiamante lo ometta e torni a rassicurare per default, cioè il modo esatto in cui il buco è nato. Il
+modo di fallire di quella funzione dev'essere il silenzio. Quando il canale è caduto il widget lo
+dichiara («Non riesco a leggere gli avvisi dal sistema. Ricarica la pagina.») invece di fingere di
+stare ancora controllando.
 
-più `alertsLoading || alertsError` nel gate. Additivo, nessun consumatore esistente cambia. **Non
-eseguito**: serve l'OK di Nick sul file.
+**Regola generale che ne esce:** quando un veto di scope e il requisito della fetta confliggono,
+decide il requisito — e la ragione si scrive nel commit, non nella chat.
