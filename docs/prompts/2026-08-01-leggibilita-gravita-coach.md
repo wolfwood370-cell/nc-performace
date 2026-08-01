@@ -21,7 +21,8 @@ oggi invisibili a `tsc`, a eslint e ai test.
 ## 2. Contratto (il patto verificabile)
 
 - **Input:**
-  - `unreadCount` da `src/hooks/useCoachAlerts.ts:149` (nessun conteggio nuovo).
+  - `unreadCount` da `src/hooks/useCoachAlerts.ts` (nessun conteggio nuovo; riga verificata al
+    momento della scrittura, non citata a memoria: `:162` nel `return`).
   - I toni error che `src/providers/MaterialYouProvider.tsx:497-500` già calcola a runtime.
 - **Output atteso:**
   - `src/index.css` + `tailwind.config.ts` — la famiglia `error` mappata; 10 classi di gravità che
@@ -55,8 +56,8 @@ oggi invisibili a `tsc`, a eslint e ai test.
 ## 4. Acceptance (criteri falsificabili — ognuno può bocciare)
 
 - ☑ Con avvisi di sistema non letti, la Centrale Operativa **non** dice «Tutto sotto controllo» —
-  e nemmeno mentre la query carica o quando **fallisce** (regola pura `canReassure`, 11 test; tre
-  mutazioni provate e uccise, una per termine della condizione).
+  e nemmeno mentre la query carica o quando **fallisce** (regola pura `canReassure`, 13 test; le mutazioni
+  che contano provate e uccise, incluse le quattro branche della query).
 - ☑ Le 10 classi di gravità compaiono nel CSS costruito: `npm run build && npm run verify:css`.
   Lo stesso script sul CSS di `main` pre-fix esce 1 elencandole tutte.
 - ☑ Le 5 variabili restano in forma a canali, dentro `:root`, e nessun sorgente le riscrive a
@@ -64,7 +65,7 @@ oggi invisibili a `tsc`, a eslint e ai test.
   `index.css`).
 - ☑ `no-custom-classname` attiva e provata: `bg-inventata-di-prova` iniettata in `CoachHome` viene
   segnalata (356:14), poi rimossa.
-- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 181/181 ·
+- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 183/183 ·
   eslint 105 = `.eslint-baseline` (salito una volta sola, elenco nel commit `chore(varco)`) ·
   `npm ci` esce 0 e il conteggio resta 105 da `node_modules` vergine.
 - ☑ `git diff --name-only main..HEAD`: zero file sotto `supabase/`.
@@ -83,8 +84,8 @@ git diff --name-only main..HEAD
 
 ## 6. Chiusura
 
-- 7 commit atomici su `claude/leggibilita-gravita-coach`. Gli ultimi tre nascono dalla review
-  indipendente, non dal piano.
+- 10 commit atomici su `claude/leggibilita-gravita-coach`. Cinque nascono dalle due review
+  indipendenti, non dal piano.
 - Merge = Nick via Pull request.
 
 ## 7. Le quattro misure che hanno cambiato il rimedio
@@ -123,34 +124,72 @@ scala, si guarda la scala, non il pezzo.
 
 ## 8. Cosa questa fetta NON chiude
 
-- **I 537 modificatori di opacità morti** su token `var()` (chip aperta). La domanda che accompagna la
-  chip: quante di quelle superfici portano un significato clinico o di gravità?
-- **`chart-1..5` mai mappati** (23 occorrenze): sono i colori delle analytics del coach, gauge ACWR
-  compreso. Emersi dalla regola nuova, non corretti, elencati nel commit `chore(varco)`.
-- `secondary-container` / `on-secondary-container` / `on-primary` mai mappati (6 occorrenze).
+### 8.1 La fetta successiva: token di colore in forma a canali + `verify:css` nel varco
+
+Quattro cose che sembravano quattro voci separate sono **un difetto solo**, e vanno fatte insieme:
+token di colore non in forma a canali, e nessun cancello che se ne accorga. Decisione di Nick,
+01/08 — registrarle come una voce, ed è la fetta subito dopo questa.
+
+1. **I 537 modificatori di opacità morti** su token `var()`. Misura rieseguibile: dopo `npm run build`,
+   nel CSS costruito ci sono 97 classi con modificatore di opacità e sono **tutte** su colori letterali
+   (`bg-black/50`, `bg-emerald-500/10`); `.bg-destructive\/10`, `.bg-primary\/10`,
+   `.border-outline-variant\/10` sono assenti.
+   **La domanda di Nick, da rispondere prima di qualunque fix: quante di quelle superfici portano un
+   significato clinico o di gravità?** Quelle vengono prima delle decorative.
+2. **`chart-1..5` mai mappati** (23 occorrenze — `AcwrGauge:111`, `VelocityTrendChart`,
+   `VolumeIntensityChart`, `StrengthChart`, `BarPathGallery`, `AthleteDetail`): in `index.css` le
+   variabili si chiamano `--chart-volume/intensity/fatigue/…`, i nomi numerici non esistono da nessuna
+   parte. È il gauge ACWR, cioè una superficie di rischio. Più `secondary-container` /
+   `on-secondary-container` / `on-primary` (6 occorrenze). Elenco completo per classe e per file nel
+   commit `chore(varco)` che alza il baseline.
+3. **La pill `high` del pannello §0 resta senza sfondo** (`CoachAlertsPanel.tsx:71`,
+   `bg-destructive/10`, verificata assente dal CSS costruito). È l'unico gradino della scala di gravità
+   che resta spento — il `medium` accanto è stato acceso da questa fetta senza aprire il file.
+   Richiede `--destructive` in forma a canali, che rompe `MaterialYouProvider.tsx:538`: il BRIDGE ci
+   scrive un `hsl(...)` completo a runtime. Da fare insieme al punto 1, non da sola.
+4. **`verify:css` non è agganciato alla CI**: il job web non fa `npm run build` e `lint-staged` esegue
+   solo prettier, quindi oggi è un cancello che _si può_ eseguire, non uno che _viene_ eseguito.
+   `.github/**` è vietato in questa fetta. Quando lo si aprirà: **il commento a `ci.yml:41` dice ancora
+   «non blocca i 53 errori esistenti»**, e il baseline ora è 105.
+
+Nota per chi la esegue: aggiungere una classe oggi rotta alla lista `EXPECTED` di
+`scripts/verify-css-tokens.mjs` rende il gate **rosso**. Si aggiunge insieme al fix, mai prima.
+
+### 8.2 Residui minori, dichiarati
+
+- **Il commento in `CoachAlertsPanel.tsx:61-62`** («`error-container` is not a key in
+  `tailwind.config.ts`, nor a CSS var in `index.css`») è reso **falso** da questa fetta. File vietato,
+  non corretto qui: motivava la scelta di `destructive`, quindi un prossimo agente ci si fida e rifà
+  la scelta sbagliata. Va riscritto insieme al punto 8.1.3.
+- **`ActiveWorkout.tsx:194` resta mezzo acceso**: `bg-error` (registrazione in corso) ora si vede,
+  `bg-on-surface-variant/40` (in pausa) no — è un modificatore di opacità su token `var()`, punto
+  8.1.1. Non è un'inversione: lo stato attivo è più visibile di quello in pausa, non il contrario.
 - Non riconcilia le due fonti (`urgentAlerts` client-side e `coach_alerts` server-side): le fa smettere
   di contraddirsi, non le unifica.
-- `scripts/verify-css-tokens.mjs` **non è agganciato alla CI** (chip aperta): il job web non fa
-  `npm run build` e `lint-staged` esegue solo prettier, quindi oggi è un cancello che _si può_ eseguire,
-  non uno che _viene_ eseguito. `.github/**` è vietato in questa fetta.
-- **La pill `high` del pannello §0 resta senza sfondo** (`CoachAlertsPanel.tsx:71`,
-  `bg-destructive/10`, verificata assente dal CSS costruito). Richiederebbe `--destructive` in forma a
-  canali, che romperebbe `MaterialYouProvider.tsx:538` — il BRIDGE ci scrive un `hsl(...)` completo a
-  runtime. È l'unico pezzo della scala di gravità che resta spento.
-- **Il commento in `CoachAlertsPanel.tsx:61-62`** («`error-container` is not a key in
-  `tailwind.config.ts`, nor a CSS var in `index.css`») è reso **falso** da questa fetta. File vietato:
-  non corretto qui, chip aperta — un prossimo agente ci si fida.
 - Il bullet nuovo è **cieco alla severità**: `unreadCount` conta anche i `low`, quindi un avviso di
   bassa priorità sopprime l'all-clear. Direzione conservativa e coerente col §0, dichiarata qui.
+- Il test copre la **regola**, non il cablaggio nel componente: vitest qui gira node-only, senza
+  render. Un revert della sola chiamata nel JSX passerebbe verde.
 
-## 9. Il ramo errore — trovato dalla review, chiuso con deroga esplicita
+## 9. Gli stati della fonte — due review per arrivarci
 
-`canReassure` distingueva «sto caricando» da «ho zero non letti», ma **non** «la query è fallita».
-In TanStack v5 con la query in errore: `isLoading` è `false` (`isPending && isFetching`), `data` è
-`undefined` → `alerts: []` → `unreadCount = 0` → il coach tornava a leggere «Tutto sotto controllo». E
-`src/main.tsx:18-24` ha `retry: false` sui 4xx, quindi un errore RLS su `coach_alerts` ci arriva al
-primo tentativo, senza ritentare. Stessa falsità della fetta, sul ramo errore invece che sul ramo
-caricamento.
+`canReassure` nasceva guardando **un** modo di non sapere («sto caricando»). La prima review ne ha
+trovato un secondo (la query in **errore**), la seconda un terzo (il retry in **pausa** offline). Ogni
+volta lo stesso meccanismo: `data` è `undefined`, quindi `alerts` è vuoto, quindi `unreadCount` è 0 —
+e uno 0 che significa «non lo so» veniva letto come «non c'è niente».
+
+Verificato nei sorgenti installati (`@tanstack/query-core`, `queryObserver.js`): `isLoading` è
+`isPending && isFetching`, quindi **falso in tre stati su cinque**; `isError` è vero solo per
+`status: 'error'`. Con `networkMode: 'offlineFirst'` (`src/main.tsx:25`) un retry paused lascia
+`status: 'pending'`, `fetchStatus: 'paused'` — nessuno dei due flag lo copre. E `retry: false` sui 4xx
+porta un errore RLS al primo tentativo, senza ritentare.
+
+**Il rimedio non è il quarto booleano.** Enumerare i modi di non sapere significa che ogni stato
+dimenticato — o aggiunto in futuro dalla libreria — vale per default come «rassicura»: è il modo in cui
+il buco è nato due volte di fila. La regola ora chiede **un segnale positivo**, `channelAnswered`
+(= `isSuccess`, cioè `status === 'success'`): tutto ciò che non è una risposta riuscita legge come
+sconosciuto, e lo sconosciuto tace. Il test enumera i cinque stati con le due colonne vere di TanStack
+accanto, così il prossimo che legge vede perché `isLoading` non basta.
 
 Chiuderlo richiedeva una riga in `src/hooks/useCoachAlerts.ts`, **file vietato dalla spec**. Deroga
 concessa da Nick con la motivazione agli atti nel commit `1dc5981`: _il veto su quel file serviva a
@@ -158,11 +197,12 @@ tenere stretta la fetta, non a proteggere un invariante; lasciare che il coach l
 la query è in errore sarebbe chiudere la porta d'ingresso della bugia e lasciarne aperta una sul
 retro._ Additivo, fail-closed, nessun consumatore esistente cambia.
 
-I tre input di `canReassure` sono **obbligatori**, non opzionali: un campo opzionale lascerebbe che un
+Gli input di `canReassure` sono **obbligatori**, non opzionali: un campo opzionale lascerebbe che un
 chiamante lo ometta e torni a rassicurare per default, cioè il modo esatto in cui il buco è nato. Il
-modo di fallire di quella funzione dev'essere il silenzio. Quando il canale è caduto il widget lo
-dichiara («Non riesco a leggere gli avvisi dal sistema. Ricarica la pagina.») invece di fingere di
-stare ancora controllando.
+modo di fallire di quella funzione dev'essere il silenzio. Quando il canale non ha risposto il widget
+lo dichiara («Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.») invece di
+fingere di stare ancora controllando — e il messaggio copre errore e offline insieme, perché
+«ricarica la pagina» sarebbe un consiglio sbagliato per il secondo.
 
 **Regola generale che ne esce:** quando un veto di scope e il requisito della fetta confliggono,
 decide il requisito — e la ragione si scrive nel commit, non nella chat.
