@@ -88,6 +88,30 @@ export const COACH_ALERT_SEVERITY_LABELS: Record<string, string> = {
   low: "Bassa",
 };
 
+// Soreness zones — the keys the athlete check-in writes into
+// `daily_readiness.soreness_map` (`DailyCheckin.tsx` MUSCLE_GROUPS). The four
+// after the blank line are not written by the current check-in: they belong to
+// the older shape declared in `src/types/database.ts`, and are kept so legacy
+// rows read as words. Anything else falls back to the raw key via `t()`.
+export const SORENESS_ZONE_LABELS: Record<string, string> = {
+  chest: "Petto",
+  triceps: "Tricipiti",
+  biceps: "Bicipiti",
+  shoulders: "Spalle",
+  traps: "Trapezi",
+  lats: "Dorsali",
+  lower_back: "Lombari",
+  glutes: "Glutei",
+  hamstrings: "Femorali",
+  quads: "Quadricipiti",
+  calves: "Polpacci",
+
+  neck: "Collo",
+  upper_back: "Dorso Alto",
+  arms: "Braccia",
+  core: "Core",
+};
+
 // Workout Status
 export const WORKOUT_STATUS_LABELS: Record<string, string> = {
   pending: "In Attesa",

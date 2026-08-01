@@ -2,12 +2,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, AlertTriangle, ShieldAlert, Activity, HeartPulse } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
 import {
   useAthleteHealthProfile,
   getStatusLabel,
   type HealthStatus,
   type FmsScore,
+  type RecentPainReport,
 } from "@/hooks/useAthleteHealthProfile";
+import { SORENESS_ZONE_LABELS, t } from "@/utils/translations";
 import { cn } from "@/lib/utils";
 
 interface HealthProfileTabProps {
@@ -71,9 +75,24 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
     );
   }
 
-  const { summary, fmsScores, fmsTotalScore, fmsMaxScore, fmsTestDate, activeInjuries } = profile;
+  const {
+    summary,
+    fmsScores,
+    fmsTotalScore,
+    fmsMaxScore,
+    fmsTestDate,
+    activeInjuries,
+    recentPainReports,
+  } = profile;
   const status = STATUS_CONFIG[summary.status];
   const StatusIcon = status.icon;
+
+  // Days that carry at least one zone. Downloaded by the hook since forever
+  // (useAthleteHealthProfile selects `soreness_map`), never rendered until now:
+  // the semaforo counted the pain days and dropped the zones on the floor.
+  const daysWithZones = recentPainReports.filter(
+    (r) => Object.keys(r.sorenessMap ?? {}).length > 0,
+  );
 
   return (
     <div className="space-y-6">
@@ -106,6 +125,27 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Soreness zones from the daily check-in */}
+      {daysWithZones.length > 0 && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <HeartPulse className="h-4 w-4 text-muted-foreground" />
+              Zone segnalate negli ultimi 7 giorni
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Indicate dall&apos;atleta nel check-in giornaliero. Sono un dato a sé: non
+              corrispondono per forza alla risposta sul dolore che muove il semaforo.
+            </p>
+            {daysWithZones.map((report) => (
+              <SorenessDayRow key={report.date} report={report} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* FMS breakdown */}
       <Card className="border-0 shadow-sm">
@@ -195,6 +235,37 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/**
+ * One check-in day and the zones it carries.
+ *
+ * Zone names only, never the value next to them: `soreness_map` has three
+ * conflicting contracts today — the check-in writes `mild|moderate|severe`
+ * (`DailyCheckin.tsx:280`), the reader casts to `Record<string, number>`
+ * (`useAthleteHealthProfile.ts:219`) and `src/types/database.ts:64` declares
+ * `0|1|2|3|4|5`. Until that is settled, showing an intensity would mean
+ * showing a number whose scale nobody can vouch for. The key is unambiguous;
+ * the value is not.
+ */
+function SorenessDayRow({ report }: { report: RecentPainReport }) {
+  const parsed = new Date(report.date);
+  const label = Number.isNaN(parsed.getTime())
+    ? report.date
+    : format(parsed, "EEEE d MMM", { locale: it });
+
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
+      <p className="text-xs font-medium capitalize text-muted-foreground">{label}</p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {Object.keys(report.sorenessMap).map((zone) => (
+          <Badge key={zone} variant="outline" className="text-xs font-normal">
+            {t(SORENESS_ZONE_LABELS, zone)}
+          </Badge>
+        ))}
+      </div>
     </div>
   );
 }
