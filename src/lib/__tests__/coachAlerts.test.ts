@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canReassure,
+  CHANNEL_FRESHNESS_MS,
   severityRank,
   sortCoachAlerts,
   unreadAlertsSummary,
@@ -116,10 +117,10 @@ describe("sortCoachAlerts", () => {
 // alert. These pin the rule that closes it: the coach never reads that
 // everything is fine while an alert is waiting underneath.
 describe("canReassure", () => {
-  /** Answered, nothing pending — the only state that earns an all-clear. */
-  const answeredEmpty = { unreadSystemAlerts: 0, channelAnswered: true };
+  /** A fresh answer with nothing pending — the only state that earns an all-clear. */
+  const answeredEmpty = { unreadSystemAlerts: 0, channelAnswered: true, answeredAgoMs: 1_000 };
 
-  it("reassures when the channel has answered and nothing is unread", () => {
+  it("reassures when the channel has answered recently and nothing is unread", () => {
     expect(canReassure(answeredEmpty)).toBe(true);
   });
 
@@ -136,34 +137,82 @@ describe("canReassure", () => {
   });
 
   it("stays silent when it has not answered even if a count is already known", () => {
-    expect(canReassure({ unreadSystemAlerts: 3, channelAnswered: false })).toBe(false);
+    expect(
+      canReassure({ unreadSystemAlerts: 3, channelAnswered: false, answeredAgoMs: 1_000 }),
+    ).toBe(false);
+  });
+
+  // "Success" is not always an answer. This app hydrates the query cache
+  // from IndexedDB (maxAge 24h): a hydrated query reports
+  // `status: 'success'` with YESTERDAY'S state, and a placeholder forges
+  // 'success' with no fetch at all. Freshness is what tells them apart.
+  describe("success that does not mean what it seems", () => {
+    it("stays silent on a day-old snapshot hydrated from the persisted cache", () => {
+      expect(canReassure({ ...answeredEmpty, answeredAgoMs: 24 * 60 * 60 * 1000 })).toBe(false);
+    });
+
+    it("stays silent on placeholder data, which never had a fetch", () => {
+      // `dataUpdatedAt` is 0 for placeholder data; callers map that to Infinity.
+      expect(canReassure({ ...answeredEmpty, answeredAgoMs: Infinity })).toBe(false);
+    });
+
+    it("reassures at the freshness boundary and goes silent just past it", () => {
+      expect(canReassure({ ...answeredEmpty, answeredAgoMs: CHANNEL_FRESHNESS_MS })).toBe(true);
+      expect(canReassure({ ...answeredEmpty, answeredAgoMs: CHANNEL_FRESHNESS_MS + 1 })).toBe(
+        false,
+      );
+    });
+
+    it("a stale answer with unread alerts stays silent for both reasons", () => {
+      expect(
+        canReassure({
+          unreadSystemAlerts: 2,
+          channelAnswered: true,
+          answeredAgoMs: 24 * 60 * 60 * 1000,
+        }),
+      ).toBe(false);
+    });
   });
 
   // The reason the rule keys off one positive signal instead of a list of
   // failures: the first version enumerated "not loading and not errored" and
   // missed `paused`, which is what an offline retry produces under
-  // `networkMode: 'offlineFirst'`. In every row below the unread count is 0
-  // for lack of an answer, not for lack of alerts.
+  // `networkMode: 'offlineFirst'`. Then `isSuccess` alone proved too wide:
+  // a query hydrated from the persisted cache is `success` with yesterday's
+  // state. In every silent row below the unread count is 0 for lack of a
+  // (fresh) answer, not for lack of alerts.
   describe("across every state the alert query can be in", () => {
     // `channelAnswered` is the hook's `isSuccess`, i.e. `status === "success"`
-    // (@tanstack/query-core queryObserver.js:316). The two columns next to it
-    // are what TanStack actually reports, and are the reason the rule cannot
-    // be written as "not loading and not errored": `isLoading` is
-    // `isPending && isFetching`, so it is false in three of these five rows.
+    // (@tanstack/query-core queryObserver.js:316); `answeredAgoMs` derives
+    // from its `dataUpdatedAt`. The status columns are what TanStack actually
+    // reports, and are the reason the rule cannot be written as "not loading
+    // and not errored": `isLoading` is `isPending && isFetching`, so it is
+    // false in four of these six rows.
     const QUERY_STATES = [
-      { name: "in flight", status: "pending", fetchStatus: "fetching", isSuccess: false },
-      { name: "paused offline", status: "pending", fetchStatus: "paused", isSuccess: false },
-      { name: "disabled, no user yet", status: "pending", fetchStatus: "idle", isSuccess: false },
-      { name: "errored", status: "error", fetchStatus: "idle", isSuccess: false },
-      { name: "answered", status: "success", fetchStatus: "idle", isSuccess: true },
+      { name: "in flight", status: "pending", fetchStatus: "fetching", agoMs: Infinity },
+      { name: "paused offline", status: "pending", fetchStatus: "paused", agoMs: Infinity },
+      { name: "disabled, no user yet", status: "pending", fetchStatus: "idle", agoMs: Infinity },
+      { name: "errored", status: "error", fetchStatus: "idle", agoMs: Infinity },
+      {
+        name: "hydrated from yesterday's persisted cache",
+        status: "success",
+        fetchStatus: "paused",
+        agoMs: 24 * 60 * 60 * 1000,
+      },
+      { name: "freshly answered", status: "success", fetchStatus: "idle", agoMs: 1_000 },
     ];
 
     for (const state of QUERY_STATES) {
-      const verb = state.isSuccess ? "reassures" : "stays silent";
+      const expected = state.status === "success" && state.agoMs <= CHANNEL_FRESHNESS_MS;
+      const verb = expected ? "reassures" : "stays silent";
       it(`${verb} when the query is ${state.name}`, () => {
-        expect(canReassure({ unreadSystemAlerts: 0, channelAnswered: state.isSuccess })).toBe(
-          state.isSuccess,
-        );
+        expect(
+          canReassure({
+            unreadSystemAlerts: 0,
+            channelAnswered: state.status === "success",
+            answeredAgoMs: state.agoMs,
+          }),
+        ).toBe(expected);
       });
     }
   });

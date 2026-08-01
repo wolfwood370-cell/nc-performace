@@ -159,6 +159,14 @@ export function useCoachAlerts() {
     // channel answered", so that any state we forgot — or that the library
     // adds later — reads as unknown instead of as good news.
     isSuccess: alertsQuery.isSuccess,
+    // …and `isSuccess` alone is not enough for that decision: the persisted
+    // cache (src/main.tsx:33-37, maxAge 24h) hydrates queries as 'success'
+    // WITH YESTERDAY'S state. The timestamp lets consumers tell a fresh
+    // answer from a day-old snapshot; `isFetching` (true during background
+    // refetches, unlike `isLoading`) lets them say "checking" while the
+    // real answer is on its way.
+    dataUpdatedAt: alertsQuery.dataUpdatedAt,
+    isFetching: alertsQuery.isFetching,
     unreadCount,
     dismissAlert,
     markAsRead,

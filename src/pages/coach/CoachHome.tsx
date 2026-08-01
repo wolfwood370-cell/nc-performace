@@ -28,7 +28,8 @@
  * Live data:
  *   - useCoachDashboardMetrics → urgentAlerts, feedbackItems, todaySchedule,
  *     businessMetrics, isLoading
- *   - useCoachAlerts → alerts, isLoading, isSuccess, unreadCount, markAsRead
+ *   - useCoachAlerts → alerts, isLoading, isSuccess, isFetching,
+ *     dataUpdatedAt, unreadCount, markAsRead
  *   - useAuth → user, profile, auth loading
  */
 import { useMemo } from "react";
@@ -157,6 +158,8 @@ export default function CoachHome() {
     alerts: systemAlerts,
     isLoading: alertsLoading,
     isSuccess: alertsAnswered,
+    isFetching: alertsFetching,
+    dataUpdatedAt: alertsAnsweredAt,
     unreadCount,
     markAsRead,
   } = useCoachAlerts();
@@ -269,13 +272,18 @@ export default function CoachHome() {
     // `out.length`: the bullets above come from `useCoachDashboardMetrics`, a
     // different source from the alert channel, so an empty triage says
     // nothing about an unread alert waiting in the panel underneath. Only a
-    // successful fetch earns the all-clear — every other state leaves the
-    // count at 0 for lack of an answer, and a channel that did not answer
-    // says so out loud instead of pretending to still be checking.
+    // RECENT successful fetch earns the all-clear: `isSuccess` alone also
+    // covers a cache hydrated from IndexedDB with yesterday's snapshot
+    // (src/main.tsx:33-37), which cannot contain last night's alert. A
+    // channel that has not answered says so out loud — unless a fetch is in
+    // flight right now, in which case "checking" is the truth (that is
+    // `isFetching`, not `isLoading`: a background refetch over hydrated
+    // data is fetching but never "loading").
     if (out.length === 0) {
       const allClear = canReassure({
         unreadSystemAlerts: unreadCount,
         channelAnswered: alertsAnswered,
+        answeredAgoMs: alertsAnsweredAt > 0 ? Date.now() - alertsAnsweredAt : Infinity,
       });
       out.push({
         icon: allClear ? CheckSquare : AlertTriangle,
@@ -283,18 +291,25 @@ export default function CoachHome() {
         iconColor: "text-white",
         text: allClear ? (
           <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>
-        ) : alertsLoading ? (
+        ) : alertsFetching ? (
           <>Sto controllando gli avvisi dal sistema…</>
         ) : (
-          // Covers error and paused-offline alike: "reload" would be wrong
-          // advice for the second, "still checking" a lie for both.
+          // Covers error, paused-offline and stale-hydrated alike: "reload"
+          // would be wrong advice offline, "still checking" a lie for all.
           <>Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.</>
         ),
       });
     }
 
     return out.slice(0, 3);
-  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading, alertsAnswered]);
+  }, [
+    triageAlerts,
+    feedbackItems.length,
+    unreadCount,
+    alertsFetching,
+    alertsAnswered,
+    alertsAnsweredAt,
+  ]);
 
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (authLoading) {

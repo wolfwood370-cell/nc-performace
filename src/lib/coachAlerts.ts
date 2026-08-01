@@ -76,26 +76,44 @@ export function sortCoachAlerts<T extends SortableAlert>(alerts: readonly T[]): 
  * talked, so «Tutto sotto controllo» could be printed straight above an
  * unread `nutrition_safety` alert — measured on the live app, 2026-08-01.
  *
- * `channelAnswered` is deliberately ONE POSITIVE SIGNAL rather than a list of
- * things that can go wrong. The first version of this rule enumerated the
- * failures — "not loading and not errored" — and missed the fourth state:
- * with `networkMode: 'offlineFirst'` a retry paused offline leaves
- * `status: 'pending'`, `fetchStatus: 'paused'`, so `isLoading` and `isError`
- * are BOTH false while `data` is undefined, the unread count is 0 for lack of
- * an answer, and the coach was told everything was fine.
+ * The gate is ONE POSITIVE SIGNAL, deliberately narrow: the channel answered
+ * RECENTLY. Two prior versions of this rule were each defeated the same way,
+ * and the history is the specification:
  *
- * That is the general failure of enumerating negatives: every state you
- * forget — and every state the library adds later — defaults to reassuring.
- * Keyed off "the channel answered", anything unfamiliar defaults to silence.
+ * 1. Enumerating failures ("not loading and not errored") missed the retry
+ *    paused offline (`networkMode: 'offlineFirst'` → `status: 'pending'`,
+ *    `fetchStatus: 'paused'`, both flags false, data undefined) — every state
+ *    you forget, or the library adds later, defaults to reassuring.
+ * 2. `isSuccess` alone trusts an answer that is not one: this app hydrates
+ *    the query cache from IndexedDB with `maxAge` 24h (src/main.tsx:33-37),
+ *    and a hydrated query is `status: 'success'` WITH YESTERDAY'S state
+ *    (query-core hydration.js:124 keeps the persisted `dataUpdatedAt`). An
+ *    offline coach would be reassured on a day-old snapshot that cannot
+ *    contain last night's alert. `placeholderData` forges 'success' the same
+ *    way (queryObserver.js:277-283) with `dataUpdatedAt` 0 — unused by this
+ *    hook today, but covered by the same check.
+ *
+ * So the caller passes the AGE of the answer, not just its existence, and
+ * the threshold lives here so the test can pin it. Freshness is judged at
+ * render time; `refetchOnWindowFocus` re-renders on the coach's return, so a
+ * tab left open does not hold a stale all-clear across a wake-up.
  *
  * Pure so the invariant is falsifiable by a test instead of by eye — the
  * component only renders what this decides.
  */
+export const CHANNEL_FRESHNESS_MS = 5 * 60 * 1000;
+
 export function canReassure(input: {
   unreadSystemAlerts: number;
   channelAnswered: boolean;
+  /** Age of the last successful answer; Infinity when there has never been one. */
+  answeredAgoMs: number;
 }): boolean {
-  return input.channelAnswered && input.unreadSystemAlerts === 0;
+  return (
+    input.channelAnswered &&
+    input.answeredAgoMs <= CHANNEL_FRESHNESS_MS &&
+    input.unreadSystemAlerts === 0
+  );
 }
 
 /**
