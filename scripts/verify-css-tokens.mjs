@@ -27,6 +27,24 @@ import { join } from "node:path";
 
 const dir = process.argv[2] ?? "dist/assets";
 
+/**
+ * Severity vars that MUST stay in channel form (`H S% L%`), because the
+ * utilities above wrap them in `hsl(var(--x) / <alpha-value>)`. Writing a
+ * complete `hsl(...)` into one of them yields `hsl(hsl(...) / .4)`, which the
+ * browser drops — and the built stylesheet would not change, so the class
+ * check alone stays green while the pills go colourless again.
+ */
+const CHANNEL_VARS = [
+  "--error",
+  "--error-container",
+  "--on-error-container",
+  "--tertiary-container",
+  "--on-tertiary-container",
+];
+
+/** `0 45% 90%` — three space-separated channels, no function call. */
+const CHANNEL_FORM = /^[\d.]+\s+[\d.]+%\s+[\d.]+%$/;
+
 /** class → { varName, sites }. `sites` is documentation that travels with the assertion. */
 const EXPECTED = {
   "bg-error-container": { var: "--error-container", sites: "CoachHome.tsx:89" },
@@ -90,8 +108,59 @@ for (const [cls, { var: varName, sites }] of Object.entries(EXPECTED)) {
   console.log(`  ✓ ${cls.padEnd(24)} → var(${varName})`);
 }
 
+// ── 2. The vars themselves are still in channel form, and in `:root` ───────
+const rootBlocks = [...css.matchAll(/:root\s*\{([^}]*)\}/g)].map((m) => m[1]).join("\n");
+
+for (const name of CHANNEL_VARS) {
+  const decls = [...css.matchAll(new RegExp(`(?:^|[^-\\w])${name}\\s*:\\s*([^;}]+)`, "g"))].map(
+    (m) => m[1].trim(),
+  );
+  if (decls.length === 0) {
+    failures.push(`${name} — non dichiarata in nessun foglio`);
+    continue;
+  }
+  const wrong = decls.filter((v) => !CHANNEL_FORM.test(v));
+  if (wrong.length > 0) {
+    failures.push(
+      `${name} — dichiarata come «${wrong[0]}», non in forma a canali: ` +
+        `hsl(var(${name}) / …) diventa CSS invalido e la regola viene scartata`,
+    );
+    continue;
+  }
+  if (!new RegExp(`(?:^|[^-\\w])${name}\\s*:`).test(rootBlocks)) {
+    failures.push(`${name} — dichiarata solo fuori da :root (il tema chiaro resterebbe scoperto)`);
+    continue;
+  }
+  console.log(`  ✓ ${name.padEnd(24)} = ${decls[0]}`);
+}
+
+// ── 3. Nobody overwrites them at runtime ───────────────────────────────────
+// `MaterialYouProvider` writes 19 vars with `setProperty(name, hsl(...))`.
+// Adding one of these to that list is the natural-looking change that would
+// break every tint without touching the built stylesheet at all.
+function* sources(root) {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const full = join(root, entry.name);
+    if (entry.isDirectory()) yield* sources(full);
+    else if (/\.tsx?$/.test(entry.name)) yield full;
+  }
+}
+
+if (existsSync("src")) {
+  for (const file of sources("src")) {
+    const body = readFileSync(file, "utf8");
+    for (const name of CHANNEL_VARS) {
+      if (body.includes(`setProperty("${name}"`) || body.includes(`setProperty('${name}'`)) {
+        failures.push(
+          `${file} scrive ${name} a runtime: queste variabili devono restare statiche in index.css`,
+        );
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
-  console.error(`\n✗ ${failures.length} classi di gravità non arrivano nel CSS:`);
+  console.error(`\n✗ ${failures.length} controlli falliti — la gravità non arriva a schermo:`);
   for (const f of failures) console.error(`  - ${f}`);
   console.error(
     "\nUna classe che non esiste non è un errore: è CSS che non c'è. " +
@@ -100,4 +169,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`\n✓ ${Object.keys(EXPECTED).length}/${Object.keys(EXPECTED).length} classi presenti.`);
+console.log(
+  `\n✓ ${Object.keys(EXPECTED).length} classi presenti, ` +
+    `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime.`,
+);
