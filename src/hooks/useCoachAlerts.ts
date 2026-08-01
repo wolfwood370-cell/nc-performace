@@ -47,6 +47,16 @@ export function useCoachAlerts() {
       return (data || []) as CoachAlert[];
     },
     enabled: !!user?.id,
+    // Without this the query inherits `staleTime: Infinity` (src/main.tsx:16)
+    // AND is restored from the 24h IndexedDB persister (src/main.tsx:32-36)
+    // under `networkMode: 'offlineFirst'` — so a coach reopening the app
+    // would be served yesterday's cached list and never refetch, while the
+    // realtime subscription below only fires for INSERTs that happen with
+    // the tab already open. Alerts written server-side while the app was
+    // closed would stay invisible. 30s is short enough to catch them on
+    // mount and long enough not to refetch on every coach-page navigation
+    // (the hook remounts with the sidebar on each page).
+    staleTime: 30_000,
   });
 
   // Realtime subscription for new alerts
