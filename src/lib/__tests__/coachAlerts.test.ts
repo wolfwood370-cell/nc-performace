@@ -117,7 +117,7 @@ describe("sortCoachAlerts", () => {
 // everything is fine while an alert is waiting underneath.
 describe("canReassure", () => {
   /** Answered, nothing pending — the only state that earns an all-clear. */
-  const answeredEmpty = { unreadSystemAlerts: 0, alertsLoading: false, alertsFailed: false };
+  const answeredEmpty = { unreadSystemAlerts: 0, channelAnswered: true };
 
   it("reassures when the channel has answered and nothing is unread", () => {
     expect(canReassure(answeredEmpty)).toBe(true);
@@ -131,38 +131,41 @@ describe("canReassure", () => {
     expect(canReassure({ ...answeredEmpty, unreadSystemAlerts: 7 })).toBe(false);
   });
 
-  it("stays silent while the alert query is still in flight", () => {
-    // The unread count defaults to 0 before the query answers: reassuring on
-    // that default is the same false statement, just shorter-lived.
-    expect(canReassure({ ...answeredEmpty, alertsLoading: true })).toBe(false);
+  it("stays silent when the channel has not answered", () => {
+    expect(canReassure({ ...answeredEmpty, channelAnswered: false })).toBe(false);
   });
 
-  it("stays silent while loading even if a count is already known", () => {
-    expect(canReassure({ unreadSystemAlerts: 3, alertsLoading: true, alertsFailed: false })).toBe(
-      false,
-    );
+  it("stays silent when it has not answered even if a count is already known", () => {
+    expect(canReassure({ unreadSystemAlerts: 3, channelAnswered: false })).toBe(false);
   });
 
-  it("stays silent when the alert query failed", () => {
-    // The state that looks most like "all good" and is not: the query is no
-    // longer loading, `data` is undefined, so the count is 0 for lack of an
-    // answer rather than for lack of alerts.
-    expect(canReassure({ ...answeredEmpty, alertsFailed: true })).toBe(false);
-  });
+  // The reason the rule keys off one positive signal instead of a list of
+  // failures: the first version enumerated "not loading and not errored" and
+  // missed `paused`, which is what an offline retry produces under
+  // `networkMode: 'offlineFirst'`. In every row below the unread count is 0
+  // for lack of an answer, not for lack of alerts.
+  describe("across every state the alert query can be in", () => {
+    // `channelAnswered` is the hook's `isSuccess`, i.e. `status === "success"`
+    // (@tanstack/query-core queryObserver.js:316). The two columns next to it
+    // are what TanStack actually reports, and are the reason the rule cannot
+    // be written as "not loading and not errored": `isLoading` is
+    // `isPending && isFetching`, so it is false in three of these five rows.
+    const QUERY_STATES = [
+      { name: "in flight", status: "pending", fetchStatus: "fetching", isSuccess: false },
+      { name: "paused offline", status: "pending", fetchStatus: "paused", isSuccess: false },
+      { name: "disabled, no user yet", status: "pending", fetchStatus: "idle", isSuccess: false },
+      { name: "errored", status: "error", fetchStatus: "idle", isSuccess: false },
+      { name: "answered", status: "success", fetchStatus: "idle", isSuccess: true },
+    ];
 
-  it("stays silent on failure even when a stale count says zero", () => {
-    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: false, alertsFailed: true })).toBe(
-      false,
-    );
-  });
-
-  it("needs all three inputs to be satisfied, not any two", () => {
-    // Guards against a future refactor that drops one term from the &&:
-    // every single-flag deviation from the all-clear state must stay silent.
-    expect(canReassure({ ...answeredEmpty, alertsLoading: true })).toBe(false);
-    expect(canReassure({ ...answeredEmpty, alertsFailed: true })).toBe(false);
-    expect(canReassure({ ...answeredEmpty, unreadSystemAlerts: 1 })).toBe(false);
-    expect(canReassure(answeredEmpty)).toBe(true);
+    for (const state of QUERY_STATES) {
+      const verb = state.isSuccess ? "reassures" : "stays silent";
+      it(`${verb} when the query is ${state.name}`, () => {
+        expect(canReassure({ unreadSystemAlerts: 0, channelAnswered: state.isSuccess })).toBe(
+          state.isSuccess,
+        );
+      });
+    }
   });
 });
 

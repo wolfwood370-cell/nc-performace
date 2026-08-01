@@ -156,7 +156,7 @@ export default function CoachHome() {
   const {
     alerts: systemAlerts,
     isLoading: alertsLoading,
-    isError: alertsFailed,
+    isSuccess: alertsAnswered,
     unreadCount,
     markAsRead,
   } = useCoachAlerts();
@@ -268,15 +268,14 @@ export default function CoachHome() {
     // Fallback when nothing is flagged. `canReassure` decides, not
     // `out.length`: the bullets above come from `useCoachDashboardMetrics`, a
     // different source from the alert channel, so an empty triage says
-    // nothing about an unread alert waiting in the panel underneath. Loading
-    // and failure both leave the count at 0 for lack of an answer, which is
-    // why neither earns an all-clear — and a failed channel says so out loud
-    // rather than pretending to still be checking.
+    // nothing about an unread alert waiting in the panel underneath. Only a
+    // successful fetch earns the all-clear — every other state leaves the
+    // count at 0 for lack of an answer, and a channel that did not answer
+    // says so out loud instead of pretending to still be checking.
     if (out.length === 0) {
       const allClear = canReassure({
         unreadSystemAlerts: unreadCount,
-        alertsLoading,
-        alertsFailed,
+        channelAnswered: alertsAnswered,
       });
       out.push({
         icon: allClear ? CheckSquare : AlertTriangle,
@@ -284,16 +283,18 @@ export default function CoachHome() {
         iconColor: "text-white",
         text: allClear ? (
           <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>
-        ) : alertsFailed ? (
-          <>Non riesco a leggere gli avvisi dal sistema. Ricarica la pagina.</>
-        ) : (
+        ) : alertsLoading ? (
           <>Sto controllando gli avvisi dal sistema…</>
+        ) : (
+          // Covers error and paused-offline alike: "reload" would be wrong
+          // advice for the second, "still checking" a lie for both.
+          <>Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.</>
         ),
       });
     }
 
     return out.slice(0, 3);
-  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading, alertsFailed]);
+  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading, alertsAnswered]);
 
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (authLoading) {

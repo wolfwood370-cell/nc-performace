@@ -146,13 +146,19 @@ export function useCoachAlerts() {
   return {
     alerts: alertsQuery.data || [],
     isLoading: alertsQuery.isLoading,
-    // A failed query looks exactly like an empty one from the outside:
-    // `data` is undefined, so `alerts` is [] and `unreadCount` is 0, while
-    // `isLoading` is already false. Consumers that decide whether to
-    // reassure the coach need to tell "nothing to report" from "the channel
-    // did not answer" — and with `retry: false` on 4xx (src/main.tsx:18-24)
-    // an RLS error lands here on the first attempt.
-    isError: alertsQuery.isError,
+    // Every state other than a successful fetch looks exactly like an empty
+    // inbox from the outside: `data` is undefined, so `alerts` is [] and
+    // `unreadCount` is 0. `isLoading` does not cover them — it is
+    // `isPending && isFetching`, so it is false both when the query has
+    // errored (`retry: false` on 4xx, src/main.tsx:18-24, puts an RLS error
+    // here on the first attempt) and when its retry is PAUSED offline
+    // (`networkMode: 'offlineFirst'`, src/main.tsx:25 → `status: 'pending'`,
+    // `fetchStatus: 'paused'`).
+    // Exposed as the positive signal rather than as a list of failures:
+    // consumers that decide whether to reassure the coach must key off "the
+    // channel answered", so that any state we forgot — or that the library
+    // adds later — reads as unknown instead of as good news.
+    isSuccess: alertsQuery.isSuccess,
     unreadCount,
     dismissAlert,
     markAsRead,

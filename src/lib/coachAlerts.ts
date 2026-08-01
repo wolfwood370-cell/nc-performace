@@ -76,22 +76,26 @@ export function sortCoachAlerts<T extends SortableAlert>(alerts: readonly T[]): 
  * talked, so «Tutto sotto controllo» could be printed straight above an
  * unread `nutrition_safety` alert — measured on the live app, 2026-08-01.
  *
- * Neither `alertsLoading` nor `alertsFailed` is a detail: in both states the
- * unread count is 0 because there is no data, not because there is nothing to
- * report. Reassuring on that 0 is the same false statement — shorter-lived
- * while loading, indefinite when the channel is down. The three inputs are
- * all required so that a caller cannot omit one and silently fall back to
- * reassuring: the failure mode of this function has to be silence.
+ * `channelAnswered` is deliberately ONE POSITIVE SIGNAL rather than a list of
+ * things that can go wrong. The first version of this rule enumerated the
+ * failures — "not loading and not errored" — and missed the fourth state:
+ * with `networkMode: 'offlineFirst'` a retry paused offline leaves
+ * `status: 'pending'`, `fetchStatus: 'paused'`, so `isLoading` and `isError`
+ * are BOTH false while `data` is undefined, the unread count is 0 for lack of
+ * an answer, and the coach was told everything was fine.
+ *
+ * That is the general failure of enumerating negatives: every state you
+ * forget — and every state the library adds later — defaults to reassuring.
+ * Keyed off "the channel answered", anything unfamiliar defaults to silence.
  *
  * Pure so the invariant is falsifiable by a test instead of by eye — the
  * component only renders what this decides.
  */
 export function canReassure(input: {
   unreadSystemAlerts: number;
-  alertsLoading: boolean;
-  alertsFailed: boolean;
+  channelAnswered: boolean;
 }): boolean {
-  return !input.alertsLoading && !input.alertsFailed && input.unreadSystemAlerts === 0;
+  return input.channelAnswered && input.unreadSystemAlerts === 0;
 }
 
 /**
