@@ -1,0 +1,43 @@
+# .gitleaksignore — eccezioni PUNTUALI del varco "Scansione segreti" (CI VARCO 3).
+# Regola di casa: SOLO fingerprint completi (commit:file:regola:riga), mai
+# eccezioni per file o per regola — una fuga NUOVA della stessa specie in
+# qualunque altro punto deve far scattare il varco.
+#
+# Perché queste eccezioni sono lecite: anon key e publishable key Supabase
+# sono chiavi CLIENT, viaggiano già nel bundle del front-end di chiunque
+# apra l'app; la sicurezza poggia sulle RLS, non sulla loro segretezza.
+#
+# Osservazione (nessuna azione richiesta): la publishable key attuale è in
+# chiaro anche in HEAD (docs/D3_TEST_200_RUNBOOK.md, docs/HANDOFF.md,
+# docs/DB_MIGRATION_FASE1_REPORT.md). Va bene così perché è pubblica per
+# progetto — ma chi aggiorna quei documenti non deve incollarci accanto,
+# per analogia, chiavi segrete (sb_secret_, service_role, sk_live_, whsec_).
+
+# Falso positivo: commento di config della edge fn ("verify_jwt=true"), nessun segreto.
+53b4ca2c358e2423f6ce1dbfcee6e8ba188f2dd9:supabase/functions/compute-nutrition-target/index.ts:generic-api-key:4
+
+# Anon key Supabase (role=anon, decodificata) del VECCHIO progetto Lovable
+# geepagjpequxsjsoahgw, committata in .env dal bot Lovable; .env è fuori dal
+# tracking da ffe8232. Chiave client pubblica by design.
+954ca4bd70100e273473f4ebae2af94379fab53f:.env:jwt:2
+b4b7e1fb3f80660f200783dba6c475d304734ea4:.env:jwt:2
+
+# Anon key Supabase (role=anon, decodificata) del progetto attuale
+# xgxtplqlewpqjzghvbke, stessa storia di .env. Pubblica by design (RLS a protezione).
+4becc54839d9077043acb1c4e3d44f6e647461df:.env:jwt:2
+
+# Publishable key Supabase del progetto attuale, citata nel runbook D3:
+# pubblica by design, già esposta dal bundle front-end.
+1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:generic-api-key:50
+1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:generic-api-key:64
+1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:generic-api-key:126
+1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:curl-auth-header:44
+1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:curl-auth-header:62
+
+# Stessi due anon JWT di cui sopra, visti di nuovo nei diff-verso-genitore
+# di 3 commit di merge del bot Lovable. Compaiono SOLO in un audit locale
+# con `--log-opts=-m` (il default di gitleaks e la CI saltano i merge):
+# registrati perché anche quell'audit esca pulito. Nessun valore nuovo.
+5759410ec65f0dba5f7f7aaa33983fe63f9d9b3b:.env:jwt:2
+775a0a68773fa38af2c669b31df3223eeb49ae60:.env:jwt:2
+879d0266cfa609ba3cd27c6437ad4fc23c43fffe:.env:jwt:2
