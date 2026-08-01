@@ -25,11 +25,11 @@ import { useNavigate } from "react-router-dom";
 import { X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAthleteReadinessStore, type MetricKey } from "@/stores/useAthleteReadinessStore";
 import {
-  useAthleteReadinessStore,
-  type MetricKey,
-} from "@/stores/useAthleteReadinessStore";
-import { useSubmitReadinessMutation } from "@/hooks/athlete/useAthleteReadinessHooks";
+  useDailyReadinessQuery,
+  useSubmitReadinessMutation,
+} from "@/hooks/athlete/useAthleteReadinessHooks";
 
 // -----------------------------------------------------------------------------
 // Domain types
@@ -105,6 +105,16 @@ const ACTIVE_INTENSITY_CLASSES: Record<Intensity, string> = {
 
 const SCORES: readonly Score1to5[] = [1, 2, 3, 4, 5] as const;
 
+/**
+ * Pain question options. Deliberately two explicit choices over a boolean
+ * toggle: the third state (unanswered = null) is the ABSENCE of a choice,
+ * never a default — a missing answer must not be forged into "no pain".
+ */
+const PAIN_OPTIONS: readonly { value: boolean; label: string }[] = [
+  { value: true, label: "Sì" },
+  { value: false, label: "No" },
+] as const;
+
 // =============================================================================
 // ScoreScaleRow — one biofeedback metric row: label + 5-button scale.
 // Visually & semantically a radiogroup; single-select 1..5.
@@ -123,11 +133,7 @@ function ScoreScaleRow({
       <span className="font-sans text-xs font-semibold tracking-wider uppercase text-on-surface-variant min-w-0 truncate">
         {label}
       </span>
-      <div
-        role="radiogroup"
-        aria-label={label}
-        className="flex gap-2 shrink-0"
-      >
+      <div role="radiogroup" aria-label={label} className="flex gap-2 shrink-0">
         {SCORES.map((n) => {
           const isActive = value === n;
           return (
@@ -246,23 +252,41 @@ export default function DailyCheckin() {
   const navigate = useNavigate();
   // Atomic selector — we only fire the submit action; we don't read
   // state here, so the page never re-renders on unrelated mutations.
-  const submitDailyCheckin = useAthleteReadinessStore(
-    (s) => s.submitDailyCheckin,
-  );
+  const submitDailyCheckin = useAthleteReadinessStore((s) => s.submitDailyCheckin);
   const submitReadiness = useSubmitReadinessMutation();
+
+  // Today's readiness row (if any). Read ONLY to seed the pain answer: the
+  // submit is a full-row upsert on (athlete_id, date), so without this seed a
+  // same-day re-submit with the question untouched would overwrite an earlier
+  // "yes" with null and silently disarm the nutrition safety gate (CORE §0:
+  // never bypass silently). Other fields intentionally stay unseeded —
+  // pre-existing behaviour, out of this slice's scope.
+  // staleTime 0 opts this query out of the app-wide fresh-forever cache
+  // (global staleTime Infinity + IndexedDB persist): the pain seed must be
+  // re-read from the server every time the observer lands on the key —
+  // including the pre-auth "anon" → real key switch, since useAuth is
+  // per-instance state and resolves after this page mounts. A persisted
+  // value from another tab, device or session is never trusted as-is.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayReadiness = useDailyReadinessQuery(todayIso, { staleTime: 0 });
 
   // -- State ----------------------------------------------------------------
   // Biofeedback: per-metric 1..5 single select. Partial: a metric is "unset"
   // until the user taps a value.
-  const [biofeedback, setBiofeedback] = useState<
-    Partial<Record<MetricId, Score1to5>>
-  >({});
+  const [biofeedback, setBiofeedback] = useState<Partial<Record<MetricId, Score1to5>>>({});
 
   // Soreness: a muscle is present in the map iff selected. Its value is the
   // chosen intensity (defaults to "moderate" when first picked).
-  const [soreness, setSoreness] = useState<
-    Partial<Record<MuscleId, Intensity>>
-  >({});
+  const [soreness, setSoreness] = useState<Partial<Record<MuscleId, Intensity>>>({});
+
+  // Pain question — three states: null (unanswered) · true · false. Until the
+  // athlete taps an option, the effective value mirrors today's stored answer
+  // (null on the first check-in of the day). Once touched, the tap wins over
+  // whatever a background refetch may deliver.
+  const [painTouched, setPainTouched] = useState(false);
+  const [painChoice, setPainChoice] = useState<boolean | null>(null);
+  const storedPain = todayReadiness.data?.has_pain ?? null;
+  const hasPain = painTouched ? painChoice : storedPain;
 
   // -- Handlers -------------------------------------------------------------
   const setMetric = (id: MetricId) => (value: Score1to5) => {
@@ -283,6 +307,11 @@ export default function DailyCheckin() {
 
   const setIntensity = (id: MuscleId) => (intensity: Intensity) => {
     setSoreness((prev) => ({ ...prev, [id]: intensity }));
+  };
+
+  const answerPain = (value: boolean) => () => {
+    setPainTouched(true);
+    setPainChoice(value);
   };
 
   const handleClose = () => {
@@ -322,10 +351,7 @@ export default function DailyCheckin() {
       Sonno: scale(biofeedback.sleep),
       Stress: scale(biofeedback.stress),
       // Fatica = inverted energy. Energy 5 (high) → Fatica 2 (low).
-      Fatica:
-        biofeedback.energy !== undefined
-          ? (6 - biofeedback.energy) * 2
-          : null,
+      Fatica: biofeedback.energy !== undefined ? (6 - biofeedback.energy) * 2 : null,
       Umore: scale(biofeedback.mood),
       Digestione: scale(biofeedback.digestion),
       Soreness: sorenessScore,
@@ -334,6 +360,13 @@ export default function DailyCheckin() {
     // Snappy local UI update so the dashboard trend rows reflect today
     // before the network round-trip completes.
     submitDailyCheckin(payload);
+
+    // Re-check the day at submit time (the hook stamps the row date when the
+    // mutation runs): if midnight (UTC) slipped past while the page was open,
+    // yesterday's stored seed must not be forged into the new day's row —
+    // only an explicit tap survives the day change.
+    const submitDate = new Date().toISOString().slice(0, 10);
+    const painAnswer = painTouched ? painChoice : submitDate === todayIso ? storedPain : null;
 
     // Persist to `daily_readiness`. The hook handles error toasts; on
     // success we close the page. The composite `score` is currently a
@@ -347,6 +380,9 @@ export default function DailyCheckin() {
         mood: payload.Umore,
         digestion: payload.Digestione,
         soreness_map: soreness,
+        // Three-way pain answer: null = unanswered (never forged to false).
+        // Independent from soreness by contract: zones never imply pain.
+        has_pain: painAnswer,
         score: 85,
       },
       {
@@ -362,9 +398,7 @@ export default function DailyCheckin() {
 
   // Selected muscles, in canonical order (to keep the intensity list stable
   // as the user toggles pills).
-  const selectedMuscles = MUSCLE_GROUPS.filter(({ id }) =>
-    Boolean(soreness[id]),
-  );
+  const selectedMuscles = MUSCLE_GROUPS.filter(({ id }) => Boolean(soreness[id]));
 
   return (
     <div className="min-h-[100dvh] bg-surface text-on-surface font-sans antialiased pb-[120px]">
@@ -425,6 +459,59 @@ export default function DailyCheckin() {
               onChange={setMetric(id)}
             />
           ))}
+        </section>
+
+        {/* -------- Pain question card ----------------------------- */}
+        {/* Own card, BEFORE soreness: pain is the opening question, zones
+            are the detail. Distinct signals by contract — selecting a zone
+            never turns has_pain on, and vice versa. */}
+        <section
+          aria-label="Dolore"
+          className={cn(
+            "rounded-3xl p-6",
+            "bg-white",
+            "border border-surface-container/60",
+            "shadow-[0_10px_30px_rgba(80,118,142,0.05)]",
+          )}
+        >
+          <h2
+            id="pain-question-label"
+            className="font-display text-2xl font-semibold tracking-tight text-on-surface mb-1"
+          >
+            Hai dolore oggi?
+          </h2>
+          <p id="pain-question-help" className="font-sans text-xs text-on-surface-variant mb-4">
+            Un dolore diverso dal normale indolenzimento dopo l'allenamento.
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby="pain-question-label"
+            aria-describedby="pain-question-help"
+            className="flex gap-2"
+          >
+            {PAIN_OPTIONS.map(({ value, label }) => {
+              const isActive = hasPain === value;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  onClick={answerPain(value)}
+                  className={cn(
+                    "flex-1 py-3 rounded-full",
+                    "font-sans text-sm font-semibold tracking-wide",
+                    "transition-all duration-150 active:scale-95",
+                    isActive
+                      ? "bg-brand-container text-white shadow-md"
+                      : "bg-surface text-on-surface-variant border border-surface-container hover:bg-surface-variant/40",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         {/* -------- Muscle Soreness card --------------------------- */}
@@ -492,8 +579,23 @@ export default function DailyCheckin() {
           <button
             type="button"
             onClick={handleSave}
+            // Fail-closed guard. isFetchedAfterMount stays false through the
+            // pre-auth phase and until the first fetch on the real key
+            // settles in the normal restore→switch order (in the rare
+            // inverse race the flag can flip early — isFetching/isError
+            // still cover every paintable frame today; re-evaluate before
+            // ever adding retry>0 or resumable mutations here). isError
+            // keeps Salva off when the fetch failed (errors flip
+            // isFetchedAfterMount true); isPending stops a double tap.
+            disabled={
+              !todayReadiness.isFetchedAfterMount ||
+              todayReadiness.isFetching ||
+              todayReadiness.isError ||
+              submitReadiness.isPending
+            }
             className={cn(
               "w-full py-4 rounded-full",
+              "disabled:opacity-50 disabled:pointer-events-none",
               "flex items-center justify-center gap-2",
               "bg-brand-container text-white",
               "font-display text-sm font-bold uppercase tracking-widest",

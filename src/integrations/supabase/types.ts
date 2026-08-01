@@ -117,7 +117,22 @@ export type Database = {
           message_count?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_tracking_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_tracking_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       appointments: {
         Row: {
@@ -322,6 +337,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "athlete_habits_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "athlete_habits_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "athlete_habits_habit_id_fkey"
             columns: ["habit_id"]
             isOneToOne: false
@@ -335,6 +364,7 @@ export type Database = {
           athlete_id: string
           created_at: string
           current_period_end: string | null
+          grace_until: string | null
           id: string
           plan_id: string
           status: Database["public"]["Enums"]["billing_sub_status"]
@@ -346,6 +376,7 @@ export type Database = {
           athlete_id: string
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           id?: string
           plan_id: string
           status?: Database["public"]["Enums"]["billing_sub_status"]
@@ -357,6 +388,7 @@ export type Database = {
           athlete_id?: string
           created_at?: string
           current_period_end?: string | null
+          grace_until?: string | null
           id?: string
           plan_id?: string
           status?: Database["public"]["Enums"]["billing_sub_status"]
@@ -365,6 +397,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "athlete_subscriptions_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "athlete_subscriptions_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "athlete_subscriptions_plan_id_fkey"
             columns: ["plan_id"]
@@ -1503,6 +1549,20 @@ export type Database = {
             referencedRelation: "athlete_habits"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "habit_logs_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "habit_logs_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       habits_library: {
@@ -1796,7 +1856,22 @@ export type Database = {
           week_volume?: number
           workout_count?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leaderboard_cache_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "leaderboard_cache_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -1911,7 +1986,36 @@ export type Database = {
           type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       nutrition_daily_summary: {
         Row: {
@@ -2094,7 +2198,22 @@ export type Database = {
           updated_at?: string
           weekly_weight_goal?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_plans_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "nutrition_plans_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       nutrition_releases: {
         Row: {
@@ -2143,20 +2262,6 @@ export type Database = {
           supersedes_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "nutrition_releases_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "analytics_athlete_summary"
-            referencedColumns: ["athlete_id"]
-          },
-          {
-            foreignKeyName: "nutrition_releases_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "nutrition_releases_supersedes_same_athlete_fk"
             columns: ["supersedes_id", "athlete_id"]
@@ -2542,20 +2647,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "program_releases_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "analytics_athlete_summary"
-            referencedColumns: ["athlete_id"]
-          },
-          {
-            foreignKeyName: "program_releases_athlete_id_fkey"
-            columns: ["athlete_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "program_releases_supersedes_same_athlete_fk"
             columns: ["supersedes_id", "athlete_id"]
             isOneToOne: false
@@ -2738,7 +2829,22 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "support_tickets_user_id_profiles_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tier_entitlements: {
         Row: {
@@ -2895,6 +3001,20 @@ export type Database = {
             referencedRelation: "badges"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "user_badges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       weekly_checkins: {
@@ -2934,7 +3054,22 @@ export type Database = {
           updated_at?: string
           week_start?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "weekly_checkins_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "analytics_athlete_summary"
+            referencedColumns: ["athlete_id"]
+          },
+          {
+            foreignKeyName: "weekly_checkins_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workout_exercises: {
         Row: {
