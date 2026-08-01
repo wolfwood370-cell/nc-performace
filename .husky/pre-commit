@@ -3,6 +3,19 @@
 # type regressions before they land in main.
 
 npx lint-staged || exit 1
+# A lockfile is only valid under the npm version that wrote it. CI reads
+# it with the exact version declared in `packageManager` (see the
+# "Inchioda npm" step in .github/workflows/ci.yml), so writing it with
+# any other version is refused here — before it can reach a PR.
+if git diff --cached --name-only | grep -qx "package-lock.json"; then
+  WANTED=$(node -p "(String(require('./package.json').packageManager||'').match(/npm@([0-9][^+]*)/)||[])[1]||''")
+  GOT=$(npm --version)
+  if [ -z "$WANTED" ] || [ "$GOT" != "$WANTED" ]; then
+    echo "package-lock.json nel commit, ma npm locale ($GOT) != packageManager ($WANTED)." >&2
+    echo "Rigenera il lockfile con la versione dichiarata: npx -y npm@$WANTED install --package-lock-only" >&2
+    exit 1
+  fi
+fi
 # `tsc --noEmit` without `-p` is a no-op when the root tsconfig has empty
 # `files` + project references (our setup), so use the app project file
 # explicitly. Otherwise type errors slip through unnoticed.

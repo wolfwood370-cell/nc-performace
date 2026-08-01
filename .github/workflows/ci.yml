@@ -28,6 +28,28 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # L'npm dell'immagine runner si muove per conto suo (stesso lockfile:
+      # verde alle 17:37, rosso alle 20:25 del 2026-08-01). Un lockfile è
+      # valido rispetto a UNA versione di npm — quella dichiarata in
+      # `packageManager`, la stessa che lo rigenera. Qui la si installa e
+      # la si verifica: se la versione in uso non coincide con la
+      # dichiarata, il varco muore subito e dice perché.
+      - name: Inchioda npm (packageManager di package.json)
+        run: |
+          WANTED=$(node -p "(String(require('./package.json').packageManager||'').match(/npm@([0-9][^+]*)/)||[])[1]||''")
+          if [ -z "${WANTED}" ]; then
+            echo "::error::packageManager mancante o malformato in package.json (atteso npm@X.Y.Z)"
+            exit 1
+          fi
+          echo "npm dell'immagine runner: $(npm --version)"
+          npm install -g "npm@${WANTED}"
+          GOT=$(npm --version)
+          echo "npm dichiarato: ${WANTED} — npm in uso: ${GOT}"
+          if [ "${GOT}" != "${WANTED}" ]; then
+            echo "::error::npm in uso (${GOT}) diverso dal dichiarato in package.json (${WANTED})"
+            exit 1
+          fi
+
       # Primo passo di proposito: `npm ci` rifiuta un lockfile incoerente.
       # È il varco che intercetta la deriva delle dipendenze (F1).
       - name: Installazione deterministica
@@ -128,6 +150,22 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # Stesso pin del varco 1: `npm ci` gira solo con l'npm dichiarato.
+      - name: Inchioda npm (packageManager di package.json)
+        run: |
+          WANTED=$(node -p "(String(require('./package.json').packageManager||'').match(/npm@([0-9][^+]*)/)||[])[1]||''")
+          if [ -z "${WANTED}" ]; then
+            echo "::error::packageManager mancante o malformato in package.json (atteso npm@X.Y.Z)"
+            exit 1
+          fi
+          npm install -g "npm@${WANTED}"
+          GOT=$(npm --version)
+          echo "npm dichiarato: ${WANTED} — npm in uso: ${GOT}"
+          if [ "${GOT}" != "${WANTED}" ]; then
+            echo "::error::npm in uso (${GOT}) diverso dal dichiarato in package.json (${WANTED})"
+            exit 1
+          fi
 
       - run: npm ci
 
