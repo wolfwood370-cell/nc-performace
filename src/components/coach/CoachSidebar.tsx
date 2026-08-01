@@ -24,7 +24,11 @@
  * + badges + group headers are hidden, but the icons remain pill-shaped.
  *
  * Live data:
- *   - useCoachAlerts → unread smart alerts count (Inbox badge).
+ *   - useCoachAlerts → unread `coach_alerts` count (Dashboard badge). The
+ *     badge sits on Dashboard because that is where the list lives
+ *     (CoachAlertsPanel on CoachHome): the number and the page it opens
+ *     must refer to the same thing. It used to sit on Inbox, counting
+ *     `coach_alerts` while Inbox renders weekly check-ins.
  *   - useChatRooms → sum of `unread_count` across rooms (Messaggi badge).
  *   - useAuth → user profile name + avatar + signOut.
  */
@@ -81,7 +85,7 @@ interface NavItem {
   url: string;
   icon: LucideIcon;
   /** Optional dynamic badge (count rendered as pill on the right) */
-  badgeKey?: "inbox" | "messages";
+  badgeKey?: "alerts" | "messages";
   /** Match exactly (no nested-route highlight). Used for the Dashboard root. */
   end?: boolean;
 }
@@ -96,8 +100,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: "Operative",
     items: [
-      { title: "Dashboard", url: "/coach", icon: LayoutDashboard, end: true },
-      { title: "Inbox", url: "/coach/inbox", icon: Inbox, badgeKey: "inbox" },
+      { title: "Dashboard", url: "/coach", icon: LayoutDashboard, end: true, badgeKey: "alerts" },
+      { title: "Inbox", url: "/coach/inbox", icon: Inbox },
       { title: "Atleti", url: "/coach/athletes", icon: Users },
       { title: "Calendario", url: "/coach/calendar", icon: Calendar },
       { title: "Messaggi", url: "/coach/messages", icon: MessageSquare, badgeKey: "messages" },
@@ -133,15 +137,17 @@ export function CoachSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const { user, profile, signOut } = useAuth();
-  const { alerts: smartAlerts } = useCoachAlerts();
+  const { unreadCount } = useCoachAlerts();
   const { rooms } = useChatRooms();
 
   // ── Badge counters (live data) ─────────────────────────────────────────
+  // `unreadCount`, not `alerts.length`: marking an alert read leaves the row
+  // in place (it is only filtered on `dismissed`), so counting the rows would
+  // keep the badge frozen after the coach has read everything.
   const badgeMap = useMemo(() => {
-    const inboxCount = smartAlerts?.length ?? 0;
     const messagesCount = (rooms ?? []).reduce((sum, r) => sum + (r.unread_count ?? 0), 0);
-    return { inbox: inboxCount, messages: messagesCount };
-  }, [smartAlerts, rooms]);
+    return { alerts: unreadCount, messages: messagesCount };
+  }, [unreadCount, rooms]);
 
   // ── Profile derivations ────────────────────────────────────────────────
   const displayName = profile?.full_name?.trim() || user?.email?.split("@")[0] || "Coach";
@@ -353,7 +359,7 @@ function SidebarNavGroup({
   label: string;
   items: NavItem[];
   isCollapsed: boolean;
-  badgeMap: { inbox: number; messages: number };
+  badgeMap: { alerts: number; messages: number };
 }) {
   return (
     <div>
@@ -378,7 +384,7 @@ function SidebarNavGroup({
                 isCollapsed={isCollapsed}
                 badge={
                   count > 0
-                    ? { count, variant: item.badgeKey === "inbox" ? "error" : "primary" }
+                    ? { count, variant: item.badgeKey === "alerts" ? "error" : "primary" }
                     : undefined
                 }
               />

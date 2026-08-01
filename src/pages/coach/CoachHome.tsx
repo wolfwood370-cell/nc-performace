@@ -12,15 +12,23 @@
  *
  * Widgets:
  *   1. Centrale Operativa (AI Copilot)  — full top, primary gradient
- *   2. Atleti a Rischio / Triage        — md:col-span-2
- *   3. Attività Oggi (Pulse)            — md:col-span-1, SVG ring
- *   4. Ultimi Allenamenti Conclusi      — md:col-span-2 xl:col-span-2
- *   5. Azioni Rapide                    — md:col-span-1, pill buttons
+ *   2. Avvisi dal Sistema               — full width, coach_alerts list
+ *   3. Atleti a Rischio / Triage        — md:col-span-2
+ *   4. Attività Oggi (Pulse)            — md:col-span-1, SVG ring
+ *   5. Ultimi Allenamenti Conclusi      — md:col-span-2 xl:col-span-2
+ *   6. Azioni Rapide                    — md:col-span-1, pill buttons
+ *
+ * Two distinct alert sources sit on this page and must not be confused:
+ *   - `urgentAlerts` (useCoachDashboardMetrics) — client-side triage
+ *     heuristics computed from readiness/workouts/injuries.
+ *   - `coach_alerts` (useCoachAlerts) — rows written server-side by the
+ *     CORE §0 escalation channel. This page is where their text becomes
+ *     readable; the sidebar badge counts the unread ones.
  *
  * Live data:
  *   - useCoachDashboardMetrics → urgentAlerts, feedbackItems, todaySchedule,
  *     businessMetrics, isLoading
- *   - useCoachAlerts → smartAlerts
+ *   - useCoachAlerts → alerts, isLoading, markAsRead
  *   - useAuth → user, profile, auth loading
  */
 import { useMemo } from "react";
@@ -33,6 +41,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InviteAthleteDialog } from "@/components/coach/InviteAthleteDialog";
+import { CoachAlertsPanel } from "@/components/coach/CoachAlertsPanel";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useCoachDashboardMetrics, type UrgentAlert } from "@/hooks/useCoachDashboardMetrics";
@@ -142,8 +151,7 @@ export default function CoachHome() {
   const { profile, loading: authLoading } = useAuth();
   const { urgentAlerts, feedbackItems, todaySchedule, businessMetrics, isLoading } =
     useCoachDashboardMetrics();
-  const { alerts: _smartAlerts } = useCoachAlerts();
-  void _smartAlerts; // kept hot for cache warm-up; widget consumes urgentAlerts.
+  const { alerts: systemAlerts, isLoading: alertsLoading, markAsRead } = useCoachAlerts();
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Coach";
   const hasAthletes = businessMetrics.activeClients > 0;
@@ -296,14 +304,23 @@ export default function CoachHome() {
           {/* ═══ 1. Centrale Operativa (AI Copilot) ═══ */}
           <CentraleOperativaWidget firstName={firstName} bullets={aiBullets} />
 
-          {/* ═══ 2. Atleti a Rischio / Triage ═══ */}
+          {/* ═══ 2. Avvisi dal Sistema (coach_alerts) ═══ */}
+          <CoachAlertsPanel
+            className={cn(bentoCard, "md:col-span-3 xl:col-span-4")}
+            alerts={systemAlerts}
+            isLoading={alertsLoading}
+            onMarkRead={(id) => markAsRead.mutate(id)}
+            onOpenAthlete={(id) => navigate(`/coach/athlete/${id}`)}
+          />
+
+          {/* ═══ 3. Atleti a Rischio / Triage ═══ */}
           <TriageWidget
             alerts={triageAlerts}
             isLoading={isLoading}
             onSelect={(id) => navigate(`/coach/athlete/${id}`)}
           />
 
-          {/* ═══ 3. Attività Oggi (Pulse) ═══ */}
+          {/* ═══ 4. Attività Oggi (Pulse) ═══ */}
           <PulseWidget
             completed={completedToday}
             total={totalToday}
@@ -313,14 +330,14 @@ export default function CoachHome() {
             isLoading={isLoading}
           />
 
-          {/* ═══ 4. Ultimi Allenamenti Conclusi ═══ */}
+          {/* ═══ 5. Ultimi Allenamenti Conclusi ═══ */}
           <RecentFeedWidget
             items={feedbackItems}
             isLoading={isLoading}
             onReview={(id) => navigate(`/coach/athlete/${id}`)}
           />
 
-          {/* ═══ 5. Azioni Rapide ═══ */}
+          {/* ═══ 6. Azioni Rapide ═══ */}
           <QuickActionsWidget onNavigate={navigate} />
         </div>
       </CoachLayout>
@@ -389,7 +406,7 @@ function CentraleOperativaWidget({
 }
 
 // ===========================================================================
-// 2. Atleti a Rischio / Triage (md:col-span-2)
+// 3. Atleti a Rischio / Triage (md:col-span-2)
 // ===========================================================================
 function TriageWidget({
   alerts,
@@ -477,7 +494,7 @@ function TriageWidget({
 }
 
 // ===========================================================================
-// 3. Attività Oggi — circular gauge (md:col-span-1)
+// 4. Attività Oggi — circular gauge (md:col-span-1)
 // ===========================================================================
 function PulseWidget({
   completed,
@@ -566,7 +583,7 @@ function PulseWidget({
 }
 
 // ===========================================================================
-// 4. Ultimi Allenamenti Conclusi — activity feed (md:col-span-2)
+// 5. Ultimi Allenamenti Conclusi — activity feed (md:col-span-2)
 // ===========================================================================
 type FeedbackItem = ReturnType<typeof useCoachDashboardMetrics>["feedbackItems"][number];
 
@@ -662,7 +679,7 @@ function RecentFeedWidget({
 }
 
 // ===========================================================================
-// 5. Azioni Rapide — pill action buttons (md:col-span-1)
+// 6. Azioni Rapide — pill action buttons (md:col-span-1)
 // ===========================================================================
 function QuickActionsWidget({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (

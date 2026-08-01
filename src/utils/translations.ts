@@ -57,6 +57,37 @@ export const SEVERITY_LABELS: Record<string, string> = {
   info: "Informativo",
 };
 
+// Coach alert types — `coach_alerts.type`, written server-side by the
+// watchdog trigger, the intake semaforo, the autonomous release gate and
+// the nutrition engine. A different vocabulary from ALERT_TYPE_LABELS
+// above, which belongs to the client-side triage; the two are not
+// interchangeable. The column is free TEXT with no CHECK, so `t()` falls
+// back to the raw key when the server grows a type the UI does not know.
+export const COACH_ALERT_TYPE_LABELS: Record<string, string> = {
+  risk_alert: "Rischio Allenamento",
+  routed_out: "Fuori Percorso",
+  medical_clearance: "Nulla Osta Medico",
+  condition_review: "Condizione da Rivedere",
+  dca_screening: "Screening DCA",
+  pain_gesture: "Segnale di Dolore",
+  cycle_flag: "Ciclo Mestruale",
+  reduced_volume: "Volume Ridotto",
+  autonomous_gate_stop: "Rilascio Bloccato",
+  nutrition_safety: "Sicurezza Nutrizionale",
+  low_energy_availability: "Bassa Disponibilità Energetica",
+  female_lifecycle_referral: "Invio a Specialista",
+};
+
+// Coach alert severity — the DB vocabulary (`high|medium|low`), kept
+// separate from SEVERITY_LABELS (`critical|warning|info`) on purpose: the
+// two enums were never reconciled, and folding one into the other here
+// would invent a correspondence that does not exist in the data.
+export const COACH_ALERT_SEVERITY_LABELS: Record<string, string> = {
+  high: "Alta",
+  medium: "Media",
+  low: "Bassa",
+};
+
 // Workout Status
 export const WORKOUT_STATUS_LABELS: Record<string, string> = {
   pending: "In Attesa",
