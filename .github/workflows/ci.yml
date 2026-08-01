@@ -129,11 +129,24 @@ jobs:
 
       # if: always() — senza, un `npm audit` rosso spegne anche la scansione
       # segreti: due varchi indipendenti non devono condividere il destino.
+      # CLI pinnata al posto di gitleaks-action@v2: l'action esige una licenza
+      # per gli account Organization PRIMA di scansionare, e la prova
+      # verde/rosso del varco (2026-08-01) è stata prodotta con la CLI — in CI
+      # deve girare la cosa provata, con la stessa invocazione:
+      #   gitleaks git --log-opts=--all .
+      # Versione e sha256 inchiodati: se il download non coincide, il passo
+      # muore su `sha256sum -c` prima di eseguire qualunque cosa.
       - name: Scansione segreti
         if: always()
-        uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSL --fail --retry 3 -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --log-opts=--all .
 
   # ─────────────────────────────────────────────────────────────
   # VARCO 4 — end-to-end (Playwright)
