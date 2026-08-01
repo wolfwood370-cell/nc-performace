@@ -38,15 +38,80 @@ function preToolUse(tool, input) {
     // così un messaggio che cita git push / --force / rm -rf NON genera falsi positivi.
     const cmdReal = cmd.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/'(?:[^'\\]|\\.)*'/g, "''");
 
-    // Legge #8 — MAI push: sincronizzi tu via GitHub Desktop
-    if (/\bgit\s+push\b/.test(cmdReal))
-      block(
-        "⛔ git push bloccato: la sincronizzazione la fai tu via GitHub Desktop (CLAUDE.md legge #8).",
-      );
+    // Legge #8 (rivista 2026-08-01 — repo nell'org, ruleset server su main):
+    // push consentito SOLO verso rami claude/*; il merge in main passa da
+    // una PR. Force e cancellazioni restano bloccati su qualunque ramo.
+    // Il ruleset server protegge comunque main, ma l'hook non delega.
+    const gitPushRe =
+      /\bgit((?:\s+-[Cc]\s+\S+|\s+--(?:git-dir|work-tree|exec-path)=\S+)*)\s+push\b([^&|;]*)/g;
+    let pm;
+    while ((pm = gitPushRe.exec(cmdReal))) {
+      const args = pm[2] || "";
+      if (/(^|\s)(--force(-with-lease)?(=\S+)?|-f)(\s|$)/.test(args) || /\s\+\S+/.test(args))
+        block("⛔ push --force bloccato su qualunque ramo (CLAUDE.md legge #8).");
+      if (/(^|\s)(--delete|-d)(\s|$)/.test(args) || /\s:\S+/.test(args))
+        block("⛔ push di cancellazione bloccato (CLAUDE.md legge #8).");
+      // Token posizionali: [0] = remote, dal [1] in poi i refspec (dst dopo ":").
+      const words = args.trim().split(/\s+/).filter(Boolean);
+      const positional = [];
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (w === "--") {
+          positional.push(...words.slice(i + 1));
+          break;
+        }
+        if (/^\d*[<>]/.test(w)) continue; // redirezioni (2>, >file, …)
+        if (w.startsWith("-")) {
+          if (/^(-o|--push-option|--repo|--receive-pack|--exec)$/.test(w)) i++; // flag con valore separato
+          continue;
+        }
+        positional.push(w);
+      }
+      const refspecs = positional.slice(1);
+      if (refspecs.length > 0) {
+        for (const rs of refspecs) {
+          const dst = (rs.includes(":") ? rs.slice(rs.lastIndexOf(":") + 1) : rs).replace(
+            /^refs\/heads\//,
+            "",
+          );
+          if (!/^claude\//.test(dst))
+            block(
+              "⛔ push verso «" +
+                dst +
+                "» bloccato: consentiti solo rami claude/* (CLAUDE.md legge #8).",
+            );
+        }
+      } else {
+        // Push nudo: la stringa del comando non dice la destinazione — è la
+        // forma da cui erano passati i 14 commit diretti su main. Si risolve
+        // il ramo corrente del checkout in cui gira l'hook e si rifiuta se
+        // non è claude/*. Fail-closed: nel checkout principale HEAD è main,
+        // quindi il push nudo resta di fatto vietato; dai worktree si pusha
+        // con refspec esplicito.
+        let cur = "";
+        try {
+          cur = execSync("git rev-parse --abbrev-ref HEAD", {
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+            .toString()
+            .trim();
+        } catch {
+          /* resta "" → blocco */
+        }
+        if (!/^claude\//.test(cur))
+          block(
+            "⛔ git push nudo dal ramo «" +
+              (cur || "sconosciuto") +
+              "» bloccato: consentiti solo rami claude/* (CLAUDE.md legge #8).",
+          );
+      }
+    }
 
     // Distruttivi
     if (/\brm\s+-rf\s+(\/|~|\$HOME|\.\.(\/|$))/.test(cmdReal))
       block("⛔ rm -rf su percorso pericoloso bloccato. Eseguilo tu manualmente se davvero serve.");
+    // Belt di riserva sul force: copre forme di push che il parser sopra
+    // non riconoscesse come `git push`.
     if (/--force\b/.test(cmdReal) && /\bpush\b/.test(cmdReal))
       block("⛔ push --force bloccato (CLAUDE.md legge #8).");
 
