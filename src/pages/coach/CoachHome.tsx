@@ -28,7 +28,7 @@
  * Live data:
  *   - useCoachDashboardMetrics → urgentAlerts, feedbackItems, todaySchedule,
  *     businessMetrics, isLoading
- *   - useCoachAlerts → alerts, isLoading, unreadCount, markAsRead
+ *   - useCoachAlerts → alerts, isLoading, isSuccess, unreadCount, markAsRead
  *   - useAuth → user, profile, auth loading
  */
 import { useMemo } from "react";
