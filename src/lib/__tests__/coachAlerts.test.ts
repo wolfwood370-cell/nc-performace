@@ -4,7 +4,13 @@
 // coach reads last, so the order is part of the safety behaviour, not styling.
 
 import { describe, expect, it } from "vitest";
-import { severityRank, sortCoachAlerts, type SortableAlert } from "../coachAlerts";
+import {
+  canReassure,
+  severityRank,
+  sortCoachAlerts,
+  unreadAlertsSummary,
+  type SortableAlert,
+} from "../coachAlerts";
 
 function alert(overrides: Partial<SortableAlert> & { id: string }): SortableAlert & { id: string } {
   return {
@@ -102,5 +108,47 @@ describe("sortCoachAlerts", () => {
 
   it("handles an empty list", () => {
     expect(sortCoachAlerts([])).toEqual([]);
+  });
+});
+
+// The reassurance on the Command Center used to be computed from the
+// client-side triage alone, and could sit right above an unread server-side
+// alert. These pin the rule that closes it: the coach never reads that
+// everything is fine while an alert is waiting underneath.
+describe("canReassure", () => {
+  it("reassures when the channel has answered and nothing is unread", () => {
+    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: false })).toBe(true);
+  });
+
+  it("stays silent with a single unread alert", () => {
+    expect(canReassure({ unreadSystemAlerts: 1, alertsLoading: false })).toBe(false);
+  });
+
+  it("stays silent with many unread alerts", () => {
+    expect(canReassure({ unreadSystemAlerts: 7, alertsLoading: false })).toBe(false);
+  });
+
+  it("stays silent while the alert query is still in flight", () => {
+    // The unread count defaults to 0 before the query answers: reassuring on
+    // that default is the same false statement, just shorter-lived.
+    expect(canReassure({ unreadSystemAlerts: 0, alertsLoading: true })).toBe(false);
+  });
+
+  it("stays silent while loading even if a count is already known", () => {
+    expect(canReassure({ unreadSystemAlerts: 3, alertsLoading: true })).toBe(false);
+  });
+});
+
+describe("unreadAlertsSummary", () => {
+  it("uses the singular for one alert", () => {
+    expect(unreadAlertsSummary(1)).toBe("Hai 1 avviso dal sistema da leggere qui sotto.");
+  });
+
+  it("uses the plural for more than one", () => {
+    expect(unreadAlertsSummary(4)).toBe("Hai 4 avvisi dal sistema da leggere qui sotto.");
+  });
+
+  it("names the count, so the coach knows how many are waiting", () => {
+    expect(unreadAlertsSummary(12)).toContain("12");
   });
 });

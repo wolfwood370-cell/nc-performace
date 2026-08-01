@@ -28,7 +28,7 @@
  * Live data:
  *   - useCoachDashboardMetrics → urgentAlerts, feedbackItems, todaySchedule,
  *     businessMetrics, isLoading
- *   - useCoachAlerts → alerts, isLoading, markAsRead
+ *   - useCoachAlerts → alerts, isLoading, unreadCount, markAsRead
  *   - useAuth → user, profile, auth loading
  */
 import { useMemo } from "react";
@@ -61,6 +61,7 @@ import {
   Megaphone,
   ListFilter,
 } from "lucide-react";
+import { canReassure, unreadAlertsSummary } from "@/lib/coachAlerts";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -152,7 +153,12 @@ export default function CoachHome() {
   const { profile, loading: authLoading } = useAuth();
   const { urgentAlerts, feedbackItems, todaySchedule, businessMetrics, isLoading } =
     useCoachDashboardMetrics();
-  const { alerts: systemAlerts, isLoading: alertsLoading, markAsRead } = useCoachAlerts();
+  const {
+    alerts: systemAlerts,
+    isLoading: alertsLoading,
+    unreadCount,
+    markAsRead,
+  } = useCoachAlerts();
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Coach";
   const hasAthletes = businessMetrics.activeClients > 0;
@@ -197,6 +203,20 @@ export default function CoachHome() {
       iconColor: string;
       text: React.ReactNode;
     }> = [];
+
+    // 0th: the system alert channel (`coach_alerts`) outranks everything
+    // below it — those rows are the CORE §0 escalations, written
+    // server-side, and the panel that carries their text sits right under
+    // this widget. First in the list because the `slice(0, 3)` at the
+    // bottom must never be able to drop it.
+    if (unreadCount > 0) {
+      out.push({
+        icon: AlertTriangle,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: <>{unreadAlertsSummary(unreadCount)}</>,
+      });
+    }
 
     // 1st: top critical alert if any
     const topCritical = triageAlerts.find((a) => a.severity === "critical");
@@ -244,18 +264,27 @@ export default function CoachHome() {
       });
     }
 
-    // Fallback when nothing is flagged
+    // Fallback when nothing is flagged. `canReassure` decides the wording,
+    // not `out.length`: the bullets above come from
+    // `useCoachDashboardMetrics`, a different source from the alert channel,
+    // so an empty triage says nothing about an unread alert waiting in the
+    // panel underneath. While that query is still in flight the count is 0
+    // by default, which is why loading is not a reason to reassure either.
     if (out.length === 0) {
       out.push({
         icon: CheckSquare,
         iconWrap: "bg-white/20",
         iconColor: "text-white",
-        text: <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>,
+        text: canReassure({ unreadSystemAlerts: unreadCount, alertsLoading }) ? (
+          <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>
+        ) : (
+          <>Sto controllando gli avvisi dal sistema…</>
+        ),
       });
     }
 
     return out.slice(0, 3);
-  }, [triageAlerts, feedbackItems.length]);
+  }, [triageAlerts, feedbackItems.length, unreadCount, alertsLoading]);
 
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (authLoading) {

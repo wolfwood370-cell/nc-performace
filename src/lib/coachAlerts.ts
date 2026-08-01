@@ -64,3 +64,38 @@ export function sortCoachAlerts<T extends SortableAlert>(alerts: readonly T[]): 
     return timeOf(b.created_at) - timeOf(a.created_at);
   });
 }
+
+/**
+ * Whether the Command Center is allowed to tell the coach that everything is
+ * fine.
+ *
+ * It exists because the reassurance on `CoachHome` was computed from
+ * `useCoachDashboardMetrics` (client-side triage) alone, while the alerts
+ * that contradict it come from `useCoachAlerts` (`coach_alerts`, written
+ * server-side by the CORE §0 escalation channel). The two sources never
+ * talked, so «Tutto sotto controllo» could be printed straight above an
+ * unread `nutrition_safety` alert — measured on the live app, 2026-08-01.
+ *
+ * `alertsLoading` counts as "cannot reassure" on purpose: while the query is
+ * in flight the unread count is 0 by default, and reassuring on a default is
+ * the same false statement, just shorter-lived.
+ *
+ * Pure so the invariant is falsifiable by a test instead of by eye — the
+ * component only renders what this decides.
+ */
+export function canReassure(input: {
+  unreadSystemAlerts: number;
+  alertsLoading: boolean;
+}): boolean {
+  return !input.alertsLoading && input.unreadSystemAlerts === 0;
+}
+
+/**
+ * Copy for the unread-alert bullet. Total for any input, but the caller only
+ * builds it when the count is positive (`canReassure` is the gate).
+ */
+export function unreadAlertsSummary(count: number): string {
+  return count === 1
+    ? "Hai 1 avviso dal sistema da leggere qui sotto."
+    : `Hai ${count} avvisi dal sistema da leggere qui sotto.`;
+}
