@@ -46,8 +46,8 @@ oggi invisibili a `tsc`, a eslint e ai test.
 - **VIETATI (rispettati):** tutto `supabase/**` · `src/components/coach/CoachAlertsPanel.tsx` ·
   `.github/**`.
 - **Vietato dalla spec, aperto con deroga esplicita di Nick dopo la review:**
-  `src/hooks/useCoachAlerts.ts` — una riga additiva (`isError`), motivazione nel commit `1dc5981` e in
-  §9.
+  `src/hooks/useCoachAlerts.ts` — solo esposizioni additive dal `return` (`isSuccess`,
+  `dataUpdatedAt`, `isFetching`), motivazione nel commit `1dc5981` e in §9.
 - **Fuori dalla lista attesa della spec, approvati da Nick prima dell'esecuzione:** `src/index.css`
   (unica sede coerente per i token, v. §7) · `src/lib/coachAlerts.ts` + test (per rendere il requisito
   falsificabile da vitest invece che a occhio) · `scripts/verify-css-tokens.mjs` (richiesta di Nick
@@ -55,9 +55,10 @@ oggi invisibili a `tsc`, a eslint e ai test.
 
 ## 4. Acceptance (criteri falsificabili — ognuno può bocciare)
 
-- ☑ Con avvisi di sistema non letti, la Centrale Operativa **non** dice «Tutto sotto controllo» —
-  e nemmeno mentre la query carica o quando **fallisce** (regola pura `canReassure`, 13 test; le mutazioni
-  che contano provate e uccise, incluse le quattro branche della query).
+- ☑ Con avvisi di sistema non letti, la Centrale Operativa **non** dice «Tutto sotto controllo» — e
+  nemmeno mentre la query carica, quando fallisce, o quando un «success» è solo la cache di ieri
+  (regola pura `canReassure`, 18 test; le mutazioni che contano provate e uccise, inclusi il ramo
+  `paused` e lo snapshot idratato).
 - ☑ Le 10 classi di gravità compaiono nel CSS costruito: `npm run build && npm run verify:css`.
   Lo stesso script sul CSS di `main` pre-fix esce 1 elencandole tutte.
 - ☑ Le 5 variabili restano in forma a canali, dentro `:root`, e nessun sorgente le riscrive a
@@ -65,12 +66,13 @@ oggi invisibili a `tsc`, a eslint e ai test.
   `index.css`).
 - ☑ `no-custom-classname` attiva e provata: `bg-inventata-di-prova` iniettata in `CoachHome` viene
   segnalata (356:14), poi rimossa.
-- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 183/183 ·
+- ☑ `npx tsc --noEmit -p tsconfig.app.json` verde · `npx vitest run` 188/188 ·
   eslint 105 = `.eslint-baseline` (salito una volta sola, elenco nel commit `chore(varco)`) ·
   `npm ci` esce 0 e il conteggio resta 105 da `node_modules` vergine.
 - ☑ `git diff --name-only main..HEAD`: zero file sotto `supabase/`.
-- ☑ **Aperta dalla review, chiusa con deroga** (`1dc5981`): con la query degli avvisi **in errore** il
-  coach non legge più l'all-clear — il widget dichiara che il canale è caduto. Vedi §9.
+- ☑ **Aperte dalle review, chiuse con deroga** (`1dc5981`, `d109413`, `233a0b0`): né la query in
+  errore, né il retry in pausa offline, né un «success» idratato da ieri producono più l'all-clear —
+  il widget dichiara che il canale non ha risposto. Vedi §9.
 
 ## 5. Verifica (come si controlla, non a memoria)
 
@@ -84,7 +86,7 @@ git diff --name-only main..HEAD
 
 ## 6. Chiusura
 
-- 10 commit atomici su `claude/leggibilita-gravita-coach`. Cinque nascono dalle due review
+- 14 commit atomici su `claude/leggibilita-gravita-coach`. Sette nascono dalle tre review
   indipendenti, non dal piano.
 - Merge = Nick via Pull request.
 
@@ -171,38 +173,52 @@ Nota per chi la esegue: aggiungere una classe oggi rotta alla lista `EXPECTED` d
 - Il test copre la **regola**, non il cablaggio nel componente: vitest qui gira node-only, senza
   render. Un revert della sola chiamata nel JSX passerebbe verde.
 
-## 9. Gli stati della fonte — due review per arrivarci
+## 9. Gli stati della fonte — tre review per arrivarci
 
 `canReassure` nasceva guardando **un** modo di non sapere («sto caricando»). La prima review ne ha
-trovato un secondo (la query in **errore**), la seconda un terzo (il retry in **pausa** offline). Ogni
-volta lo stesso meccanismo: `data` è `undefined`, quindi `alerts` è vuoto, quindi `unreadCount` è 0 —
-e uno 0 che significa «non lo so» veniva letto come «non c'è niente».
+trovato un secondo (la query in **errore**), la seconda un terzo (il retry in **pausa** offline), e il
+terzo giro — su domanda adversariale precisa di Nick — il quarto, che è di un'altra specie. Ogni volta
+lo stesso sintomo: `unreadCount` è 0 — e uno 0 che significa «non lo so» veniva letto come «non c'è
+niente».
 
-Verificato nei sorgenti installati (`@tanstack/query-core`, `queryObserver.js`): `isLoading` è
-`isPending && isFetching`, quindi **falso in tre stati su cinque**; `isError` è vero solo per
-`status: 'error'`. Con `networkMode: 'offlineFirst'` (`src/main.tsx:25`) un retry paused lascia
-`status: 'pending'`, `fetchStatus: 'paused'` — nessuno dei due flag lo copre. E `retry: false` sui 4xx
-porta un errore RLS al primo tentativo, senza ritentare.
+Verificato nei sorgenti installati (`@tanstack/query-core`): `isLoading` è `isPending && isFetching`,
+quindi falso in quattro stati su sei; `isError` è vero solo per `status: 'error'`. Con `networkMode:
+'offlineFirst'` (`src/main.tsx:25`) un retry paused lascia `status: 'pending'`, `fetchStatus:
+'paused'` — nessuno dei due flag lo copre. E `retry: false` sui 4xx porta un errore RLS al primo
+tentativo, senza ritentare.
 
-**Il rimedio non è il quarto booleano.** Enumerare i modi di non sapere significa che ogni stato
-dimenticato — o aggiunto in futuro dalla libreria — vale per default come «rassicura»: è il modo in cui
-il buco è nato due volte di fila. La regola ora chiede **un segnale positivo**, `channelAnswered`
-(= `isSuccess`, cioè `status === 'success'`): tutto ciò che non è una risposta riuscita legge come
-sconosciuto, e lo sconosciuto tace. Il test enumera i cinque stati con le due colonne vere di TanStack
-accanto, così il prossimo che legge vede perché `isLoading` non basta.
+**Primo rimedio: non il quarto booleano ma l'inversione.** Enumerare i modi di non sapere significa
+che ogni stato dimenticato — o aggiunto in futuro dalla libreria — vale per default come «rassicura».
+La regola è passata a un segnale positivo (`channelAnswered` = `isSuccess`).
 
-Chiuderlo richiedeva una riga in `src/hooks/useCoachAlerts.ts`, **file vietato dalla spec**. Deroga
-concessa da Nick con la motivazione agli atti nel commit `1dc5981`: _il veto su quel file serviva a
-tenere stretta la fetta, non a proteggere un invariante; lasciare che il coach legga l'all-clear quando
-la query è in errore sarebbe chiudere la porta d'ingresso della bugia e lasciarne aperta una sul
-retro._ Additivo, fail-closed, nessun consumatore esistente cambia.
+**Poi la domanda di Nick: esiste uno stato in cui `isSuccess` è vero ma il dato NON è una risposta
+attendibile?** Sì — **la cache persistita**. Questo repo idrata TanStack da IndexedDB con `maxAge` 24h
+(`src/main.tsx:33-37`); una query idratata riparte con `status: 'success'` e **lo stato di ieri**,
+`dataUpdatedAt` compreso (`hydration.js:124`). Coach offline: refetch in pausa, `isSuccess` vero su
+una fotografia di 24 ore fa che non può contenere l'avviso di stanotte. Il punto debole
+dell'inversione non è «uno stato dimenticato»: è **«success che non significa ciò che credo»**.
+
+**Chiusura, con la stessa forma — un segnale positivo più stretto:** il canale ha risposto **di
+recente**. `canReassure` riceve l'età della risposta (derivata da `dataUpdatedAt`; `Infinity` se non
+c'è mai stata) e la soglia — `CHANNEL_FRESHNESS_MS`, 5 minuti — vive nel modulo puro, dove il test la
+pinna. Nessuna eccezione: lo snapshot di ieri non qualifica; `placeholderData` (status `success`
+forzato con `dataUpdatedAt` 0 — `queryObserver.js:277-283`; non usato da `useCoachAlerts`, usato solo
+da `useExerciseLibraryQuery`) non qualifica per la stessa via; un errore dopo un successo vecchio non
+qualificava già. Il widget distingue con `isFetching` (non `isLoading`: un refetch in background su
+dati idratati è fetching ma mai «loading») fra «Sto controllando…» e «Controlla la connessione».
+Limite dichiarato: la freschezza si valuta al render — una tab lasciata aperta e ferma non ricalcola,
+ma `refetchOnWindowFocus` rifetcha e ri-renderizza al ritorno del coach.
+
+Chiudere tutto questo richiedeva righe in `src/hooks/useCoachAlerts.ts`, **file vietato dalla spec**.
+Deroga concessa da Nick con la motivazione agli atti nel commit `1dc5981`: _il veto su quel file
+serviva a tenere stretta la fetta, non a proteggere un invariante; lasciare che il coach legga
+l'all-clear quando la query è in errore sarebbe chiudere la porta d'ingresso della bugia e lasciarne
+aperta una sul retro._ Additive tutte: `isSuccess`, `dataUpdatedAt`, `isFetching`; nessun consumatore
+esistente cambia (`CoachSidebar` destruttura solo `unreadCount`).
 
 Gli input di `canReassure` sono **obbligatori**, non opzionali: un campo opzionale lascerebbe che un
 chiamante lo ometta e torni a rassicurare per default, cioè il modo esatto in cui il buco è nato. Il
-modo di fallire di quella funzione dev'essere il silenzio. Quando il canale non ha risposto il widget
-lo dichiara («Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.») invece di
-fingere di stare ancora controllando — e il messaggio copre errore e offline insieme, perché
-«ricarica la pagina» sarebbe un consiglio sbagliato per il secondo.
+modo di fallire di quella funzione dev'essere il silenzio.
 
 **Regola generale che ne esce:** quando un veto di scope e il requisito della fetta confliggono,
 decide il requisito — e la ragione si scrive nel commit, non nella chat.
