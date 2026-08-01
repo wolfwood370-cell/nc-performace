@@ -110,8 +110,13 @@
     /* Tertiary — warm earthy tone for "Attenzione" / monitoring badges */
     --tertiary: hsl(31 100% 18%); /* #5c2f00 */
     --tertiary-foreground: hsl(0 0% 100%);
-    --tertiary-container: hsl(29 70% 27%); /* #774616 */
-    --on-tertiary-container: hsl(27 96% 74%); /* #fcb67c */
+    /* The container pair is in CHANNEL form for the same reason as the error
+       family above: every severity surface that uses it wants a tint
+       (`bg-tertiary-container/10`, `border-tertiary-container/20`), and a
+       complete `hsl(...)` makes Tailwind emit no rule at all. Same colours as
+       before, written so the opacity modifier survives. */
+    --tertiary-container: 29 70% 27%; /* #774616 */
+    --on-tertiary-container: 27 96% 74%; /* #fcb67c */
 
     /* Radius — Aura "ultra-rounded" scale
        sm:0.5rem · DEFAULT:1rem · md:1.5rem (24px cards) · lg:2rem (32px) */

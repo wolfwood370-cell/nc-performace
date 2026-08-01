@@ -161,8 +161,13 @@ export default {
           DEFAULT: "var(--tertiary)",
           foreground: "var(--tertiary-foreground)",
         },
-        "tertiary-container": "var(--tertiary-container)",
-        "on-tertiary-container": "var(--on-tertiary-container)",
+        /* Channel form like the error family: the severity chips that use
+           these want a tint, and `var(--x)` alone loses the opacity
+           modifier. Safe to convert — nothing reads these vars outside this
+           file, and the MaterialYouProvider BRIDGE (:524-542) does not
+           overwrite them at runtime, unlike `--destructive`. */
+        "tertiary-container": "hsl(var(--tertiary-container) / <alpha-value>)",
+        "on-tertiary-container": "hsl(var(--on-tertiary-container) / <alpha-value>)",
         "inverse-surface": "var(--inverse-surface)",
         "inverse-on-surface": "var(--inverse-on-surface)",
         "inverse-primary": "var(--inverse-primary)",

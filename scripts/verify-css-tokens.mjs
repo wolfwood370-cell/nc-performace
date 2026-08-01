@@ -40,6 +40,17 @@ const EXPECTED = {
   "bg-error-container/20": { var: "--error-container", sites: "CoachCheckinInbox.tsx:598" },
   "text-error": { var: "--error", sites: "ExitWorkoutDialog.tsx:161 · WeeklyCheckin.tsx:211" },
   "bg-error": { var: "--error", sites: "ActiveWorkout.tsx:194" },
+  // The `Attenzione` step of the same severity scale. Without these the
+  // critical chip is filled and the warning one is not, so the middle
+  // severity reads as the lightest of the three.
+  "bg-tertiary-container/10": {
+    var: "--tertiary-container",
+    sites: "CoachHome.tsx:97 · CoachAlertsPanel.tsx:77 · AthleteContextPane.tsx:283",
+  },
+  "border-tertiary-container/20": {
+    var: "--tertiary-container",
+    sites: "CalendarGrid.tsx:260",
+  },
 };
 
 if (!existsSync(dir)) {
