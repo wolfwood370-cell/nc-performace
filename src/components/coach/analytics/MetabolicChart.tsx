@@ -119,9 +119,9 @@ export function MetabolicChart({ athleteId }: MetabolicChartProps) {
                 yAxisId="weight"
                 type="monotone"
                 dataKey="bodyWeight"
-                stroke="var(--chart-weight)"
+                stroke="hsl(var(--chart-weight))"
                 strokeWidth={2}
-                dot={{ fill: "var(--chart-weight)", r: 3 }}
+                dot={{ fill: "hsl(var(--chart-weight))", r: 3 }}
                 connectNulls
                 name="Peso Corporeo (kg)"
               />

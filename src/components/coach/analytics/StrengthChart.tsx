@@ -53,8 +53,8 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-chart-3/20 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-chart-3" />
+            <div className="h-8 w-8 rounded-lg bg-chart-intensity/20 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-chart-intensity" />
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Progressione Forza</CardTitle>
@@ -124,10 +124,10 @@ export function StrengthChart({ athleteId }: StrengthChartProps) {
               <Line
                 type="monotone"
                 dataKey="estimated1RM"
-                stroke="var(--chart-intensity)"
+                stroke="hsl(var(--chart-intensity))"
                 strokeWidth={2}
-                dot={{ fill: "var(--chart-intensity)", r: 4 }}
-                activeDot={{ r: 6, fill: "var(--chart-intensity)" }}
+                dot={{ fill: "hsl(var(--chart-intensity))", r: 4 }}
+                activeDot={{ r: 6, fill: "hsl(var(--chart-intensity))" }}
               />
             </LineChart>
           </ResponsiveContainer>

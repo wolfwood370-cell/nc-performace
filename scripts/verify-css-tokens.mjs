@@ -6,7 +6,7 @@
  * not there. `bg-error-container` shipped through every green gate and the
  * coach read a severity pill with no colour on it.
  *
- * Four checks, against the BUILT stylesheet, because only the built
+ * Five checks, against the BUILT stylesheet, because only the built
  * stylesheet knows what Tailwind actually emitted:
  *
  *   1. the stylesheet is not older than the sources that produce it;
@@ -16,7 +16,12 @@
  *   3. those variables are still in channel form and declared in `:root`
  *      (a complete `hsl(...)` makes `hsl(var(--x) / .4)` invalid and the rule
  *      is dropped, while the built stylesheet does not change at all);
- *   4. no source overwrites them at runtime.
+ *   4. no source overwrites them at runtime;
+ *   5. DERIVED, no list to maintain: every `*-chart-*` colour utility found
+ *      in the sources has an emitted rule. The EXPECTED list below can only
+ *      protect what someone remembered to write into it — 24 `chart-[1-5]`
+ *      utilities that no config ever knew survived for months under a green
+ *      gate exactly this shape. Check 5 scans instead of remembering.
  *
  * Opacity variants are listed on purpose: in Tailwind v3 a colour declared as
  * a complete `var(--x)` silently drops the opacity modifier — no rule is
@@ -27,11 +32,25 @@
  * gate that documents itself wrongly teaches the wrong thing.
  *
  * Declared limits — this gate is narrower than it looks:
- *   - it is not wired to CI (the web job does not build), so it runs when a
- *     human runs it;
  *   - check 4 matches `setProperty("--x"` literally. A template literal, a
  *     computed name, or a loop over an object would slip past it. It holds
- *     today because MaterialYouProvider writes every variable by name.
+ *     today because MaterialYouProvider writes every variable by name;
+ *   - check 5 reads class names written literally in the sources. A dynamic
+ *     name (`bg-chart-${k}`, a helper that concatenates) is invisible to it —
+ *     and to Tailwind's own scanner, which would not emit it either: such
+ *     code is broken before it reaches this gate, but the gate cannot say so;
+ *   - variant usages (`dark:bg-chart-x`, `hover:…`), the `!` important marker
+ *     and the arbitrary-alpha form (`/[0.13]`) are matched through the
+ *     escaped selector lookup shared by checks 2 and 5, so none of them
+ *     reads as a false red. New variant syntaxes Tailwind may add are
+ *     untested;
+ *   - check 5 has no prefix list: ANY `<prefix>-chart-<name>` token counts
+ *     as a utility claim. A non-utility token containing `-chart-` would be
+ *     scanned too — none exists in the sources today, and if one ever does,
+ *     it fails loudly at its own file:line instead of passing silently;
+ *   - comment lines are recognised by their START (`*`, `//`, `/*`, `{/*`):
+ *     the continuation lines of a multi-line `{/* … ` JSX block are still
+ *     scanned, so a chart utility written mid-block would count as code.
  *
  * Usage: npm run build && npm run verify:css
  */
@@ -57,6 +76,25 @@ const EXPECTED = {
   // severity reads as the lightest of the three.
   "bg-tertiary-container/10": "--tertiary-container",
   "border-tertiary-container/20": "--tertiary-container",
+  // Semantic chart palette — the classes the coach surfaces actually use.
+  // Check 5 below catches ANY chart-* utility without a rule; these entries
+  // additionally pin each class to the variable it must read.
+  "bg-chart-volume/10": "--chart-volume",
+  "bg-chart-volume/20": "--chart-volume",
+  "text-chart-volume": "--chart-volume",
+  "bg-chart-frequency/10": "--chart-frequency",
+  "text-chart-frequency": "--chart-frequency",
+  "bg-chart-fatigue/10": "--chart-fatigue",
+  "text-chart-fatigue": "--chart-fatigue",
+  "bg-chart-load/10": "--chart-load",
+  "text-chart-load": "--chart-load",
+  "bg-chart-velocity/10": "--chart-velocity",
+  "text-chart-velocity": "--chart-velocity",
+  "bg-chart-power/10": "--chart-power",
+  "text-chart-power": "--chart-power",
+  "bg-chart-intensity/20": "--chart-intensity",
+  "text-chart-intensity": "--chart-intensity",
+  "bg-chart-acwr-low": "--chart-acwr-low",
 };
 
 /**
@@ -69,6 +107,19 @@ const CHANNEL_VARS = [
   "--on-error-container",
   "--tertiary-container",
   "--on-tertiary-container",
+  "--chart-volume",
+  "--chart-intensity",
+  "--chart-fatigue",
+  "--chart-grid",
+  "--chart-axis",
+  "--chart-muted",
+  "--chart-calories",
+  "--chart-weight",
+  "--chart-frequency",
+  "--chart-load",
+  "--chart-velocity",
+  "--chart-power",
+  "--chart-acwr-low",
 ];
 
 /** `0 45% 90%` — three space-separated channels, no function call. */
@@ -107,8 +158,37 @@ if (!dirArg) {
 }
 
 // ── 2. Every expected class is emitted, and is actually used ───────────────
-/** Tailwind escapes `/` in a class name: `bg-error-container\/40`. */
-const selectorOf = (cls) => "." + cls.replace("/", "\\/");
+/**
+ * The rule a class produced in the built CSS, or null — the ONE selector
+ * matcher, shared by check 2 and check 5 so they cannot disagree. The class
+ * arrives escaped the way Tailwind writes selectors (`/`→`\/`, `!`→`\!`,
+ * `[`→`\[`, `.`→`\.`) and possibly behind a variant prefix: `dark:bg-chart-x`
+ * is emitted as `.dark\:bg-chart-x:is(.dark *)`. So the class must appear
+ * preceded by `.` OR by an escaped variant `\:` — never require a bare
+ * `.cls{`, which would turn a correct variant usage into a false red, and a
+ * red on correct code is how a gate gets removed. The trailing guard rejects
+ * longer names AND any escaped continuation (`\/10`, `\[0\.13\]`), so a
+ * plain class does not pass on the strength of its own tint variant.
+ */
+function findRule(cls) {
+  const selectorText = cls.replace(/[^a-zA-Z0-9-]/g, (c) => "\\" + c);
+  const quoted = selectorText.replace(/[.*+?^${}()|[\]\\/]/g, (c) => "\\" + c);
+  const m = new RegExp(`[.:]${quoted}(?![\\w\\\\-])`).exec(css);
+  if (!m) return null;
+  const open = css.indexOf("{", m.index);
+  return open === -1 ? null : css.slice(open, css.indexOf("}", open) + 1);
+}
+
+/**
+ * JSDoc bodies, `//` lines and single-line JSX/JSDoc openers are
+ * documentation, not code. Continuation lines of a multi-line `{/*` block
+ * are NOT recognised — declared limit in the header.
+ */
+const isCommentLine = (trimmed) =>
+  trimmed.startsWith("*") ||
+  trimmed.startsWith("//") ||
+  trimmed.startsWith("/*") ||
+  trimmed.startsWith("{/*");
 
 function* sources(root) {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
@@ -129,13 +209,13 @@ const SOURCE_FILES = existsSync("src") ? [...sources("src")] : [];
  * `bg-error-container` from matching `bg-error-container/40`.
  */
 function usagesOf(cls) {
-  const re = new RegExp(`(?<![\\w-])${cls.replace("/", "\\/")}(?![\\w-]|/\\d)`);
+  const re = new RegExp(`(?<![\\w-])${cls.replace("/", "\\/")}(?![\\w-]|/\\d|/\\[)`);
   const hits = [];
   for (const file of SOURCE_FILES) {
     const lines = readFileSync(file, "utf8").split(/\r?\n/);
     lines.forEach((line, i) => {
       const trimmed = line.trim();
-      if (trimmed.startsWith("*") || trimmed.startsWith("//")) return;
+      if (isCommentLine(trimmed)) return;
       if (re.test(line)) hits.push(`${file.replace(/\\/g, "/")}:${i + 1}`);
     });
   }
@@ -143,12 +223,11 @@ function usagesOf(cls) {
 }
 
 for (const [cls, varName] of Object.entries(EXPECTED)) {
-  const start = css.indexOf(selectorOf(cls) + "{");
-  if (start === -1) {
+  const rule = findRule(cls);
+  if (!rule) {
     failures.push(`${cls} — nessuna regola emessa`);
     continue;
   }
-  const rule = css.slice(start, css.indexOf("}", start) + 1);
   if (!rule.includes(`var(${varName})`)) {
     failures.push(`${cls} — emessa ma non legge var(${varName}): ${rule}`);
     continue;
@@ -206,6 +285,43 @@ for (const file of SOURCE_FILES) {
   }
 }
 
+// ── 5. DERIVED: every chart-* utility in the sources has an emitted rule ───
+// No list to maintain — not even of prefixes: ANY `<prefix>-chart-<name>`
+// token is a colour-utility claim, so `border-t-chart-*`, `ring-offset-*`
+// and whatever Tailwind adds next are covered the day someone writes them
+// (a prefix list here went blind on exactly those two families — reviewed
+// 2026-08-02). The extraction also carries the `!` important marker and the
+// arbitrary-alpha form `/[0.13]`, because stripping either makes the lookup
+// hunt a class nobody wrote.
+const CHART_CLASS_RE =
+  /(?<![\w-])!?[a-z][a-z0-9-]*-chart-[a-z0-9-]+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
+
+/** class → first `file:line` it was seen at, comment lines skipped. */
+const chartClassSites = new Map();
+for (const file of SOURCE_FILES) {
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (isCommentLine(trimmed)) return;
+    for (const m of line.matchAll(CHART_CLASS_RE)) {
+      if (!chartClassSites.has(m[0]))
+        chartClassSites.set(m[0], `${file.replace(/\\/g, "/")}:${i + 1}`);
+    }
+  });
+}
+
+let chartEmitted = 0;
+for (const [cls, site] of [...chartClassSites.entries()].sort()) {
+  if (!findRule(cls)) {
+    failures.push(`${cls} — scritta in ${site} ma nessuna regola emessa: la classe non esiste`);
+    continue;
+  }
+  chartEmitted += 1;
+}
+console.log(
+  `  ✓ check 5: ${chartEmitted}/${chartClassSites.size} utility chart-* trovate nei sorgenti hanno una regola emessa`,
+);
+
 if (failures.length > 0) {
   console.error(`\n✗ ${failures.length} controlli falliti — la gravità non arriva a schermo:`);
   for (const f of failures) console.error(`  - ${f}`);
@@ -218,5 +334,6 @@ if (failures.length > 0) {
 
 console.log(
   `\n✓ ${Object.keys(EXPECTED).length} classi presenti e in uso, ` +
-    `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime.`,
+    `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime, ` +
+    `${chartClassSites.size} utility chart-* derivate dai sorgenti tutte emesse.`,
 );

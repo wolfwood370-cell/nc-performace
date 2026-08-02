@@ -38,14 +38,6 @@ export function AcwrGauge({ athleteId }: AcwrGaugeProps) {
 
   const gaugePosition = getGaugePosition(ratio);
 
-  // Zone colors and labels
-  const zones = [
-    { min: 0, max: 40, label: "Basso", color: "bg-chart-5" },
-    { min: 40, max: 65, label: "Ottimale", color: "bg-success" },
-    { min: 65, max: 75, label: "Attenzione", color: "bg-warning" },
-    { min: 75, max: 100, label: "Alto Rischio", color: "bg-destructive" },
-  ];
-
   const getStatusConfig = () => {
     switch (status) {
       case "optimal":
@@ -107,11 +99,15 @@ export function AcwrGauge({ athleteId }: AcwrGaugeProps) {
             {/* Gauge visualization */}
             <div className="relative h-6 rounded-full overflow-hidden bg-muted">
               {/* Zone backgrounds */}
+              {/* `opacity-30` instead of `/30`: success/warning/destructive are
+                  complete-colour vars, so the alpha modifier emits no rule at
+                  all — the whole scale must light up, not one step of it. The
+                  stripes are empty divs: opacity has no children to fade. */}
               <div className="absolute inset-0 flex">
-                <div className="w-[40%] bg-chart-5/30" />
-                <div className="w-[25%] bg-success/30" />
-                <div className="w-[10%] bg-warning/30" />
-                <div className="w-[25%] bg-destructive/30" />
+                <div className="w-[40%] bg-chart-acwr-low opacity-30" />
+                <div className="w-[25%] bg-success opacity-30" />
+                <div className="w-[10%] bg-warning opacity-30" />
+                <div className="w-[25%] bg-destructive opacity-30" />
               </div>
 
               {/* Needle indicator */}

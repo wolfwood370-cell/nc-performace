@@ -122,17 +122,27 @@
        sm:0.5rem · DEFAULT:1rem · md:1.5rem (24px cards) · lg:2rem (32px) */
     --radius: 1rem;
 
-    /* Chart palette */
-    --chart-volume: hsl(160 84% 39%);
-    --chart-intensity: hsl(262.1 83.3% 57.8%);
-    --chart-fatigue: hsl(347 77% 50%);
+    /* Chart palette — semantic names only: a colour is named for WHAT it
+       shows (volume, load, velocity…), never numbered. Declared as BARE HSL
+       CHANNELS like the error family above: half of the call sites want a
+       tint (`bg-chart-volume/10`, `/20`), and Tailwind v3 emits no rule at
+       all when the opacity modifier lands on a complete `hsl(...)`.
+       Inline consumers therefore read them as `hsl(var(--chart-x))`. */
+    --chart-volume: 84 81% 44%; /* lime-500 — moved off hue 160: it was identical to --success */
+    --chart-intensity: 262.1 83.3% 57.8%; /* violet-500 */
+    --chart-fatigue: 325 80% 55%; /* custom pink — ≥33° of hue from destructive and power */
     /* Recharts axes, grid, reference lines, series. Mapped semantically
        so dark-mode swaps below don't require touching consumer files. */
-    --chart-grid: hsl(214 32% 91%); /* slate-200 */
-    --chart-axis: hsl(215 16% 47%); /* slate-500 */
-    --chart-muted: hsl(215 20% 65%); /* slate-400 */
-    --chart-calories: hsl(199 89% 48%); /* sky-500 */
-    --chart-weight: hsl(38 92% 50%); /* amber-500 */
+    --chart-grid: 214 32% 91%; /* slate-200 */
+    --chart-axis: 215 16% 47%; /* slate-500 */
+    --chart-muted: 215 20% 65%; /* slate-400 */
+    --chart-calories: 199 89% 48%; /* sky-500 */
+    --chart-weight: 38 92% 50%; /* amber-500 */
+    --chart-frequency: 189 94% 43%; /* cyan-500 */
+    --chart-load: 239 84% 67%; /* indigo-500 */
+    --chart-velocity: 55 92% 45%; /* custom gold — the amber band belongs to --warning/--chart-weight */
+    --chart-power: 292 84% 61%; /* fuchsia-500 */
+    --chart-acwr-low: 217 91% 60%; /* blue-500 */
 
     /* Sidebar — always dark for contrast */
     --sidebar-background: hsl(222.2 84% 4.9%);
@@ -190,16 +200,24 @@
     --input: hsl(217.2 32.6% 17.5%);
     --ring: hsl(263.4 70% 50.4%);
 
-    --chart-volume: hsl(160 72% 45%);
-    --chart-intensity: hsl(263.4 70% 50.4%);
-    --chart-fatigue: hsl(347 77% 55%);
+    /* Channel form — see the note in `:root`. Dark data-colours are lifted
+       in lightness (L ≥ +25 from the system colour sharing their hue band)
+       so a series line never reads as the primary/warning it sits next to. */
+    --chart-volume: 83 78% 55%; /* lime-400 */
+    --chart-intensity: 263.4 70% 76%; /* violet, lifted: dark --primary owns 263.4 70% 50.4% */
+    --chart-fatigue: 325 85% 68%;
     /* Recharts axes/grid for dark mode — colours match the dark slate
        ramp so the chart surface keeps enough contrast on dark cards. */
-    --chart-grid: hsl(217 33% 25%); /* slate-700 */
-    --chart-axis: hsl(215 20% 65%); /* slate-400 */
-    --chart-muted: hsl(215 16% 47%); /* slate-500 */
-    --chart-calories: hsl(199 89% 60%); /* sky-400 */
-    --chart-weight: hsl(38 92% 60%); /* amber-400 */
+    --chart-grid: 217 33% 25%; /* slate-700 */
+    --chart-axis: 215 20% 65%; /* slate-400 */
+    --chart-muted: 215 16% 47%; /* slate-500 */
+    --chart-calories: 199 89% 60%; /* sky-400 */
+    --chart-weight: 38 92% 75%; /* amber, lifted: dark --warning owns 38 92% 50% */
+    --chart-frequency: 188 86% 53%; /* cyan-400 */
+    --chart-load: 234 89% 78%; /* indigo, lifted: ΔL ≥ 25 from dark --primary */
+    --chart-velocity: 55 90% 58%;
+    --chart-power: 292 91% 77%; /* fuchsia, lifted: ΔL ≥ 25 from dark --primary */
+    --chart-acwr-low: 213 94% 68%; /* blue-400 */
   }
 }
 

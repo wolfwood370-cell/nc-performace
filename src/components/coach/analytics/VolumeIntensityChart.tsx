@@ -49,8 +49,8 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-chart-4/20 flex items-center justify-center">
-              <BarChart3 className="h-4 w-4 text-chart-4" />
+            <div className="h-8 w-8 rounded-lg bg-chart-volume/20 flex items-center justify-center">
+              <BarChart3 className="h-4 w-4 text-chart-volume" />
             </div>
             <div>
               <CardTitle className="text-sm font-semibold">Volume vs Intensità</CardTitle>
@@ -119,7 +119,7 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
               <Bar
                 yAxisId="tonnage"
                 dataKey="totalTonnage"
-                fill="var(--chart-volume)"
+                fill="hsl(var(--chart-volume))"
                 opacity={0.7}
                 radius={[3, 3, 0, 0]}
               />

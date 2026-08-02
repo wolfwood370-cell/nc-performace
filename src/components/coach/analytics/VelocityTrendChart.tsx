@@ -106,8 +106,8 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <span className="text-base font-normal text-muted-foreground">m/s</span>
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-xl bg-chart-1/10 flex items-center justify-center">
-                <Gauge className="h-6 w-6 text-chart-1" />
+              <div className="h-12 w-12 rounded-xl bg-chart-velocity/10 flex items-center justify-center">
+                <Gauge className="h-6 w-6 text-chart-velocity" />
               </div>
             </div>
           </CardContent>
@@ -122,8 +122,11 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <span className="text-base font-normal text-muted-foreground">m/s</span>
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <Zap className="h-6 w-6 text-success" />
+              {/* chart-velocity like the tile beside it: peak velocity is still a
+                  velocity metric, and success/10 emits nothing (complete-colour
+                  var) — the row must not read [tinted, mute, tinted]. */}
+              <div className="h-12 w-12 rounded-xl bg-chart-velocity/10 flex items-center justify-center">
+                <Zap className="h-6 w-6 text-chart-velocity" />
               </div>
             </div>
           </CardContent>
@@ -138,8 +141,8 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <span className="text-base font-normal text-muted-foreground">W</span>
                 </p>
               </div>
-              <div className="h-12 w-12 rounded-xl bg-chart-4/10 flex items-center justify-center">
-                <Dumbbell className="h-6 w-6 text-chart-4" />
+              <div className="h-12 w-12 rounded-xl bg-chart-power/10 flex items-center justify-center">
+                <Dumbbell className="h-6 w-6 text-chart-power" />
               </div>
             </div>
           </CardContent>

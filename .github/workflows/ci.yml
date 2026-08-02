@@ -64,7 +64,9 @@ jobs:
       - name: Tipi
         run: npx tsc --noEmit -p tsconfig.app.json
 
-      # Ratchet: non blocca i 53 errori esistenti, blocca il PEGGIORAMENTO.
+      # Ratchet: non blocca il debito esistente, blocca il PEGGIORAMENTO.
+      # La cifra del debito vive SOLO in .eslint-baseline — scriverla anche
+      # qui è il modo in cui questo commento ha già mentito due volte.
       # Quando il numero scende, si abbassa .eslint-baseline e non risale più.
       - name: Lint (ratchet sul debito esistente)
         run: |
@@ -83,6 +85,17 @@ jobs:
 
       - name: Unit (vitest)
         run: npx vitest run
+
+      # Una classe Tailwind inesistente non è un errore di tipo né un test
+      # rosso: è CSS che non c'è, e la vede solo il foglio COSTRUITO. 24
+      # utility chart-[1-5] mai emesse sono passate per mesi sotto tsc,
+      # eslint e vitest verdi. La build qui produce il CSS per il varco
+      # token — e di riflesso prova che l'app builda. Entrambi bloccanti.
+      - name: Build (produce il CSS per il varco token)
+        run: npm run build
+
+      - name: Token CSS (verify:css)
+        run: npm run verify:css
 
       - name: Report lint
         if: always()
