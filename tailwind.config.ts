@@ -171,6 +171,27 @@ export default {
         "inverse-surface": "var(--inverse-surface)",
         "inverse-on-surface": "var(--inverse-on-surface)",
         "inverse-primary": "var(--inverse-primary)",
+        /* Semantic chart palette. One vocabulary: a colour is named for
+           WHAT it represents (volume, load, velocity…), never numbered —
+           `chart-2` cannot be wrong, `chart-fatigue` can. Channel form
+           like the error family: the stat-tile call sites want a tint
+           (`bg-chart-volume/10`) and `var(--x)` alone would make Tailwind
+           drop the opacity modifier without emitting anything. */
+        chart: {
+          volume: "hsl(var(--chart-volume) / <alpha-value>)",
+          intensity: "hsl(var(--chart-intensity) / <alpha-value>)",
+          fatigue: "hsl(var(--chart-fatigue) / <alpha-value>)",
+          grid: "hsl(var(--chart-grid) / <alpha-value>)",
+          axis: "hsl(var(--chart-axis) / <alpha-value>)",
+          muted: "hsl(var(--chart-muted) / <alpha-value>)",
+          calories: "hsl(var(--chart-calories) / <alpha-value>)",
+          weight: "hsl(var(--chart-weight) / <alpha-value>)",
+          frequency: "hsl(var(--chart-frequency) / <alpha-value>)",
+          load: "hsl(var(--chart-load) / <alpha-value>)",
+          velocity: "hsl(var(--chart-velocity) / <alpha-value>)",
+          power: "hsl(var(--chart-power) / <alpha-value>)",
+          "acwr-low": "hsl(var(--chart-acwr-low) / <alpha-value>)",
+        },
       },
       borderRadius: {
         /* Aura shape language — ultra-rounded / organic. The DEFAULT
