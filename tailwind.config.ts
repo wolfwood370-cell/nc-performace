@@ -173,10 +173,10 @@ export default {
         "inverse-primary": "var(--inverse-primary)",
         /* Semantic chart palette. One vocabulary: a colour is named for
            WHAT it represents (volume, load, velocity…), never numbered —
-           `chart-2` cannot be wrong, `chart-fatigue` can. Channel form
-           like the error family: the stat-tile call sites want a tint
-           (`bg-chart-volume/10`) and `var(--x)` alone would make Tailwind
-           drop the opacity modifier without emitting anything. */
+           nobody can notice a wrong number, `chart-fatigue` can be caught.
+           Channel form like the error family: the stat-tile call sites want
+           a tint (`bg-chart-volume/10`) and `var(--x)` alone would make
+           Tailwind drop the opacity modifier without emitting anything. */
         chart: {
           volume: "hsl(var(--chart-volume) / <alpha-value>)",
           intensity: "hsl(var(--chart-intensity) / <alpha-value>)",
