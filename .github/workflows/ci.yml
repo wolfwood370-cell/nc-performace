@@ -84,6 +84,17 @@ jobs:
       - name: Unit (vitest)
         run: npx vitest run
 
+      # Una classe Tailwind inesistente non è un errore di tipo né un test
+      # rosso: è CSS che non c'è, e la vede solo il foglio COSTRUITO. 24
+      # utility chart-[1-5] mai emesse sono passate per mesi sotto tsc,
+      # eslint e vitest verdi. La build qui produce il CSS per il varco
+      # token — e di riflesso prova che l'app builda. Entrambi bloccanti.
+      - name: Build (produce il CSS per il varco token)
+        run: npm run build
+
+      - name: Token CSS (verify:css)
+        run: npm run verify:css
+
       - name: Report lint
         if: always()
         uses: actions/upload-artifact@v4
