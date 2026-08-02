@@ -28,12 +28,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # L'npm dell'immagine runner si muove per conto suo (stesso lockfile:
-      # verde alle 17:37, rosso alle 20:25 del 2026-08-01). Un lockfile è
-      # valido rispetto a UNA versione di npm — quella dichiarata in
-      # `packageManager`, la stessa che lo rigenera. Qui la si installa e
-      # la si verifica: se la versione in uso non coincide con la
-      # dichiarata, il varco muore subito e dice perché.
+      # Un lockfile è valido rispetto a UNA versione di npm — quella dichiarata
+      # in `packageManager`, la stessa che lo rigenera. Il rosso del 2026-08-01
+      # non fu il runner a causarlo: un `npm install` locale per una dipendenza
+      # non correlata (3d9a4f7) riscrisse il lockfile annullando il fix a78010e
+      # (misurato 2026-08-02 — v. RETRO lockfile-npm-inchiodati in
+      # docs/auto-miglioramento.md). L'npm del runner (11.16.0) è comunque
+      # diverso dal dichiarato (11.6.2): non si è mosso, era già più severo —
+      # per questo il pin sta su ENTRAMBI i lati, lettura (qui) e scrittura
+      # (.husky/pre-commit). Qui la si installa e la si verifica: se la versione
+      # in uso non coincide con la dichiarata, il varco muore subito e dice perché.
       - name: Inchioda npm (packageManager di package.json)
         run: |
           WANTED=$(node -p "(String(require('./package.json').packageManager||'').match(/npm@([0-9][^+]*)/)||[])[1]||''")
