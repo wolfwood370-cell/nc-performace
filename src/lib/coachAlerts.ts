@@ -125,3 +125,113 @@ export function unreadAlertsSummary(count: number): string {
     ? "Hai 1 avviso dal sistema da leggere qui sotto."
     : `Hai ${count} avvisi dal sistema da leggere qui sotto.`;
 }
+
+/**
+ * Copy for the channel-status bullets of the Command Center, exported (like
+ * `unreadAlertsSummary`) so the exact wording is pinned by unit tests: the
+ * component only maps these onto icons.
+ */
+export const ALL_CLEAR_MESSAGE = "Tutto sotto controllo. Nessun alert critico in coda oggi.";
+export const CHANNEL_CHECKING_MESSAGE = "Sto controllando gli avvisi dal sistema…";
+export const CHANNEL_MUTE_MESSAGE =
+  "Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.";
+
+/**
+ * Client-side triage alert as the composition needs it. `description` is the
+ * component's `details || value`; the composition never sees a raw
+ * `UrgentAlert`.
+ */
+export interface ComposableTriageAlert {
+  severity: string;
+  athleteName: string;
+  description: string;
+}
+
+/** Data-only bullet descriptors: the component maps `kind` onto icon + JSX. */
+export type TriageBullet =
+  | { kind: "channel-mute" }
+  | { kind: "channel-checking" }
+  | { kind: "unread"; count: number }
+  | { kind: "critical"; athleteName: string; description: string }
+  | { kind: "warning"; athleteName: string; description: string }
+  | { kind: "feedback"; count: number }
+  | { kind: "all-clear" };
+
+export interface TriageBulletsInput {
+  /** Client triage, already filtered to critical|warning and capped upstream. */
+  triage: ReadonlyArray<ComposableTriageAlert>;
+  feedbackCount: number;
+  unreadSystemAlerts: number;
+  /** alertsQuery.isSuccess */
+  channelAnswered: boolean;
+  /** alertsQuery.isFetching */
+  channelFetching: boolean;
+  /** Age of the last successful answer at render time; Infinity when there has never been one. */
+  answeredAgoMs: number;
+}
+
+/**
+ * Composition of the Command Center bullets.
+ *
+ * Verbatim port of the inline `useMemo` composition in `CoachHome.tsx`
+ * (2026-08-02), DEFECT INCLUDED: the channel-status fallback still lives
+ * behind the `out.length === 0` gate, so a broken alert channel stays silent
+ * whenever any other bullet exists. Extracted first so the defect can be
+ * shown red by a test before being fixed.
+ */
+export function composeTriageBullets(input: TriageBulletsInput): TriageBullet[] {
+  const out: TriageBullet[] = [];
+
+  // 0th: unread system alerts (`coach_alerts`) — first so the final
+  // `slice(0, 3)` can never drop it.
+  if (input.unreadSystemAlerts > 0) {
+    out.push({ kind: "unread", count: input.unreadSystemAlerts });
+  }
+
+  // 1st: top critical alert if any
+  const topCritical = input.triage.find((a) => a.severity === "critical");
+  if (topCritical) {
+    out.push({
+      kind: "critical",
+      athleteName: topCritical.athleteName,
+      description: topCritical.description,
+    });
+  }
+
+  // 2nd: top warning alert (or 2nd critical if no warning)
+  const topWarning =
+    input.triage.find((a) => a.severity === "warning") ??
+    input.triage.filter((a) => a.severity === "critical")[1];
+  if (topWarning) {
+    out.push({
+      kind: "warning",
+      athleteName: topWarning.athleteName,
+      description: topWarning.description,
+    });
+  }
+
+  // 3rd: pending feedback count
+  if (input.feedbackCount > 0) {
+    out.push({ kind: "feedback", count: input.feedbackCount });
+  }
+
+  // Fallback when nothing is flagged. `canReassure` decides the all-clear; a
+  // channel that has not answered (recently) says so out loud — unless a
+  // fetch is in flight right now, in which case "checking" is the truth.
+  if (out.length === 0) {
+    const allClear = canReassure({
+      unreadSystemAlerts: input.unreadSystemAlerts,
+      channelAnswered: input.channelAnswered,
+      answeredAgoMs: input.answeredAgoMs,
+    });
+    out.push(
+      allClear
+        ? { kind: "all-clear" }
+        : input.channelFetching
+          ? { kind: "channel-checking" }
+          : { kind: "channel-mute" },
+    );
+  }
+
+  return out.slice(0, 3);
+}
