@@ -7,10 +7,13 @@ import { describe, expect, it } from "vitest";
 import {
   canReassure,
   CHANNEL_FRESHNESS_MS,
+  composeTriageBullets,
   severityRank,
   sortCoachAlerts,
   unreadAlertsSummary,
   type SortableAlert,
+  type TriageBullet,
+  type TriageBulletsInput,
 } from "../coachAlerts";
 
 function alert(overrides: Partial<SortableAlert> & { id: string }): SortableAlert & { id: string } {
@@ -229,5 +232,235 @@ describe("unreadAlertsSummary", () => {
 
   it("names the count, so the coach knows how many are waiting", () => {
     expect(unreadAlertsSummary(12)).toContain("12");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// composeTriageBullets — the assembly of the Command Center bullets.
+//
+// canReassure was extracted and tested, but the condition deciding WHETHER it
+// runs stayed inline in the component, untested — and that is where the
+// channel-mute defect lived. These tests exist so the assembly can never be
+// the untested half of the problem again.
+// ---------------------------------------------------------------------------
+
+/** Client triage fixtures (already filtered/capped upstream). */
+const CRITICO = { severity: "critical", athleteName: "Anna", description: "ACWR 1.8" };
+const SECONDO_CRITICO = {
+  severity: "critical",
+  athleteName: "Bruno",
+  description: "dolore al ginocchio",
+};
+const WARNING = { severity: "warning", athleteName: "Carla", description: "sonno in calo" };
+
+/** Channel states, named for what they mean at the hook boundary. */
+const CANALE_FRESCO = { channelAnswered: true, channelFetching: false, answeredAgoMs: 1_000 };
+const CANALE_MUTO = { channelAnswered: false, channelFetching: false, answeredAgoMs: Infinity };
+const CANALE_IN_VOLO = { channelAnswered: false, channelFetching: true, answeredAgoMs: Infinity };
+const CANALE_STANTIO = {
+  channelAnswered: true,
+  channelFetching: false,
+  answeredAgoMs: 24 * 60 * 60 * 1000,
+};
+
+function compose(overrides: Partial<TriageBulletsInput> = {}): TriageBullet[] {
+  return composeTriageBullets({
+    triage: [],
+    feedbackCount: 0,
+    unreadSystemAlerts: 0,
+    ...CANALE_FRESCO,
+    ...overrides,
+  });
+}
+
+const kinds = (bullets: TriageBullet[]) => bullets.map((b) => b.kind);
+
+describe("composeTriageBullets — behaviour that stays across the fix", () => {
+  it("orders unread → critical → warning → feedback and caps at 3 on a healthy channel", () => {
+    const result = compose({
+      triage: [CRITICO, WARNING],
+      feedbackCount: 1,
+      unreadSystemAlerts: 2,
+    });
+    expect(kinds(result)).toEqual(["unread", "critical", "warning"]);
+  });
+
+  it("fills the warning slot with the 2nd critical when no warning exists", () => {
+    const result = compose({ triage: [CRITICO, SECONDO_CRITICO] });
+    expect(result).toEqual([
+      { kind: "critical", athleteName: "Anna", description: "ACWR 1.8" },
+      { kind: "warning", athleteName: "Bruno", description: "dolore al ginocchio" },
+    ]);
+  });
+
+  it("passes the unread and feedback counts through, for the component copy", () => {
+    const result = compose({ feedbackCount: 3, unreadSystemAlerts: 5 });
+    expect(result).toEqual([
+      { kind: "unread", count: 5 },
+      { kind: "feedback", count: 3 },
+    ]);
+  });
+
+  it("keeps the unread bullet as the head when the channel is healthy", () => {
+    const result = compose({ triage: [CRITICO], unreadSystemAlerts: 1 });
+    expect(kinds(result)).toEqual(["unread", "critical"]);
+  });
+
+  it("reassures only an empty board with a fresh answer and nothing unread", () => {
+    expect(compose()).toEqual([{ kind: "all-clear" }]);
+  });
+
+  it("reassures at the freshness boundary, exactly like canReassure", () => {
+    expect(compose({ answeredAgoMs: CHANNEL_FRESHNESS_MS })).toEqual([{ kind: "all-clear" }]);
+  });
+
+  it("goes mute one instant past the freshness boundary on an empty board", () => {
+    expect(compose({ answeredAgoMs: CHANNEL_FRESHNESS_MS + 1 })).toEqual([
+      { kind: "channel-mute" },
+    ]);
+  });
+
+  it("says 'checking' on an empty board while the request is in flight", () => {
+    expect(compose({ ...CANALE_IN_VOLO })).toEqual([{ kind: "channel-checking" }]);
+  });
+
+  it("says the channel is mute on an empty board when it never answered", () => {
+    expect(compose({ ...CANALE_MUTO })).toEqual([{ kind: "channel-mute" }]);
+  });
+
+  it("says the channel is mute on an empty board when the answer is stale", () => {
+    expect(compose({ ...CANALE_STANTIO })).toEqual([{ kind: "channel-mute" }]);
+  });
+
+  it("shows no doppione when the channel is fresh: unread alone, even mid-refetch", () => {
+    expect(compose({ unreadSystemAlerts: 3 })).toEqual([{ kind: "unread", count: 3 }]);
+    expect(compose({ unreadSystemAlerts: 3, channelFetching: true })).toEqual([
+      { kind: "unread", count: 3 },
+    ]);
+  });
+
+  it("is pure: same input, same output, input untouched", () => {
+    const triage = [CRITICO, WARNING];
+    const input = { triage, feedbackCount: 1, unreadSystemAlerts: 1, ...CANALE_MUTO };
+    const first = composeTriageBullets(input);
+    const second = composeTriageBullets(input);
+    expect(first).toEqual(second);
+    expect(triage).toEqual([CRITICO, WARNING]);
+  });
+});
+
+// NOTE on the red-first evidence: the extraction commit carried a describe
+// block pinning the DEFECT with these same inputs and inverted assertions
+// (mute absent behind a full board). It was retired in the same commit as
+// the fix — its inputs live on below with the corrected expectations, and
+// the red run captured on the extraction tree is archived in the PR.
+
+// Acceptance of the fix (spec §4, corrected 2026-08-02): the channel-status
+// bullet becomes the HEAD of the list — pushed first, independent of the
+// board, never dropped by the cap. Precedence: a fresh answer needs no
+// bullet (even mid-refetch); otherwise an in-flight request says "checking";
+// otherwise (never answered, errored, paused offline, or stale) the channel
+// is mute and says so — over a full board too.
+describe("composeTriageBullets — the mute channel speaks over a full board", () => {
+  it("puts the mute bullet ahead of pending feedback (the spec §2 scenario)", () => {
+    // Covers error, never-answered and paused-offline alike: same inputs.
+    const result = compose({ ...CANALE_MUTO, feedbackCount: 2 });
+    expect(result).toEqual([{ kind: "channel-mute" }, { kind: "feedback", count: 2 }]);
+  });
+
+  it("keeps the mute bullet through the cap with critical+warning+feedback", () => {
+    const result = compose({ ...CANALE_MUTO, triage: [CRITICO, WARNING], feedbackCount: 1 });
+    expect(kinds(result)).toEqual(["channel-mute", "critical", "warning"]);
+    expect(result).toHaveLength(3);
+  });
+
+  it("with five candidates drops the last of the others, never the channel", () => {
+    const result = compose({
+      ...CANALE_MUTO,
+      triage: [CRITICO, WARNING],
+      feedbackCount: 1,
+      unreadSystemAlerts: 2,
+    });
+    expect(kinds(result)).toEqual(["channel-mute", "unread", "critical"]);
+  });
+
+  it("says 'checking', never mute, while the first load is in flight over a full board", () => {
+    const result = compose({ ...CANALE_IN_VOLO, feedbackCount: 2 });
+    expect(result).toEqual([{ kind: "channel-checking" }, { kind: "feedback", count: 2 }]);
+  });
+
+  it("keeps the checking bullet through the cap too", () => {
+    const result = compose({ ...CANALE_IN_VOLO, triage: [CRITICO, WARNING], feedbackCount: 1 });
+    expect(kinds(result)).toEqual(["channel-checking", "critical", "warning"]);
+  });
+
+  it("lets mute and unread coexist on a stale answer, mute first (spec §4.6)", () => {
+    const result = compose({ ...CANALE_STANTIO, unreadSystemAlerts: 2 });
+    expect(result).toEqual([{ kind: "channel-mute" }, { kind: "unread", count: 2 }]);
+  });
+
+  it("says 'checking' instead of mute while a stale answer is being refreshed", () => {
+    const result = compose({ ...CANALE_STANTIO, channelFetching: true, unreadSystemAlerts: 2 });
+    expect(kinds(result)).toEqual(["channel-checking", "unread"]);
+  });
+
+  it("treats a failed refetch after a fresh success as a mute channel", () => {
+    // TanStack v5 flips status to 'error' on a failed refetch even though
+    // recent data is retained: answered=false, age irrelevant.
+    const result = compose({
+      channelAnswered: false,
+      channelFetching: false,
+      answeredAgoMs: 31_000,
+      feedbackCount: 1,
+    });
+    expect(kinds(result)).toEqual(["channel-mute", "feedback"]);
+  });
+
+  // The rule as a whole, swept over the full input grid: never an empty
+  // list, never more than 3 bullets, exactly one channel-status bullet
+  // unless the answer is fresh, the all-clear only ever alone and only on
+  // a fresh empty board. This is also the tripwire for the fail-closed
+  // fallback: if the head's freshness test ever drifts from canReassure's,
+  // one of these cells breaks.
+  it("holds the invariants over every channel state × board combination", () => {
+    const agos = [1_000, CHANNEL_FRESHNESS_MS, CHANNEL_FRESHNESS_MS + 1, Infinity];
+    const boards = [[], [CRITICO], [CRITICO, WARNING]];
+    for (const channelAnswered of [true, false])
+      for (const channelFetching of [true, false])
+        for (const answeredAgoMs of agos)
+          for (const unreadSystemAlerts of [0, 2])
+            for (const feedbackCount of [0, 1])
+              for (const triage of boards) {
+                const result = composeTriageBullets({
+                  triage,
+                  feedbackCount,
+                  unreadSystemAlerts,
+                  channelAnswered,
+                  channelFetching,
+                  answeredAgoMs,
+                });
+                const label = JSON.stringify({
+                  channelAnswered,
+                  channelFetching,
+                  answeredAgoMs,
+                  unreadSystemAlerts,
+                  feedbackCount,
+                  triage: triage.length,
+                });
+                const fresh = channelAnswered && answeredAgoMs <= CHANNEL_FRESHNESS_MS;
+                const channelBullets = result.filter(
+                  (b) => b.kind === "channel-mute" || b.kind === "channel-checking",
+                ).length;
+                expect(result.length, label).toBeGreaterThanOrEqual(1);
+                expect(result.length, label).toBeLessThanOrEqual(3);
+                expect(channelBullets, label).toBe(fresh ? 0 : 1);
+                if (kinds(result).includes("all-clear")) {
+                  expect(result, label).toEqual([{ kind: "all-clear" }]);
+                  expect(
+                    canReassure({ unreadSystemAlerts, channelAnswered, answeredAgoMs }),
+                    label,
+                  ).toBe(true);
+                }
+              }
   });
 });

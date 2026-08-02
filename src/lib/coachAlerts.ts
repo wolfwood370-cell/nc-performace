@@ -125,3 +125,131 @@ export function unreadAlertsSummary(count: number): string {
     ? "Hai 1 avviso dal sistema da leggere qui sotto."
     : `Hai ${count} avvisi dal sistema da leggere qui sotto.`;
 }
+
+/**
+ * Copy for the channel-status bullets of the Command Center, exported (like
+ * `unreadAlertsSummary`) so the exact wording is pinned by unit tests: the
+ * component only maps these onto icons.
+ */
+export const ALL_CLEAR_MESSAGE = "Tutto sotto controllo. Nessun alert critico in coda oggi.";
+export const CHANNEL_CHECKING_MESSAGE = "Sto controllando gli avvisi dal sistema…";
+export const CHANNEL_MUTE_MESSAGE =
+  "Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.";
+
+/**
+ * Client-side triage alert as the composition needs it. `description` is the
+ * component's `details || value`; the composition never sees a raw
+ * `UrgentAlert`.
+ */
+export interface ComposableTriageAlert {
+  severity: string;
+  athleteName: string;
+  description: string;
+}
+
+/** Data-only bullet descriptors: the component maps `kind` onto icon + JSX. */
+export type TriageBullet =
+  | { kind: "channel-mute" }
+  | { kind: "channel-checking" }
+  | { kind: "unread"; count: number }
+  | { kind: "critical"; athleteName: string; description: string }
+  | { kind: "warning"; athleteName: string; description: string }
+  | { kind: "feedback"; count: number }
+  | { kind: "all-clear" };
+
+export interface TriageBulletsInput {
+  /** Client triage, already filtered to critical|warning and capped upstream. */
+  triage: ReadonlyArray<ComposableTriageAlert>;
+  feedbackCount: number;
+  unreadSystemAlerts: number;
+  /** alertsQuery.isSuccess */
+  channelAnswered: boolean;
+  /** alertsQuery.isFetching */
+  channelFetching: boolean;
+  /** Age of the last successful answer at render time; Infinity when there has never been one. */
+  answeredAgoMs: number;
+}
+
+/**
+ * Composition of the Command Center bullets.
+ *
+ * The channel-status bullet is the HEAD of the list: pushed first,
+ * independent of the board, so the cap can never drop it. A dropped critical
+ * is still discoverable in the Triage card below on the same page; a dropped
+ * channel warning has no other surface — so when the list overflows, the
+ * LAST of the board bullets falls, never the channel (spec §4.3).
+ *
+ * Channel precedence (spec §4.2, corrected 2026-08-02):
+ *   1. fresh answer (`answered && age <= CHANNEL_FRESHNESS_MS`) → no channel
+ *      bullet, even while a background refetch is in flight — otherwise
+ *      "checking" would flash on a healthy dashboard on nearly every
+ *      navigation (staleTime 30s, and the hook remounts with the sidebar);
+ *   2. otherwise, a request in flight → "checking" (the truth);
+ *   3. otherwise → mute. Reachable ONLY with no fetch in flight and no fresh
+ *      answer (never-answered, errored, paused offline, stale-hydrated): the
+ *      first-load false alarm is impossible by construction.
+ *
+ * On a stale answer with unread alerts the mute and unread bullets coexist,
+ * mute first — they say different things: "there are N alerts" and "these
+ * numbers are old" (spec §4.6).
+ */
+export function composeTriageBullets(input: TriageBulletsInput): TriageBullet[] {
+  // Same constant and same `<=` as canReassure: if the two ever drift, the
+  // fail-closed fallback below stops being dead code and the invariant sweep
+  // in the tests breaks.
+  const channelFresh = input.channelAnswered && input.answeredAgoMs <= CHANNEL_FRESHNESS_MS;
+
+  const head: TriageBullet[] = [];
+  if (!channelFresh) {
+    head.push(input.channelFetching ? { kind: "channel-checking" } : { kind: "channel-mute" });
+  }
+
+  const rest: TriageBullet[] = [];
+
+  // Unread system alerts (`coach_alerts`) — ahead of the board bullets, so
+  // only the channel-status bullet can outrank it.
+  if (input.unreadSystemAlerts > 0) {
+    rest.push({ kind: "unread", count: input.unreadSystemAlerts });
+  }
+
+  const topCritical = input.triage.find((a) => a.severity === "critical");
+  if (topCritical) {
+    rest.push({
+      kind: "critical",
+      athleteName: topCritical.athleteName,
+      description: topCritical.description,
+    });
+  }
+
+  // Warning slot: top warning, or the 2nd critical if no warning exists.
+  const topWarning =
+    input.triage.find((a) => a.severity === "warning") ??
+    input.triage.filter((a) => a.severity === "critical")[1];
+  if (topWarning) {
+    rest.push({
+      kind: "warning",
+      athleteName: topWarning.athleteName,
+      description: topWarning.description,
+    });
+  }
+
+  if (input.feedbackCount > 0) {
+    rest.push({ kind: "feedback", count: input.feedbackCount });
+  }
+
+  const out = [...head, ...rest.slice(0, 3 - head.length)];
+  if (out.length > 0) return out;
+
+  // An empty list here means a fresh channel over an empty board, which is
+  // exactly `canReassure`'s conjunction — so the mute arm is dead code by
+  // construction. Kept fail-closed on purpose: any state this reasoning
+  // forgot, or a future drift of the freshness test above, must read as
+  // "cannot read the channel", never as good news.
+  return canReassure({
+    unreadSystemAlerts: input.unreadSystemAlerts,
+    channelAnswered: input.channelAnswered,
+    answeredAgoMs: input.answeredAgoMs,
+  })
+    ? [{ kind: "all-clear" }]
+    : [{ kind: "channel-mute" }];
+}

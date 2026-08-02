@@ -62,7 +62,14 @@ import {
   Megaphone,
   ListFilter,
 } from "lucide-react";
-import { canReassure, unreadAlertsSummary } from "@/lib/coachAlerts";
+import {
+  ALL_CLEAR_MESSAGE,
+  CHANNEL_CHECKING_MESSAGE,
+  CHANNEL_MUTE_MESSAGE,
+  composeTriageBullets,
+  unreadAlertsSummary,
+  type TriageBullet,
+} from "@/lib/coachAlerts";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -142,6 +149,82 @@ function rpePill(rpe: number | null | undefined): {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Triage bullet kind → Centrale Operativa presentation. Pure lookup: WHICH
+// bullets exist, in which order, and who survives the cap is decided by
+// `composeTriageBullets` (src/lib/coachAlerts.ts), where it is unit-tested.
+// ---------------------------------------------------------------------------
+function bulletPresentation(bullet: TriageBullet): {
+  icon: typeof AlertTriangle;
+  iconWrap: string;
+  iconColor: string;
+  text: React.ReactNode;
+} {
+  switch (bullet.kind) {
+    case "unread":
+      return {
+        icon: AlertTriangle,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: <>{unreadAlertsSummary(bullet.count)}</>,
+      };
+    case "critical":
+      return {
+        icon: AlertTriangle,
+        iconWrap: "bg-destructive/20",
+        iconColor: "text-error-container",
+        text: (
+          <>
+            <strong>{bullet.athleteName}</strong>: {bullet.description}.
+          </>
+        ),
+      };
+    case "warning":
+      return {
+        icon: Activity,
+        iconWrap: "bg-tertiary-fixed/20",
+        iconColor: "text-tertiary-fixed",
+        text: (
+          <>
+            <strong>{bullet.athleteName}</strong>: {bullet.description}.
+          </>
+        ),
+      };
+    case "feedback":
+      return {
+        icon: CheckSquare,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: (
+          <>
+            Hai <strong>{bullet.count} check-in</strong> in attesa di revisione.
+          </>
+        ),
+      };
+    case "all-clear":
+      return {
+        icon: CheckSquare,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: <>{ALL_CLEAR_MESSAGE}</>,
+      };
+    case "channel-checking":
+      return {
+        icon: AlertTriangle,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: <>{CHANNEL_CHECKING_MESSAGE}</>,
+      };
+    case "channel-mute":
+      return {
+        icon: AlertTriangle,
+        iconWrap: "bg-white/20",
+        iconColor: "text-white",
+        text: <>{CHANNEL_MUTE_MESSAGE}</>,
+      };
+  }
+}
+
 // "Recent" icon rotation — adds visual variety to the activity feed
 // without needing per-workout type metadata in the underlying hook.
 const FEED_ICONS = [Dumbbell, Timer, Activity];
@@ -192,124 +275,33 @@ export default function CoachHome() {
   const pulseToStart = Math.max(0, scheduledToday - pulseInProgress - completedToday);
 
   // AI Copilot bullets — derived from live data, max 3 lines so the widget
-  // visually matches the Stitch reference (which shows 3 bullets).
-  const aiBullets = useMemo<
-    Array<{
-      icon: typeof AlertTriangle;
-      iconWrap: string;
-      iconColor: string;
-      text: React.ReactNode;
-    }>
-  >(() => {
-    const out: Array<{
-      icon: typeof AlertTriangle;
-      iconWrap: string;
-      iconColor: string;
-      text: React.ReactNode;
-    }> = [];
-
-    // 0th: the system alert channel (`coach_alerts`) outranks everything
-    // below it — those rows are the CORE §0 escalations, written
-    // server-side, and the panel that carries their text sits right under
-    // this widget. First in the list because the `slice(0, 3)` at the
-    // bottom must never be able to drop it.
-    if (unreadCount > 0) {
-      out.push({
-        icon: AlertTriangle,
-        iconWrap: "bg-white/20",
-        iconColor: "text-white",
-        text: <>{unreadAlertsSummary(unreadCount)}</>,
-      });
-    }
-
-    // 1st: top critical alert if any
-    const topCritical = triageAlerts.find((a) => a.severity === "critical");
-    if (topCritical) {
-      out.push({
-        icon: AlertTriangle,
-        iconWrap: "bg-destructive/20",
-        iconColor: "text-error-container",
-        text: (
-          <>
-            <strong>{topCritical.athleteName}</strong>: {topCritical.details || topCritical.value}.
-          </>
-        ),
-      });
-    }
-
-    // 2nd: top warning alert (or 2nd critical if no warning)
-    const topWarning =
-      triageAlerts.find((a) => a.severity === "warning") ??
-      triageAlerts.filter((a) => a.severity === "critical")[1];
-    if (topWarning) {
-      out.push({
-        icon: Activity,
-        iconWrap: "bg-tertiary-fixed/20",
-        iconColor: "text-tertiary-fixed",
-        text: (
-          <>
-            <strong>{topWarning.athleteName}</strong>: {topWarning.details || topWarning.value}.
-          </>
-        ),
-      });
-    }
-
-    // 3rd: pending feedback count
-    if (feedbackItems.length > 0) {
-      out.push({
-        icon: CheckSquare,
-        iconWrap: "bg-white/20",
-        iconColor: "text-white",
-        text: (
-          <>
-            Hai <strong>{feedbackItems.length} check-in</strong> in attesa di revisione.
-          </>
-        ),
-      });
-    }
-
-    // Fallback when nothing is flagged. `canReassure` decides, not
-    // `out.length`: the bullets above come from `useCoachDashboardMetrics`, a
-    // different source from the alert channel, so an empty triage says
-    // nothing about an unread alert waiting in the panel underneath. Only a
-    // RECENT successful fetch earns the all-clear: `isSuccess` alone also
-    // covers a cache hydrated from IndexedDB with yesterday's snapshot
-    // (src/main.tsx:33-37), which cannot contain last night's alert. A
-    // channel that has not answered says so out loud — unless a fetch is in
-    // flight right now, in which case "checking" is the truth (that is
-    // `isFetching`, not `isLoading`: a background refetch over hydrated
-    // data is fetching but never "loading").
-    if (out.length === 0) {
-      const allClear = canReassure({
+  // visually matches the Stitch reference (which shows 3 bullets). The
+  // composition (which bullets, in which order, who survives the cap) lives
+  // in `composeTriageBullets`, pure and unit-tested; only the impure inputs
+  // (`Date.now()`, `details || value`) and the JSX mapping stay here.
+  const aiBullets = useMemo(
+    () =>
+      composeTriageBullets({
+        triage: triageAlerts.map((a) => ({
+          severity: a.severity,
+          athleteName: a.athleteName,
+          description: a.details || a.value,
+        })),
+        feedbackCount: feedbackItems.length,
         unreadSystemAlerts: unreadCount,
         channelAnswered: alertsAnswered,
+        channelFetching: alertsFetching,
         answeredAgoMs: alertsAnsweredAt > 0 ? Date.now() - alertsAnsweredAt : Infinity,
-      });
-      out.push({
-        icon: allClear ? CheckSquare : AlertTriangle,
-        iconWrap: "bg-white/20",
-        iconColor: "text-white",
-        text: allClear ? (
-          <>Tutto sotto controllo. Nessun alert critico in coda oggi.</>
-        ) : alertsFetching ? (
-          <>Sto controllando gli avvisi dal sistema…</>
-        ) : (
-          // Covers error, paused-offline and stale-hydrated alike: "reload"
-          // would be wrong advice offline, "still checking" a lie for all.
-          <>Non riesco a leggere gli avvisi dal sistema. Controlla la connessione.</>
-        ),
-      });
-    }
-
-    return out.slice(0, 3);
-  }, [
-    triageAlerts,
-    feedbackItems.length,
-    unreadCount,
-    alertsFetching,
-    alertsAnswered,
-    alertsAnsweredAt,
-  ]);
+      }).map(bulletPresentation),
+    [
+      triageAlerts,
+      feedbackItems.length,
+      unreadCount,
+      alertsFetching,
+      alertsAnswered,
+      alertsAnsweredAt,
+    ],
+  );
 
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (authLoading) {
