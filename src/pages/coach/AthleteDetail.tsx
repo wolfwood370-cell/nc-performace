@@ -373,8 +373,8 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Sessione singola più alta</p>
               </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-2/10 flex items-center justify-center">
-                <Weight className="h-7 w-7 text-chart-2" />
+              <div className="h-14 w-14 rounded-xl bg-chart-volume/10 flex items-center justify-center">
+                <Weight className="h-7 w-7 text-chart-volume" />
               </div>
             </div>
           </CardContent>
@@ -387,8 +387,8 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 <p className="text-3xl font-bold text-foreground">{kpis.frequency}x</p>
                 <p className="text-xs text-muted-foreground mt-1">Sessioni con questo esercizio</p>
               </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-3/10 flex items-center justify-center">
-                <Repeat className="h-7 w-7 text-chart-3" />
+              <div className="h-14 w-14 rounded-xl bg-chart-frequency/10 flex items-center justify-center">
+                <Repeat className="h-7 w-7 text-chart-frequency" />
               </div>
             </div>
           </CardContent>
@@ -440,13 +440,13 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 <LineChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                   <XAxis
                     dataKey="date"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
@@ -489,15 +489,15 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--primary)"
                     strokeWidth={2}
                     dot={(props) => {
                       const { cx, cy, payload } = props;
                       if (payload.isPR) {
                         return (
                           <g key={`dot-${cx}-${cy}`}>
-                            <circle cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" />
-                            <circle cx={cx} cy={cy} r={3} fill="hsl(var(--primary-foreground))" />
+                            <circle cx={cx} cy={cy} r={6} fill="var(--primary)" />
+                            <circle cx={cx} cy={cy} r={3} fill="var(--primary-foreground)" />
                           </g>
                         );
                       }
@@ -507,11 +507,11 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                           cx={cx}
                           cy={cy}
                           r={4}
-                          fill="hsl(var(--primary))"
+                          fill="var(--primary)"
                         />
                       );
                     }}
-                    activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
+                    activeDot={{ r: 6, fill: "var(--primary)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -631,14 +631,6 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
   const riskMetrics = useMemo(() => calculateRiskMetrics(dailyLoads), [dailyLoads]);
   const acwrTrend = useMemo(() => generateAcwrTrendData(), []);
 
-  // Get load zone color
-  const getLoadZoneColor = (load: number) => {
-    if (load === 0) return "hsl(var(--muted))";
-    if (load < 300) return "hsl(var(--chart-3))"; // Recovery - green
-    if (load <= 600) return "hsl(var(--chart-2))"; // Maintenance - yellow
-    return "hsl(var(--destructive))"; // Overreaching - red
-  };
-
   // ACWR status helpers
   const getAcwrStatus = (ratio: number) => {
     if (ratio >= 0.8 && ratio <= 1.3)
@@ -721,13 +713,13 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
               <ComposedChart data={dailyLoads} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                 <XAxis
                   dataKey="dayLabel"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
@@ -736,13 +728,13 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 {/* Reference zones */}
                 <ReferenceLine
                   y={300}
-                  stroke="hsl(var(--chart-3))"
+                  stroke="var(--success)"
                   strokeDasharray="3 3"
                   strokeOpacity={0.5}
                 />
                 <ReferenceLine
                   y={600}
-                  stroke="hsl(var(--destructive))"
+                  stroke="var(--destructive)"
                   strokeDasharray="3 3"
                   strokeOpacity={0.5}
                 />
@@ -770,7 +762,7 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                     );
                   }}
                 />
-                <Bar dataKey="load" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+                <Bar dataKey="load" radius={[4, 4, 0, 0]} fill="var(--primary)" />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -778,11 +770,11 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
           {/* Zone Legend */}
           <div className="flex items-center justify-center gap-6 pt-4 border-t border-border/50">
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-chart-3" />
+              <div className="h-3 w-3 rounded-full bg-success" />
               <span className="text-xs text-muted-foreground">Recupero (&lt;300)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-chart-2" />
+              <div className="h-3 w-3 rounded-full bg-warning" />
               <span className="text-xs text-muted-foreground">Mantenimento (300-600)</span>
             </div>
             <div className="flex items-center gap-2">
@@ -893,8 +885,8 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Unità Arbitrarie</p>
               </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-2/10 flex items-center justify-center">
-                <Flame className="h-7 w-7 text-chart-2" />
+              <div className="h-14 w-14 rounded-xl bg-chart-fatigue/10 flex items-center justify-center">
+                <Flame className="h-7 w-7 text-chart-fatigue" />
               </div>
             </div>
           </CardContent>
@@ -911,8 +903,8 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">UA Totali (7 giorni)</p>
               </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-3/10 flex items-center justify-center">
-                <Zap className="h-7 w-7 text-chart-3" />
+              <div className="h-14 w-14 rounded-xl bg-chart-load/10 flex items-center justify-center">
+                <Zap className="h-7 w-7 text-chart-load" />
               </div>
             </div>
           </CardContent>
@@ -950,13 +942,13 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
               <LineChart data={acwrTrend} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                 <XAxis
                   dataKey="week"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
@@ -964,37 +956,37 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 {/* Optimal zone reference lines */}
                 <ReferenceLine
                   y={0.8}
-                  stroke="hsl(var(--chart-3))"
+                  stroke="var(--success)"
                   strokeDasharray="3 3"
                   strokeOpacity={0.5}
                   label={{
                     value: "0.8",
                     position: "right",
-                    fill: "hsl(var(--muted-foreground))",
+                    fill: "var(--muted-foreground)",
                     fontSize: 10,
                   }}
                 />
                 <ReferenceLine
                   y={1.3}
-                  stroke="hsl(var(--chart-3))"
+                  stroke="var(--success)"
                   strokeDasharray="3 3"
                   strokeOpacity={0.5}
                   label={{
                     value: "1.3",
                     position: "right",
-                    fill: "hsl(var(--muted-foreground))",
+                    fill: "var(--muted-foreground)",
                     fontSize: 10,
                   }}
                 />
                 <ReferenceLine
                   y={1.5}
-                  stroke="hsl(var(--destructive))"
+                  stroke="var(--destructive)"
                   strokeDasharray="3 3"
                   strokeOpacity={0.5}
                   label={{
                     value: "1.5",
                     position: "right",
-                    fill: "hsl(var(--muted-foreground))",
+                    fill: "var(--muted-foreground)",
                     fontSize: 10,
                   }}
                 />
@@ -1028,10 +1020,10 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 <Line
                   type="monotone"
                   dataKey="ratio"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--primary)"
                   strokeWidth={3}
-                  dot={{ fill: "hsl(var(--primary))", r: 5 }}
-                  activeDot={{ r: 7, fill: "hsl(var(--primary))" }}
+                  dot={{ fill: "var(--primary)", r: 5 }}
+                  activeDot={{ r: 7, fill: "var(--primary)" }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -1136,7 +1128,7 @@ const generateMockMeasurements = () => {
 // Mini sparkline component for measurements
 function MiniSparkline({
   data,
-  color = "hsl(var(--primary))",
+  color = "var(--primary)",
 }: {
   data: Array<{ value: number }>;
   color?: string;
@@ -1468,14 +1460,14 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                 <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <XAxis
                     dataKey="date"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
                     interval={4}
                   />
                   <YAxis
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
@@ -1513,23 +1505,23 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                   <Line
                     type="monotone"
                     dataKey="weight"
-                    stroke="hsl(var(--muted-foreground))"
+                    stroke="var(--muted-foreground)"
                     strokeWidth={0}
                     dot={{
-                      fill: "hsl(var(--muted-foreground))",
+                      fill: "var(--muted-foreground)",
                       r: 2,
                       opacity: 0.4,
                     }}
-                    activeDot={{ r: 4, fill: "hsl(var(--foreground))" }}
+                    activeDot={{ r: 4, fill: "var(--foreground)" }}
                   />
                   {/* Trend line (7-day MA) */}
                   <Line
                     type="monotone"
                     dataKey="trend"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--primary)"
                     strokeWidth={3}
                     dot={false}
-                    activeDot={{ r: 5, fill: "hsl(var(--primary))" }}
+                    activeDot={{ r: 5, fill: "var(--primary)" }}
                     connectNulls
                   />
                 </ComposedChart>
@@ -1589,9 +1581,7 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                   <div className="flex-1 max-w-[80px]">
                     <MiniSparkline
                       data={measurement.history}
-                      color={
-                        measurement.key === "waist" ? "hsl(var(--success))" : "hsl(var(--primary))"
-                      }
+                      color={measurement.key === "waist" ? "var(--success)" : "var(--primary)"}
                     />
                   </div>
                 </div>
@@ -2351,8 +2341,8 @@ function SettingsContent({
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-chart-2/10 flex items-center justify-center">
-              <User className="h-5 w-5 text-chart-2" />
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <User className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-lg">Informazioni Profilo</CardTitle>

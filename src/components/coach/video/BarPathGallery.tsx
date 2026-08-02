@@ -85,8 +85,8 @@ export function BarPathGallery({ athleteId }: BarPathGalleryProps) {
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-chart-2/10 flex items-center justify-center">
-                <Video className="h-5 w-5 text-chart-2" />
+              <div className="h-10 w-10 rounded-xl bg-chart-velocity/10 flex items-center justify-center">
+                <Video className="h-5 w-5 text-chart-velocity" />
               </div>
               <div>
                 <CardTitle className="text-base">Analisi Traiettoria</CardTitle>
