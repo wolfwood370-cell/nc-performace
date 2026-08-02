@@ -64,7 +64,9 @@ jobs:
       - name: Tipi
         run: npx tsc --noEmit -p tsconfig.app.json
 
-      # Ratchet: non blocca i 53 errori esistenti, blocca il PEGGIORAMENTO.
+      # Ratchet: non blocca il debito esistente, blocca il PEGGIORAMENTO.
+      # La cifra del debito vive SOLO in .eslint-baseline — scriverla anche
+      # qui è il modo in cui questo commento ha già mentito due volte.
       # Quando il numero scende, si abbassa .eslint-baseline e non risale più.
       - name: Lint (ratchet sul debito esistente)
         run: |

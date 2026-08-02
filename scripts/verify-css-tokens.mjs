@@ -39,9 +39,18 @@
  *     name (`bg-chart-${k}`, a helper that concatenates) is invisible to it —
  *     and to Tailwind's own scanner, which would not emit it either: such
  *     code is broken before it reaches this gate, but the gate cannot say so;
- *   - variant usages (`dark:bg-chart-x`, `hover:…`) are matched through the
- *     escaped `\:` prefix in the selector lookup, so a variant-only usage
- *     counts as emitted. New variant syntaxes Tailwind may add are untested.
+ *   - variant usages (`dark:bg-chart-x`, `hover:…`), the `!` important marker
+ *     and the arbitrary-alpha form (`/[0.13]`) are matched through the
+ *     escaped selector lookup shared by checks 2 and 5, so none of them
+ *     reads as a false red. New variant syntaxes Tailwind may add are
+ *     untested;
+ *   - check 5 has no prefix list: ANY `<prefix>-chart-<name>` token counts
+ *     as a utility claim. A non-utility token containing `-chart-` would be
+ *     scanned too — none exists in the sources today, and if one ever does,
+ *     it fails loudly at its own file:line instead of passing silently;
+ *   - comment lines are recognised by their START (`*`, `//`, `/*`, `{/*`):
+ *     the continuation lines of a multi-line `{/* … ` JSX block are still
+ *     scanned, so a chart utility written mid-block would count as code.
  *
  * Usage: npm run build && npm run verify:css
  */
@@ -149,8 +158,37 @@ if (!dirArg) {
 }
 
 // ── 2. Every expected class is emitted, and is actually used ───────────────
-/** Tailwind escapes `/` in a class name: `bg-error-container\/40`. */
-const selectorOf = (cls) => "." + cls.replace("/", "\\/");
+/**
+ * The rule a class produced in the built CSS, or null — the ONE selector
+ * matcher, shared by check 2 and check 5 so they cannot disagree. The class
+ * arrives escaped the way Tailwind writes selectors (`/`→`\/`, `!`→`\!`,
+ * `[`→`\[`, `.`→`\.`) and possibly behind a variant prefix: `dark:bg-chart-x`
+ * is emitted as `.dark\:bg-chart-x:is(.dark *)`. So the class must appear
+ * preceded by `.` OR by an escaped variant `\:` — never require a bare
+ * `.cls{`, which would turn a correct variant usage into a false red, and a
+ * red on correct code is how a gate gets removed. The trailing guard rejects
+ * longer names AND any escaped continuation (`\/10`, `\[0\.13\]`), so a
+ * plain class does not pass on the strength of its own tint variant.
+ */
+function findRule(cls) {
+  const selectorText = cls.replace(/[^a-zA-Z0-9-]/g, (c) => "\\" + c);
+  const quoted = selectorText.replace(/[.*+?^${}()|[\]\\/]/g, (c) => "\\" + c);
+  const m = new RegExp(`[.:]${quoted}(?![\\w\\\\-])`).exec(css);
+  if (!m) return null;
+  const open = css.indexOf("{", m.index);
+  return open === -1 ? null : css.slice(open, css.indexOf("}", open) + 1);
+}
+
+/**
+ * JSDoc bodies, `//` lines and single-line JSX/JSDoc openers are
+ * documentation, not code. Continuation lines of a multi-line `{/*` block
+ * are NOT recognised — declared limit in the header.
+ */
+const isCommentLine = (trimmed) =>
+  trimmed.startsWith("*") ||
+  trimmed.startsWith("//") ||
+  trimmed.startsWith("/*") ||
+  trimmed.startsWith("{/*");
 
 function* sources(root) {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
@@ -171,13 +209,13 @@ const SOURCE_FILES = existsSync("src") ? [...sources("src")] : [];
  * `bg-error-container` from matching `bg-error-container/40`.
  */
 function usagesOf(cls) {
-  const re = new RegExp(`(?<![\\w-])${cls.replace("/", "\\/")}(?![\\w-]|/\\d)`);
+  const re = new RegExp(`(?<![\\w-])${cls.replace("/", "\\/")}(?![\\w-]|/\\d|/\\[)`);
   const hits = [];
   for (const file of SOURCE_FILES) {
     const lines = readFileSync(file, "utf8").split(/\r?\n/);
     lines.forEach((line, i) => {
       const trimmed = line.trim();
-      if (trimmed.startsWith("*") || trimmed.startsWith("//")) return;
+      if (isCommentLine(trimmed)) return;
       if (re.test(line)) hits.push(`${file.replace(/\\/g, "/")}:${i + 1}`);
     });
   }
@@ -185,12 +223,11 @@ function usagesOf(cls) {
 }
 
 for (const [cls, varName] of Object.entries(EXPECTED)) {
-  const start = css.indexOf(selectorOf(cls) + "{");
-  if (start === -1) {
+  const rule = findRule(cls);
+  if (!rule) {
     failures.push(`${cls} — nessuna regola emessa`);
     continue;
   }
-  const rule = css.slice(start, css.indexOf("}", start) + 1);
   if (!rule.includes(`var(${varName})`)) {
     failures.push(`${cls} — emessa ma non legge var(${varName}): ${rule}`);
     continue;
@@ -249,13 +286,15 @@ for (const file of SOURCE_FILES) {
 }
 
 // ── 5. DERIVED: every chart-* utility in the sources has an emitted rule ───
-// No list to maintain: the next invented class turns this red on its own.
-const UTILITY_PREFIXES =
-  "bg|text|border|fill|stroke|from|via|to|ring|divide|outline|decoration|accent|caret|shadow";
-const CHART_CLASS_RE = new RegExp(
-  `(?<![\\w-])(?:${UTILITY_PREFIXES})-chart-[a-z0-9-]+(?:/\\d+)?(?![\\w-])`,
-  "g",
-);
+// No list to maintain — not even of prefixes: ANY `<prefix>-chart-<name>`
+// token is a colour-utility claim, so `border-t-chart-*`, `ring-offset-*`
+// and whatever Tailwind adds next are covered the day someone writes them
+// (a prefix list here went blind on exactly those two families — reviewed
+// 2026-08-02). The extraction also carries the `!` important marker and the
+// arbitrary-alpha form `/[0.13]`, because stripping either makes the lookup
+// hunt a class nobody wrote.
+const CHART_CLASS_RE =
+  /(?<![\w-])!?[a-z][a-z0-9-]*-chart-[a-z0-9-]+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 
 /** class → first `file:line` it was seen at, comment lines skipped. */
 const chartClassSites = new Map();
@@ -263,7 +302,7 @@ for (const file of SOURCE_FILES) {
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
   lines.forEach((line, i) => {
     const trimmed = line.trim();
-    if (trimmed.startsWith("*") || trimmed.startsWith("//")) return;
+    if (isCommentLine(trimmed)) return;
     for (const m of line.matchAll(CHART_CLASS_RE)) {
       if (!chartClassSites.has(m[0]))
         chartClassSites.set(m[0], `${file.replace(/\\/g, "/")}:${i + 1}`);
@@ -271,24 +310,9 @@ for (const file of SOURCE_FILES) {
   });
 }
 
-/**
- * In the built CSS the class arrives escaped (`\/10`) and possibly behind a
- * variant prefix: `dark:bg-chart-x` is emitted as `.dark\:bg-chart-x`. So the
- * class must appear preceded by `.` OR by an escaped variant `\:` — never
- * require a bare `.cls{`, which would turn a correct variant usage into a
- * false red, and a red on correct code is how a gate gets removed.
- * The trailing guard rejects longer names AND `\/NN`, so a plain class does
- * not pass on the strength of its own tint variant.
- */
-function chartRuleEmitted(cls) {
-  const selectorText = cls.replace("/", "\\/");
-  const quoted = selectorText.replace(/[.*+?^${}()|[\]\\/]/g, (c) => "\\" + c);
-  return new RegExp(`[.:]${quoted}(?![\\w\\\\-])`).test(css);
-}
-
 let chartEmitted = 0;
 for (const [cls, site] of [...chartClassSites.entries()].sort()) {
-  if (!chartRuleEmitted(cls)) {
+  if (!findRule(cls)) {
     failures.push(`${cls} — scritta in ${site} ma nessuna regola emessa: la classe non esiste`);
     continue;
   }
