@@ -46,4 +46,4 @@
 
 - Commit atomico (italiano + `Co-Authored-By: Claude <noreply@anthropic.com>`) su branch → **verifica-commit** immediata.
 - Aggiorna `docs/HANDOFF.md` (§2/§3/§4) e la RETRO in `docs/auto-miglioramento.md`.
-- Ricorda a Nick i 5 step GitHub Desktop. **Merge/push = Nick.**
+- Push del ramo `claude/<slug>` + PR verso `main` coi 2 check obbligatori verdi. **Il merge dalla PR = Nick.**

@@ -37,7 +37,7 @@ Il **DB invece è tuo**: lo operi via connettore (§4-bis), e il **file** di mig
 5. **Security = ownership condivisa (non più defer a Lovable).** Non esiste più un Lovable Security Agent.
    Advisor Supabase, RLS, `SECURITY DEFINER`, edge auth, Realtime scoping: **review e applicazione DB = tuoi**
    (via connettore, §4-bis, col benestare di Nick); **codice sicuro + `/security-review` ai milestone = Code**.
-6. **Mai push** (come Code — sincronizza Nick via GitHub Desktop).
+6. **Mai push da Cowork** (git è read-only, legge #1). Nota: dal 2026-08-01 questa NON è più la regola di Code — Code pusha i SUOI rami `claude/*` e apre la PR verso `main`; il merge resta di Nick, dietro ruleset server (PR obbligatoria, check verdi).
 7. **Esplora → pianifica → proponi PRIMA di agire.** Non sconfinare nella corsia di Code "perché posso".
    (Il DB è l'eccezione esplicita: lì agisci, con la disciplina §4-bis + STOP-per-OK sui distruttivi.)
 
@@ -62,8 +62,8 @@ dual-interface/Aura awareness se mai tocco design · **lezioni di processo** (`d
 | Ricerca web / draft doc nello scratchpad                                     |   ✅   |      |      |
 | Edit `src/**` · `tsc --noEmit -p tsconfig.app.json` · knip/depcheck/ts-prune |        |  ✅  |      |
 | **File** di migrazione in `supabase/migrations/**` (dal SQL di Cowork)       |        |  ✅  |      |
-| Git write · commit atomico · verifica commit                                 |        |  ✅  |      |
-| GHD fetch/merge/push · secrets/`.env` · operazioni distruttive               |        |      |  ✅  |
+| Git write · commit atomico · push del ramo `claude/*` + apertura PR          |        |  ✅  |      |
+| Merge delle PR in `main` · secrets/`.env` · operazioni distruttive           |        |      |  ✅  |
 
 ---
 
@@ -91,7 +91,7 @@ dual-interface/Aura awareness se mai tocco design · **lezioni di processo** (`d
   crei il file `supabase/migrations/*` corrispondente) — + un **prompt di trasferimento** (`HANDOFF §8`). Non eseguo codice.
 - **Code → Cowork**: Code mi passa **hash commit + stato**; io **preparo il delta `HANDOFF`** (§2/§3/§4 + prompt)
   in chat/scratchpad e lo passo a **Code, che lo committa** — Cowork non scrive nel repo nemmeno per `HANDOFF` né per i file di migrazione (vedi §2 legge 2).
-- **Nick**: GHD merge/push, secrets, operazioni distruttive, approvazione delle chiamate DB.
+- **Nick**: merge delle PR in `main` (ruleset server coi check obbligatori), secrets, operazioni distruttive, approvazione delle chiamate DB.
 - I prompt **§8 (Code)** e **§9 (Cowork)** vivono in `docs/HANDOFF.md` → usali, **non duplicarli** qui.
 
 ---

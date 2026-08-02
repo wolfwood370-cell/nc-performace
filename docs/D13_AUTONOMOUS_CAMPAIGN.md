@@ -1,4 +1,4 @@
-> ⚠️ **NOTA 2026-07-12:** campagna già **ESEGUITA** (2026-06-18, v. `docs/D13_AUDIT_REPORT.md`). I rail **R8** (hand-patch `types.ts`/`appointments`) e **R9** (security = report-only/defer Lovable) sono **SUPERATI** — vedi `.claude/methodology/00-CORE.md` §9 e `CLAUDE.md` legge 11.
+> ⚠️ **NOTA 2026-07-12:** campagna già **ESEGUITA** (2026-06-18, v. `docs/D13_AUDIT_REPORT.md`). I rail **R8** (hand-patch `types.ts`/`appointments`) e **R9** (security = report-only/defer Lovable) sono **SUPERATI** — vedi `.claude/methodology/00-CORE.md` §9 e `CLAUDE.md` legge 11. **Anche il rail R3 («MAI push») è superato** dalla legge #8 rivista 2026-08-01: push consentito SOLO verso rami `claude/*`, chiusura via PR (`00-CORE.md §6`).
 
 # D13 — Campagna autonoma "ultracode" per Claude Code
 

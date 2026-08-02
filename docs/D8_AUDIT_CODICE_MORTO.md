@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — audit e cleanup già ESEGUITI (v. delta in coda); non usare i prompt qui dentro.**
+> Il flusso git citato nel prompt di trasferimento («MAI push») è superato dalla legge #8 rivista 2026-08-01: vedi `CLAUDE.md` legge #8 + `00-CORE.md §6`.
+
 # D8 — Audit codice morto (v2, approfondito)
 
 > Cowork, 2026-06-14. Obiettivo Nick: codebase **solido e ordinato** prima di nuove feature, con precisione prima di passare a Claude Code.

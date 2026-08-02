@@ -34,7 +34,7 @@
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Cowork**      | Review e **applicazione** DB via connettore Supabase (RLS, `SECURITY DEFINER`, advisor, Realtime scoping): `apply_migration` + `get_advisors(security)` dopo ogni DDL, col **benestare di Nick**.    |
 | **Claude Code** | **Codice sicuro** + `/security-review` ai milestone. Propone migration/policy come **FILE** in `supabase/migrations/`, **non applica sul DB** (niente MCP Supabase in Code — `CLAUDE.md` legge #11). |
-| **Nick**        | Approva ogni chiamata DB; merge/push; secrets.                                                                                                                                                       |
+| **Nick**        | Approva ogni chiamata DB; merge delle PR in `main`; secrets.                                                                                                                                         |
 
 Operazioni potenzialmente distruttive → **STOP & ASK** (`CLAUDE.md §5`).
 
@@ -591,7 +591,7 @@ WITH CHECK (auth.uid() = athlete_id);
 3. Cowork applica via connettore: apply_migration + get_advisors(security) di verifica
 4. Code salva lo STESSO SQL come file supabase/migrations/<timestamp>_<nome>.sql
    (stesso nome/versione della apply) e lo committa su branch claude/*
-5. Merge in main via GitHub Desktop (Nick)
+5. Push del ramo claude/* + PR verso main; merge dalla PR (Nick)
 ```
 
 **Mai amendare** una migration applicata → migrazione correttiva **in avanti**, mai reset. Mai modificare lo schema remoto fuori dai file di migrazione, o `db push` va in errore di sync.
