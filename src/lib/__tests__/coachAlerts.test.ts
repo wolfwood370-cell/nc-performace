@@ -349,38 +349,118 @@ describe("composeTriageBullets — behaviour that stays across the fix", () => {
   });
 });
 
-// The defect, pinned exactly as it behaves today. Same inputs as the
-// acceptance tests of the fix, assertions deliberately INVERTED: these pins
-// prove the extraction preserved the behaviour, and MUST be flipped in the
-// same commit as the fix.
-describe("composeTriageBullets — the defect as it stands (flipped by the fix)", () => {
-  it("today: a mute channel is silent when feedback fills the board", () => {
+// NOTE on the red-first evidence: the extraction commit carried a describe
+// block pinning the DEFECT with these same inputs and inverted assertions
+// (mute absent behind a full board). It was retired in the same commit as
+// the fix — its inputs live on below with the corrected expectations, and
+// the red run captured on the extraction tree is archived in the PR.
+
+// Acceptance of the fix (spec §4, corrected 2026-08-02): the channel-status
+// bullet becomes the HEAD of the list — pushed first, independent of the
+// board, never dropped by the cap. Precedence: a fresh answer needs no
+// bullet (even mid-refetch); otherwise an in-flight request says "checking";
+// otherwise (never answered, errored, paused offline, or stale) the channel
+// is mute and says so — over a full board too.
+describe("composeTriageBullets — the mute channel speaks over a full board", () => {
+  it("puts the mute bullet ahead of pending feedback (the spec §2 scenario)", () => {
+    // Covers error, never-answered and paused-offline alike: same inputs.
     const result = compose({ ...CANALE_MUTO, feedbackCount: 2 });
-    expect(result).toEqual([{ kind: "feedback", count: 2 }]);
+    expect(result).toEqual([{ kind: "channel-mute" }, { kind: "feedback", count: 2 }]);
   });
 
-  it("today: a mute channel is silent behind critical+warning+feedback", () => {
+  it("keeps the mute bullet through the cap with critical+warning+feedback", () => {
     const result = compose({ ...CANALE_MUTO, triage: [CRITICO, WARNING], feedbackCount: 1 });
-    expect(kinds(result)).toEqual(["critical", "warning", "feedback"]);
+    expect(kinds(result)).toEqual(["channel-mute", "critical", "warning"]);
+    expect(result).toHaveLength(3);
   });
 
-  it("today: a stale answer with unread alerts shows the unread bullet alone", () => {
-    const result = compose({ ...CANALE_STANTIO, unreadSystemAlerts: 2 });
-    expect(result).toEqual([{ kind: "unread", count: 2 }]);
-  });
-
-  it("today: an in-flight first load says nothing when feedback fills the board", () => {
-    const result = compose({ ...CANALE_IN_VOLO, feedbackCount: 2 });
-    expect(result).toEqual([{ kind: "feedback", count: 2 }]);
-  });
-
-  it("today: with five candidates the channel state is dropped entirely", () => {
+  it("with five candidates drops the last of the others, never the channel", () => {
     const result = compose({
       ...CANALE_MUTO,
       triage: [CRITICO, WARNING],
       feedbackCount: 1,
       unreadSystemAlerts: 2,
     });
-    expect(kinds(result)).toEqual(["unread", "critical", "warning"]);
+    expect(kinds(result)).toEqual(["channel-mute", "unread", "critical"]);
+  });
+
+  it("says 'checking', never mute, while the first load is in flight over a full board", () => {
+    const result = compose({ ...CANALE_IN_VOLO, feedbackCount: 2 });
+    expect(result).toEqual([{ kind: "channel-checking" }, { kind: "feedback", count: 2 }]);
+  });
+
+  it("keeps the checking bullet through the cap too", () => {
+    const result = compose({ ...CANALE_IN_VOLO, triage: [CRITICO, WARNING], feedbackCount: 1 });
+    expect(kinds(result)).toEqual(["channel-checking", "critical", "warning"]);
+  });
+
+  it("lets mute and unread coexist on a stale answer, mute first (spec §4.6)", () => {
+    const result = compose({ ...CANALE_STANTIO, unreadSystemAlerts: 2 });
+    expect(result).toEqual([{ kind: "channel-mute" }, { kind: "unread", count: 2 }]);
+  });
+
+  it("says 'checking' instead of mute while a stale answer is being refreshed", () => {
+    const result = compose({ ...CANALE_STANTIO, channelFetching: true, unreadSystemAlerts: 2 });
+    expect(kinds(result)).toEqual(["channel-checking", "unread"]);
+  });
+
+  it("treats a failed refetch after a fresh success as a mute channel", () => {
+    // TanStack v5 flips status to 'error' on a failed refetch even though
+    // recent data is retained: answered=false, age irrelevant.
+    const result = compose({
+      channelAnswered: false,
+      channelFetching: false,
+      answeredAgoMs: 31_000,
+      feedbackCount: 1,
+    });
+    expect(kinds(result)).toEqual(["channel-mute", "feedback"]);
+  });
+
+  // The rule as a whole, swept over the full input grid: never an empty
+  // list, never more than 3 bullets, exactly one channel-status bullet
+  // unless the answer is fresh, the all-clear only ever alone and only on
+  // a fresh empty board. This is also the tripwire for the fail-closed
+  // fallback: if the head's freshness test ever drifts from canReassure's,
+  // one of these cells breaks.
+  it("holds the invariants over every channel state × board combination", () => {
+    const agos = [1_000, CHANNEL_FRESHNESS_MS, CHANNEL_FRESHNESS_MS + 1, Infinity];
+    const boards = [[], [CRITICO], [CRITICO, WARNING]];
+    for (const channelAnswered of [true, false])
+      for (const channelFetching of [true, false])
+        for (const answeredAgoMs of agos)
+          for (const unreadSystemAlerts of [0, 2])
+            for (const feedbackCount of [0, 1])
+              for (const triage of boards) {
+                const result = composeTriageBullets({
+                  triage,
+                  feedbackCount,
+                  unreadSystemAlerts,
+                  channelAnswered,
+                  channelFetching,
+                  answeredAgoMs,
+                });
+                const label = JSON.stringify({
+                  channelAnswered,
+                  channelFetching,
+                  answeredAgoMs,
+                  unreadSystemAlerts,
+                  feedbackCount,
+                  triage: triage.length,
+                });
+                const fresh = channelAnswered && answeredAgoMs <= CHANNEL_FRESHNESS_MS;
+                const channelBullets = result.filter(
+                  (b) => b.kind === "channel-mute" || b.kind === "channel-checking",
+                ).length;
+                expect(result.length, label).toBeGreaterThanOrEqual(1);
+                expect(result.length, label).toBeLessThanOrEqual(3);
+                expect(channelBullets, label).toBe(fresh ? 0 : 1);
+                if (kinds(result).includes("all-clear")) {
+                  expect(result, label).toEqual([{ kind: "all-clear" }]);
+                  expect(
+                    canReassure({ unreadSystemAlerts, channelAnswered, answeredAgoMs }),
+                    label,
+                  ).toBe(true);
+                }
+              }
   });
 });

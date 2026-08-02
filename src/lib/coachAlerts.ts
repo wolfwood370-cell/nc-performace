@@ -173,65 +173,83 @@ export interface TriageBulletsInput {
 /**
  * Composition of the Command Center bullets.
  *
- * Verbatim port of the inline `useMemo` composition in `CoachHome.tsx`
- * (2026-08-02), DEFECT INCLUDED: the channel-status fallback still lives
- * behind the `out.length === 0` gate, so a broken alert channel stays silent
- * whenever any other bullet exists. Extracted first so the defect can be
- * shown red by a test before being fixed.
+ * The channel-status bullet is the HEAD of the list: pushed first,
+ * independent of the board, so the cap can never drop it. A dropped critical
+ * is still discoverable in the Triage card below on the same page; a dropped
+ * channel warning has no other surface — so when the list overflows, the
+ * LAST of the board bullets falls, never the channel (spec §4.3).
+ *
+ * Channel precedence (spec §4.2, corrected 2026-08-02):
+ *   1. fresh answer (`answered && age <= CHANNEL_FRESHNESS_MS`) → no channel
+ *      bullet, even while a background refetch is in flight — otherwise
+ *      "checking" would flash on a healthy dashboard on nearly every
+ *      navigation (staleTime 30s, and the hook remounts with the sidebar);
+ *   2. otherwise, a request in flight → "checking" (the truth);
+ *   3. otherwise → mute. Reachable ONLY with no fetch in flight and no fresh
+ *      answer (never-answered, errored, paused offline, stale-hydrated): the
+ *      first-load false alarm is impossible by construction.
+ *
+ * On a stale answer with unread alerts the mute and unread bullets coexist,
+ * mute first — they say different things: "there are N alerts" and "these
+ * numbers are old" (spec §4.6).
  */
 export function composeTriageBullets(input: TriageBulletsInput): TriageBullet[] {
-  const out: TriageBullet[] = [];
+  // Same constant and same `<=` as canReassure: if the two ever drift, the
+  // fail-closed fallback below stops being dead code and the invariant sweep
+  // in the tests breaks.
+  const channelFresh = input.channelAnswered && input.answeredAgoMs <= CHANNEL_FRESHNESS_MS;
 
-  // 0th: unread system alerts (`coach_alerts`) — first so the final
-  // `slice(0, 3)` can never drop it.
-  if (input.unreadSystemAlerts > 0) {
-    out.push({ kind: "unread", count: input.unreadSystemAlerts });
+  const head: TriageBullet[] = [];
+  if (!channelFresh) {
+    head.push(input.channelFetching ? { kind: "channel-checking" } : { kind: "channel-mute" });
   }
 
-  // 1st: top critical alert if any
+  const rest: TriageBullet[] = [];
+
+  // Unread system alerts (`coach_alerts`) — ahead of the board bullets, so
+  // only the channel-status bullet can outrank it.
+  if (input.unreadSystemAlerts > 0) {
+    rest.push({ kind: "unread", count: input.unreadSystemAlerts });
+  }
+
   const topCritical = input.triage.find((a) => a.severity === "critical");
   if (topCritical) {
-    out.push({
+    rest.push({
       kind: "critical",
       athleteName: topCritical.athleteName,
       description: topCritical.description,
     });
   }
 
-  // 2nd: top warning alert (or 2nd critical if no warning)
+  // Warning slot: top warning, or the 2nd critical if no warning exists.
   const topWarning =
     input.triage.find((a) => a.severity === "warning") ??
     input.triage.filter((a) => a.severity === "critical")[1];
   if (topWarning) {
-    out.push({
+    rest.push({
       kind: "warning",
       athleteName: topWarning.athleteName,
       description: topWarning.description,
     });
   }
 
-  // 3rd: pending feedback count
   if (input.feedbackCount > 0) {
-    out.push({ kind: "feedback", count: input.feedbackCount });
+    rest.push({ kind: "feedback", count: input.feedbackCount });
   }
 
-  // Fallback when nothing is flagged. `canReassure` decides the all-clear; a
-  // channel that has not answered (recently) says so out loud — unless a
-  // fetch is in flight right now, in which case "checking" is the truth.
-  if (out.length === 0) {
-    const allClear = canReassure({
-      unreadSystemAlerts: input.unreadSystemAlerts,
-      channelAnswered: input.channelAnswered,
-      answeredAgoMs: input.answeredAgoMs,
-    });
-    out.push(
-      allClear
-        ? { kind: "all-clear" }
-        : input.channelFetching
-          ? { kind: "channel-checking" }
-          : { kind: "channel-mute" },
-    );
-  }
+  const out = [...head, ...rest.slice(0, 3 - head.length)];
+  if (out.length > 0) return out;
 
-  return out.slice(0, 3);
+  // An empty list here means a fresh channel over an empty board, which is
+  // exactly `canReassure`'s conjunction — so the mute arm is dead code by
+  // construction. Kept fail-closed on purpose: any state this reasoning
+  // forgot, or a future drift of the freshness test above, must read as
+  // "cannot read the channel", never as good news.
+  return canReassure({
+    unreadSystemAlerts: input.unreadSystemAlerts,
+    channelAnswered: input.channelAnswered,
+    answeredAgoMs: input.answeredAgoMs,
+  })
+    ? [{ kind: "all-clear" }]
+    : [{ kind: "channel-mute" }];
 }
