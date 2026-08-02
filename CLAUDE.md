@@ -11,7 +11,7 @@ Questo file è il manuale operativo di **Claude Code** (codice / branch / commit
 Se operi in **Cowork** (infra / connettore / planning / doc), leggi PRIMA **`COWORK.md`**:
 corsia diversa — git read-only, niente scritture nel repo, il DB lo opera Cowork col connettore, handoff a Code.
 
-**5 attori** (dettaglio in `COWORK.md §1` + `docs/DESIGN.md`): **Nicolò** (decisioni, merge/push, secrets) · **Claude Code** (codice, branch, commit) · **Cowork** (planning, DB via connettore, verifica, doc) · **Claude Design** (design system → handoff a Code) · **Lovable** (editing visuale opzionale su `main`).
+**5 attori** (dettaglio in `COWORK.md §1` + `docs/DESIGN.md`): **Nicolò** (decisioni, merge delle PR in `main`, secrets) · **Claude Code** (codice, branch, commit) · **Cowork** (planning, DB via connettore, verifica, doc) · **Claude Design** (design system → handoff a Code) · **Lovable** (editing visuale opzionale su `main`).
 
 ---
 
@@ -53,7 +53,7 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 5. **Aura compliance**: token sempre, mai hex raw nei namespace Coach/Athlete.
 6. **Hook order**: tutti gli hook prima di qualsiasi return early.
 7. **Types ownership**: `types.ts` è rigenerato da te via `npm run gen:types` (= `supabase gen types typescript --project-id xgxtplqlewpqjzghvbke`; output da redirigere su `src/integrations/supabase/types.ts`). Il blocco `appointments` non viene più droppato: l'**hand-patch storico è obsoleto**. Rigenera dopo ogni cambio di schema.
-8. **Worktree-isolated**: opera in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`** (enforcement doppio: hook `.claude/hooks/hooks.mjs` + ruleset server su `main`): mai push su `main`, mai `--force`/`-f`/`--force-with-lease`, mai cancellazioni di rami. Il merge in `main` passa da una PR con i check obbligatori verdi; merge e push su `main` restano di Nicolò.
+8. **Worktree-isolated**: opera in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`**: mai push su `main`, mai `--force`/`-f`/`--force-with-lease`, mai cancellazioni di rami. **Il cancello vero è il ruleset sul server** (PR obbligatoria su `main`, bypass list vuota — fuori dalla portata di qualunque agente); l'hook `.claude/hooks/hooks.mjs` è la cintura di sicurezza locale, non il cancello. Il merge in `main` passa da una PR con i check obbligatori verdi; merge e push su `main` restano di Nicolò.
 9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude <noreply@anthropic.com>` sempre.
 10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` (usa `src/lib/logger.ts`).
 11. **Security = ownership condivisa (DB di proprietà)**: non esiste più il Lovable Security Agent. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping e advisor Supabase sono responsabilità **condivisa**: tu (Claude Code) = **codice sicuro + `/security-review` ai milestone**; **Cowork** = advisors/RLS/review del DB via connettore. Tu puoi proporre migration/policy come **FILE** in `supabase/migrations/`, ma **non applichi sul DB** (niente MCP Supabase in Code): l'applicazione la esegue **Cowork col benestare di Nicolò**. Operazioni potenzialmente distruttive → **STOP & ASK** (§5). Vedi `methodology/03-BACKEND-SUPABASE.md §0`.
@@ -126,13 +126,13 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 6. Commit (italiano + Co-Authored-By)
 7. VERIFICA COMMIT (auto, immediato):
      git log --oneline -1  +  git status         → conferma hash + working tree clean
-8. Ricorda all'utente le istruzioni GitHub Desktop
-   (fetch → merge into branch → verifica types.ts → push)
-9. VERIFICA PUSH (solo a richiesta utente, MAI auto):
-     git fetch origin  +  git status -sb         → conferma sync local/origin
+8. A fine fetta: push del ramo + PR verso main
+     (git push -u origin claude/<slug>; PR via API GitHub — vedi 00-CORE.md §6.4)
+9. VERIFICA PUSH (subito dopo il TUO push):
+     git status -sb                               → ## claude/<slug>...origin/claude/<slug> in pari
 ```
 
-**Regola chiave**: il commit lo verifichi sempre subito dopo `git commit`. Il push lo verifichi SOLO quando l'utente lo chiede o conferma di averlo fatto — mai autonomamente (sprecherebbe un fetch). Vedi `00-CORE.md §6.3` e `§6.5`.
+**Regola chiave**: il commit lo verifichi sempre subito dopo `git commit`; il push del ramo — che ora fai tu — lo verifichi subito dopo con `git status -sb`. Il MERGE della PR in `main` resta di Nicolò e NON lo verifichi in automatico: solo quando lui lo conferma o lo chiede. Vedi `00-CORE.md §6.3`–`§6.5`.
 
 ---
 
@@ -168,7 +168,7 @@ Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgre
 
 **Lingua**: italiano sempre nelle risposte e nei commit. Inglese nei code comments.
 
-**Quando finisci un commit**: ricorda all'utente i 5 step di GitHub Desktop (fetch → switch → merge into current → verify types.ts → push). Vedi `00-CORE.md §6`.
+**Quando chiudi una fetta**: push del ramo `claude/<slug>` + PR verso `main` coi 2 check obbligatori verdi; il merge dalla PR lo fa Nicolò. Vedi `00-CORE.md §6.4`.
 
 ---
 

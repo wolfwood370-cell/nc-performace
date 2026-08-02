@@ -55,13 +55,13 @@ Tetto disciplinato 3–5 server. Set scelto (in `mcp.json`):
 
 ## 2. Plugin / LSP per questo progetto
 
-| Plugin                   | Perché                                                                                    | Nota                                                                                                                  |
-| ------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **typescript-lsp**       | Navigazione semantica + type-error dopo ogni edit su 213 file TS strict. Il più alto ROI. | richiede `npm i -g typescript-language-server typescript`; marketplace `Piebald-AI/claude-code-lsps`                  |
-| **code-review**          | Revisione multi-agente indipendente dopo ogni implementazione.                            | ufficiale                                                                                                             |
-| **security-guidance**    | Sicurezza nel loop — ora che la ownership è tua (D5).                                     | ufficiale                                                                                                             |
-| **commit-commands**      | `/commit` per messaggi puliti in italiano.                                                | ⚠️ **NON** usare `/commit-push-pr`: viola la legge #8 (mai push). L'hook `hooks.mjs` blocca comunque ogni `git push`. |
-| **feature-dev** _(opz.)_ | Flusso guidato discovery→implement→review per feature grosse.                             | ufficiale                                                                                                             |
+| Plugin                   | Perché                                                                                    | Nota                                                                                                                                                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **typescript-lsp**       | Navigazione semantica + type-error dopo ogni edit su 213 file TS strict. Il più alto ROI. | richiede `npm i -g typescript-language-server typescript`; marketplace `Piebald-AI/claude-code-lsps`                                                                                                                                                              |
+| **code-review**          | Revisione multi-agente indipendente dopo ogni implementazione.                            | ufficiale                                                                                                                                                                                                                                                         |
+| **security-guidance**    | Sicurezza nel loop — ora che la ownership è tua (D5).                                     | ufficiale                                                                                                                                                                                                                                                         |
+| **commit-commands**      | `/commit` per messaggi puliti in italiano.                                                | ⚠️ Legge #8 rivista 2026-08-01: push consentito SOLO verso rami `claude/*` (chiusura fetta via PR). L'hook `hooks.mjs` blocca destinazioni diverse, `--force` e cancellazioni (sui comandi Bash — è una cintura); il cancello vero è il ruleset server su `main`. |
+| **feature-dev** _(opz.)_ | Flusso guidato discovery→implement→review per feature grosse.                             | ufficiale                                                                                                                                                                                                                                                         |
 
 ---
 
@@ -69,13 +69,13 @@ Tetto disciplinato 3–5 server. Set scelto (in `mcp.json`):
 
 Tradotti dalle tue leggi in garanzie deterministiche:
 
-| Hook                                                                 | Evento                | Legge                   |
-| -------------------------------------------------------------------- | --------------------- | ----------------------- |
-| Blocca `git push` / `push --force`                                   | PreToolUse Bash       | **#8** mai push         |
-| Build gate `tsc --noEmit -p tsconfig.app.json` prima di `git commit` | PreToolUse Bash       | **#3** build gate verde |
-| Blocca `rm -rf` su percorsi pericolosi                               | PreToolUse Bash       | sicurezza               |
-| Blocca scrittura su `.env` / `.mcp.json`                             | PreToolUse Write/Edit | **§5** secrets = tuoi   |
-| `prettier --write` sul file toccato (.ts/.tsx/.css)                  | PostToolUse           | igiene                  |
+| Hook                                                                 | Evento                | Legge                                                    |
+| -------------------------------------------------------------------- | --------------------- | -------------------------------------------------------- |
+| Push solo verso `claude/*` (blocca `main`, `--force`, cancellazioni) | PreToolUse Bash       | **#8** — cintura locale; il cancello è il ruleset server |
+| Build gate `tsc --noEmit -p tsconfig.app.json` prima di `git commit` | PreToolUse Bash       | **#3** build gate verde                                  |
+| Blocca `rm -rf` su percorsi pericolosi                               | PreToolUse Bash       | sicurezza                                                |
+| Blocca scrittura su `.env` / `.mcp.json`                             | PreToolUse Write/Edit | **§5** secrets = tuoi                                    |
+| `prettier --write` sul file toccato (.ts/.tsx/.css)                  | PostToolUse           | igiene                                                   |
 
 > Usano hook **nativi** in `.claude/hooks/` (non plugin): l'exit-code-2 negli hook-da-plugin ha un bug noto, in `.claude/hooks/` funziona. Testa con `/hooks` dopo averli messi. Suggerito: aggiungi a `package.json` lo script `"typecheck": "tsc --noEmit -p tsconfig.app.json"` (quick-win ROADMAP §6).
 
@@ -116,7 +116,7 @@ subagent) — il tuo compito è POSIZIONARLI, INSTALLARLI e VERIFICARLI, non rig
 
 GUARDRAIL (vincolanti):
 - Risposte e commit in italiano.
-- Lavora in worktree isolato; MAI push (sincronizzo io via GitHub Desktop).
+- Lavora in worktree isolato; push SOLO del ramo claude/<slug> e chiusura via PR (il merge lo faccio io dalla PR).
 - Build gate `tsc --noEmit -p tsconfig.app.json` verde prima di ogni commit.
 - Secrets/credenziali/token li imposto io: tu non li scrivi né li leggi.
 - Mostrami ogni file/comando prima di eseguirlo. Per plugin community: mostrami il
@@ -136,7 +136,8 @@ A) MCP DI PROGETTO (.mcp.json) — usa il file fornito: Supabase (read-only,
    CONTEXT7_API_KEY, GITHUB_MCP_TOKEN).
 B) PLUGIN + LSP — proponi: typescript-lsp (marketplace Piebald-AI/claude-code-lsps,
    + binari `npm i -g typescript-language-server typescript`), code-review,
-   security-guidance, commit-commands. NON installare strumenti che fanno push.
+   security-guidance, commit-commands. NON installare strumenti che aggirano la
+   legge #8 (push fuori dai rami claude/*, merge di PR).
 C) HOOK (.claude/settings.json + .claude/hooks/hooks.mjs) — usa i file forniti.
    Dopo averli messi, testali con /hooks e con un finto `git commit` per verificare
    il build gate. Spiegami in 2 righe cosa blocca ciascun hook.
@@ -151,7 +152,7 @@ FASE 2 — ESEGUI (solo dopo il mio OK), ordine A→F. Dopo ciascuno verifica e 
 - /mcp (server connessi) · /plugin Installed (+ tab Errors)
 - LSP: diagnostica su un file .tsx · /hooks (registrati) · /memory (caricati)
 - Lancia il subagent aura-theme-auditor su src/components/coach/ e mostrami la sintesi.
-Alla fine: riepilogo dei file toccati. Niente push.
+Alla fine: riepilogo dei file toccati; eventuale push/PR solo come da legge #8 (ramo claude/*).
 ```
 
 ---

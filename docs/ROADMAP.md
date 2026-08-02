@@ -36,11 +36,11 @@ Non è un progetto-vetrina: è software che gestisce **persone reali e dati di s
 
 ## 2. Chi fa cosa (modello di lavoro)
 
-| Simbolo | Strumento                 | Ruolo                                                                                                                       |
-| ------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 🤖      | **Cowork** (qui)          | Pianificazione, infra via connettore Supabase, audit, design/UX, ricerca, documentazione, scaffold                          |
-| 💻      | **Claude Code (Fable 5)** | Implementazione in worktree seguendo `CLAUDE.md`: codice, refactor, test, build gate                                        |
-| 👤      | **Tu**                    | Credenziali/chiavi, merge via GitHub Desktop, azioni dashboard (Supabase/Stripe/hosting), decisioni estetiche e di business |
+| Simbolo | Strumento                 | Ruolo                                                                                                                                                       |
+| ------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🤖      | **Cowork** (qui)          | Pianificazione, infra via connettore Supabase, audit, design/UX, ricerca, documentazione, scaffold                                                          |
+| 💻      | **Claude Code (Fable 5)** | Implementazione in worktree seguendo `CLAUDE.md`: codice, refactor, test, build gate                                                                        |
+| 👤      | **Tu**                    | Credenziali/chiavi, merge delle PR su `main` (ruleset coi check obbligatori), azioni dashboard (Supabase/Stripe/hosting), decisioni estetiche e di business |
 
 Regola d'oro: un solo "scrittore" alla volta su repo e DB. Stato condiviso = coordinamento esplicito.
 

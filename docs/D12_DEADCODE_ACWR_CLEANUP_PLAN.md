@@ -1,3 +1,6 @@
+> ⚠️ **STORICO — piano già ESEGUITO (Set A, `6dcd2fc`, 2026-06-17); non usare come piano.**
+> Il flusso git qui citato (MAI push / 5 step GitHub Desktop) è superato dalla legge #8 rivista 2026-08-01: vedi `CLAUDE.md` legge #8 + `00-CORE.md §6`.
+
 # D12 — Pulizia dead-code ACWR (PIANO, solo-piano)
 
 > **Preparato:** 2026-06-16 (Cowork, read-only). **Esecuzione:** Claude Code (codice/branch/commit).

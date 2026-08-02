@@ -32,7 +32,7 @@
 6. **Aura/theme compliance non-negoziabile.** Coach usa Aura tokens; Athlete usa `.theme-athlete`. Mai mescolare.
 7. **Hook order è legge.** Tutti gli hook PRIMA di qualsiasi return early. Anti-pattern canonico §8.
 8. **Types ownership.** `types.ts` si rigenera con `supabase gen types typescript --linked` (DB di proprietà); l'hand-patch `appointments` è **obsoleto** (§9, `CLAUDE.md` legge #7).
-9. **Worktree-isolated.** Tu (AI) operi in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Non pushi mai.**
+9. **Worktree-isolated.** Tu (AI) operi in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`** — mai su `main`, mai `--force`, mai cancellazioni di rami; la fetta si chiude con una PR verso `main` e il merge lo fa Nicolò (§6).
 10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log`.
 
 <a id="2-decision"></a>
@@ -144,7 +144,9 @@ Il blocco JSX è > 40 righe?
 
 ## 6. Git workflow worktree
 
-L'AI agent **non pushia mai**. Pattern:
+Flusso (legge #8 rivista 2026-08-01): ramo `claude/<slug>` → commit atomici → **push del ramo** → **PR verso `main`** → i 2 controlli obbligatori verdi (`Tipi · lint · unit (web)` + `Unit edge function (Deno)`) → **merge di Nicolò dalla PR**.
+
+**Dove sta il cancello vero: sul server.** Il ruleset del repository su `main` (PR obbligatoria, bypass list vuota) è fuori dalla portata di qualunque agente. L'hook locale `.claude/hooks/hooks.mjs` (push solo verso `claude/*`, niente `--force`, niente cancellazioni — intercetta i comandi del tool Bash) è una cintura di sicurezza, non il cancello. Pattern:
 
 ### 6.1 Setup (una tantum, eseguito dall'utente o dall'AI nella prima sessione)
 
@@ -161,10 +163,10 @@ git status                                    # 1. Verifica pulizia
 npx tsc --noEmit -p tsconfig.app.json        # 3. Build gate
 git add <files specifici, no -A>             # 4. Stage
 git commit -m "<tipo>(<area>): <msg ita>     # 5. Commit + co-author
-                                              #    NON pushare
 # 6. Verifica commit success (sempre, auto, immediato)
 git log --oneline -1                          # → mostra hash + msg del nuovo commit
 git status                                    # → working tree clean
+# 7. A fine fetta: push del ramo + PR (§6.4) — mai push su main
 ```
 
 ### 6.3 Verifica commit success (sempre, auto)
@@ -178,37 +180,29 @@ git status               # Conferma working tree clean (no file modificati resid
 
 Se commit ha emesso warning prettier/lint-staged (es. CRLF/LF, reformat), è OK — il commit è andato. Se invece `git status` mostra "Changes not staged" → il commit non ha incluso tutti i file: STOP e segnala all'utente.
 
-### 6.4 Loop utente (GitHub Desktop) — ricorda sempre dopo commit
+### 6.4 Chiusura fetta — push del ramo + PR (sostituisce il vecchio loop GitHub Desktop)
 
-1. **Fetch origin**
-2. **Switch** sul branch `claude/<slug>` (se non già attivo)
-3. **Branch → Merge into current branch → main** (integra eventuali commit arrivati su main)
-4. **Verifica `types.ts`**: se lo schema è cambiato e i tipi sono stale, l'AI rigenera con `supabase gen types typescript --linked` (§9)
-5. **Push origin**
+1. **Base aggiornata**: il ramo nasce da `origin/main` (`git fetch` prima di crearlo); se `main` è avanzato durante la fetta, riallinea PRIMA della PR — **merge di `origin/main` nel ramo, MAI rebase di un ramo già pushato** (richiederebbe il `--force` vietato).
+2. **Verifica `types.ts`**: se lo schema è cambiato e i tipi sono stale, rigenera con `npm run gen:types` (§9) prima della PR.
+3. `git push -u origin claude/<slug>` — **unica destinazione consentita: un ramo `claude/*`** (hook come cintura; il ruleset server è il cancello).
+4. **Apri la PR verso `main`** (API GitHub col token del credential manager — la CLI `gh` non è installata su questa macchina).
+5. I 2 controlli obbligatori devono essere verdi; **il merge dalla PR lo fa Nicolò**, mai l'agente.
 
-### 6.5 Verifica push success (a richiesta utente o quando utente lo conferma)
+### 6.5 Verifica push (subito dopo il TUO push) e stato del merge
 
-**Mai automatico** — solo quando l'utente dice "verifica il push", "ho fatto push", "fatto" dopo il reminder GitHub Desktop, o equivalente.
+Il push del ramo lo fai tu → lo verifichi subito, come il commit:
 
 ```bash
-git fetch origin                                          # 1. Aggiorna refs remote
-git status -sb                                            # 2. Confronto local vs upstream
-git log --oneline -5 origin/main                          # 3. Verifica commit AI presenti su origin/main
-git log --oneline origin/claude/<slug> 2>&1 || \
-  echo "(branch claude/* non pushato — normale se mergiato in main)"
+git status -sb    # atteso: ## claude/<slug>...origin/claude/<slug> senza ahead/behind
 ```
 
-**Interpretazione output**:
+| Output `git status -sb`                               | Significato                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| `## claude/<slug>...origin/claude/<slug>` senza ahead | ✅ Push del ramo riuscito                                     |
+| `[ahead N]`                                           | ❌ Push non riuscito/parziale — N commit locali non su origin |
+| `[behind N]` / `[ahead N, behind M]`                  | ⚠️ Origin ha commit che il locale non ha — riallinea il ramo  |
 
-| Output `git status -sb`                               | Significato                                                                               |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `## claude/<slug>...origin/main` senza ahead/behind   | ✅ Push success — locale e main sincronizzati (utente ha mergiato + pushato)              |
-| `## claude/<slug>...origin/<slug>` senza ahead/behind | ✅ Push success — branch claude pushato direttamente (no merge)                           |
-| `[ahead N]`                                           | ❌ Push non fatto — N commit locali non su origin                                         |
-| `[behind N]`                                          | ⚠️ Origin ha commit nuovi che il locale non ha (merge di Nick o editing Lovable su main?) |
-| `[ahead N, behind M]`                                 | ⚠️ Divergenza — serve merge/rebase                                                        |
-
-Riporta esito all'utente in 1-2 righe + lista hash commit confermati su origin.
+Il **merge in `main`** resta di Nicolò: NON verificarlo in automatico. Solo quando lui lo conferma (o lo chiede): `git fetch origin` + `git log --oneline -3 origin/main` per vedere il merge della PR.
 
 ### 6.6 Cleanup branch (post-merge in main)
 
