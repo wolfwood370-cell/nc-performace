@@ -146,7 +146,7 @@ Il blocco JSX è > 40 righe?
 
 Flusso (legge #8 rivista 2026-08-01): ramo `claude/<slug>` → commit atomici → **push del ramo** → **PR verso `main`** → i 2 controlli obbligatori verdi (`Tipi · lint · unit (web)` + `Unit edge function (Deno)`) → **merge di Nicolò dalla PR**.
 
-**Dove sta il cancello vero: sul server.** Il ruleset dell'organizzazione su `main` (PR obbligatoria, bypass list vuota) è fuori dalla portata di qualunque agente. L'hook locale `.claude/hooks/hooks.mjs` (push solo verso `claude/*`, niente `--force`, niente cancellazioni — intercetta i comandi del tool Bash) è una cintura di sicurezza, non il cancello. Pattern:
+**Dove sta il cancello vero: sul server.** Il ruleset del repository su `main` (PR obbligatoria, bypass list vuota) è fuori dalla portata di qualunque agente. L'hook locale `.claude/hooks/hooks.mjs` (push solo verso `claude/*`, niente `--force`, niente cancellazioni — intercetta i comandi del tool Bash) è una cintura di sicurezza, non il cancello. Pattern:
 
 ### 6.1 Setup (una tantum, eseguito dall'utente o dall'AI nella prima sessione)
 

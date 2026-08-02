@@ -9,7 +9,7 @@
 
 ## 0. Addendum 2026-08-01 (stato vivo — prevale su §2/§4 e sugli addendum precedenti dove diverge)
 
-> **⚠ CAMBIO DI REGIME — su `main` non si spinge più diretto: si passa da una Pull request.** Il cancello vero sta **sul server**: ruleset dell'organizzazione su `main` (PR obbligatoria, 2 controlli obbligatori web + Deno, bypass list vuota), fuori dalla portata di qualunque agente; l'hook locale `.claude/hooks/hooks.mjs` (push solo verso `claude/*`) è una cintura di sicurezza, non il cancello. Ogni fetta finisce in una PR: Code pusha il ramo `claude/<slug>` e apre la PR, Nick la mergia.
+> **⚠ CAMBIO DI REGIME — su `main` non si spinge più diretto: si passa da una Pull request.** Il cancello vero sta **sul server**: ruleset del repository su `main` (PR obbligatoria, 2 controlli obbligatori web + Deno, bypass list vuota — verificato live 2026-08-02, sopravvissuto al trasferimento del repo su `wolfwood370-cell`), fuori dalla portata di qualunque agente; l'hook locale `.claude/hooks/hooks.mjs` (push solo verso `claude/*`) è una cintura di sicurezza, non il cancello. Ogni fetta finisce in una PR: Code pusha il ramo `claude/<slug>` e apre la PR, Nick la mergia.
 >
 > **Lo stato d'ambiente, del DB e dei chip NON è duplicato qui.** Fonte unica lato Cowork: **`app/HANDOFF-APP.md` §STATO** (identico in `app/PROMPT-APP.md`) — CI e i suoi 4 varchi, protezione di `main`, repo privato, Dependabot, lockfile deterministico, migration applicate, misura di sicurezza RLS del 01/08, buchi di continuità (⚠ **nessun backup del DB**) e registro chip. Questo file resta la fonte del **lato codice**: branch, fette, contratti tecnici, post-merge di competenza Code.
 
