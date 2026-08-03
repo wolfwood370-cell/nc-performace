@@ -35,9 +35,9 @@ b4b7e1fb3f80660f200783dba6c475d304734ea4:.env:jwt:2
 1de3b7f6f20790c0dfa3cfc4288ef3dab7c7d07f:docs/D3_TEST_200_RUNBOOK.md:curl-auth-header:62
 
 # Stessi due anon JWT di cui sopra, visti di nuovo nei diff-verso-genitore
-# di 3 commit di merge del bot Lovable. Compaiono SOLO in un audit locale
-# con `--log-opts=-m` (il default di gitleaks e la CI saltano i merge):
-# registrati perché anche quell'audit esca pulito. Nessun valore nuovo.
+# di 3 commit di merge del bot Lovable. Compaiono solo scansionando i merge
+# (`-m`): il default di gitleaks li salta, il varco CI li copre con
+# `--log-opts="--all -m"` dal 2026-08-03. Nessun valore nuovo.
 5759410ec65f0dba5f7f7aaa33983fe63f9d9b3b:.env:jwt:2
 775a0a68773fa38af2c669b31df3223eeb49ae60:.env:jwt:2
 879d0266cfa609ba3cd27c6437ad4fc23c43fffe:.env:jwt:2
