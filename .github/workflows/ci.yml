@@ -68,9 +68,29 @@ jobs:
       # La cifra del debito vive SOLO in .eslint-baseline — scriverla anche
       # qui è il modo in cui questo commento ha già mentito due volte.
       # Quando il numero scende, si abbassa .eslint-baseline e non risale più.
+      # L'exit di eslint si cattura SUBITO e senza pipe (questi run girano in
+      # `bash -e {0}`, senza pipefail): il vecchio `|| true` serviva per
+      # l'exit 1 (= errori di lint, legittimo) ma inghiottiva anche l'exit 2
+      # (= eslint non è partito), e il passo moriva parlando di JSON mentre
+      # il problema era eslint. Exit ≥2, report assente/vuoto o report senza
+      # file lintati → rosso che nomina eslint, con lo stderr in chiaro.
+      # Report [] (2 byte, passa `-s`): COUNT=0 < baseline direbbe «abbassa
+      # la baseline a 0» e il ratchet sarebbe morto da lì in poi.
       - name: Lint (ratchet sul debito esistente)
         run: |
-          npx eslint . -f json --no-color > eslint-report.json || true
+          ESLINT_EXIT=0
+          npx eslint . -f json --no-color > eslint-report.json 2> eslint-stderr.log || ESLINT_EXIT=$?
+          if [ "$ESLINT_EXIT" -ge 2 ] || [ ! -s eslint-report.json ]; then
+            echo "::error::eslint non è partito (exit ${ESLINT_EXIT}): il rosso è di eslint, non del ratchet né del report JSON"
+            if [ -s eslint-stderr.log ]; then cat eslint-stderr.log; fi
+            exit 1
+          fi
+          if [ -s eslint-stderr.log ]; then echo "--- stderr di eslint ---"; cat eslint-stderr.log; fi
+          FILES=$(node -e "console.log(require('./eslint-report.json').length)")
+          if [ "$FILES" -eq 0 ]; then
+            echo "::error::eslint non ha lintato nessun file (report vuoto): baseline non confrontabile"
+            exit 1
+          fi
           COUNT=$(node -e "const r=require('./eslint-report.json');console.log(r.reduce((a,f)=>a+f.errorCount,0))")
           BASE=$(tr -dc '0-9' < .eslint-baseline)
           echo "errori attuali: $COUNT — baseline: $BASE"
