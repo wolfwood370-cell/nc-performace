@@ -140,9 +140,18 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # Non serve installare: audit legge il lockfile.
-      - name: Vulnerabilità note (alta e critica)
-        run: npm audit --audit-level=high
+      # Non serve installare: l'audit legge il lockfile e lo script usa solo
+      # la stdlib di Node (vincolo dichiarato nel suo header: questo job non
+      # ha node_modules). Il cancello non è più «npm audit esce 0»: è
+      # «nessuna vulnerabilità high/critical NON dichiarata». Le eccezioni
+      # vivono in .audit-allowlist.json — ognuna con perché, scadenza e
+      # interruttore (un pattern che, se compare nei sorgenti, fa cadere la
+      # premessa) — e il verde le stampa nel log: un cancello verde deve dire
+      # cosa ha lasciato passare. Simmetrico e voluto: un'advisory risolta
+      # tiene rossa la PR che la risolve finché la stessa PR non toglie la
+      # voce morta dall'allowlist.
+      - name: Vulnerabilità note (audit con eccezioni dichiarate)
+        run: node scripts/audit-gate.mjs
 
       # if: always() — senza, un `npm audit` rosso spegne anche la scansione
       # segreti: due varchi indipendenti non devono condividere il destino.
