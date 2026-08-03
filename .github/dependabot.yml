@@ -28,6 +28,14 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+      # La 3.18.3 rompe eslint (exit 2, «Could not resolve tailwindcss» da
+      # tailwind-api-utils/loadConfigV3) — misurato il 2026-08-03 su node 22
+      # e 24, con tailwindcss 3.4.x installato. Pin esatto 3.18.2 in
+      # package.json; rivedere entro il 2026-11-03 o alla prima release che
+      # risolve il caricamento (non esiste una 3.18.4; la 4.x è major e
+      # resta comunque manuale).
+      - dependency-name: "eslint-plugin-tailwindcss"
+        versions: [">3.18.2"]
     commit-message:
       prefix: "chore(deps)"
 
