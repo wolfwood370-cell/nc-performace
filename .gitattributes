@@ -1,0 +1,17 @@
+# Il fine-riga lo decide il repository, non la macchina di chi ci lavora.
+#   text=auto  git riconosce da sé cosa è testo e cosa è binario
+#   eol=lf     LF nell'indice E nell'albero di lavoro, su ogni sistema
+* text=auto eol=lf
+
+# Binari: mai convertiti, mai diffati come testo.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
