@@ -199,25 +199,75 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────
   # VARCO 4 — end-to-end (Playwright)
-  # Le 2 spec autenticate si auto-saltano senza credenziali; le 5 spec
-  # non autenticate richiedono comunque i secrets VITE_*: senza, il job
-  # è ROSSO (client Supabase con URL undefined). Vedi Aggiornamento 4
-  # del prompt-file 2026-07-30-ci-varchi.
+  # Le spec autenticate (coach e atleta) si auto-saltano senza credenziali;
+  # le spec non autenticate richiedono comunque i 3 secrets VITE_*: senza,
+  # l'app non si avvia e ogni spec muore per pagina vuota (misurato sulla
+  # PR #32: 36 rosse in ~11 minuti). Il primo passo («Cancello segreti»)
+  # decide prima di ogni passo pesante: secrets presenti → si gira; tutti
+  # assenti su una PR APERTA DA Dependabot → salto dichiarato con motivo
+  # nel log e nel Summary (GitHub non passa i secrets del repository ai
+  # run innescati da Dependabot: non è un difetto della PR); assenti in
+  # qualunque altro run → rosso che nomina i secret mancanti. L'uscita è
+  # agganciata a CHI HA APERTO LA PR, non al vuoto dei secrets: un secret
+  # cancellato per sbaglio resta un rosso ovunque tranne che sul bot.
   # ─────────────────────────────────────────────────────────────
   e2e:
     name: End-to-end (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Prima del checkout: non ha bisogno del workspace e decide se il
+      # resto del job debba esistere. Sentinella su TUTTI e tre i VITE_*
+      # (una publishable key cancellata con l'URL superstite darebbe la
+      # stessa firma illeggibile che questo cancello esiste per eliminare).
+      # L'ordine conta: secrets-presenti si valuta PRIMA dell'autore, così
+      # un push umano sul branch di una PR Dependabot (actor umano →
+      # secrets consegnati) gira normalmente.
+      - name: Cancello segreti
+        id: gate
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login || '' }}
+        run: |
+          MISSING=""
+          N=0
+          if [ -z "${VITE_SUPABASE_URL}" ]; then MISSING="${MISSING} VITE_SUPABASE_URL"; N=$((N+1)); fi
+          if [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY}" ]; then MISSING="${MISSING} VITE_SUPABASE_PUBLISHABLE_KEY"; N=$((N+1)); fi
+          if [ -z "${VITE_SUPABASE_PROJECT_ID}" ]; then MISSING="${MISSING} VITE_SUPABASE_PROJECT_ID"; N=$((N+1)); fi
+
+          if [ "${N}" -eq 0 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Il salto vale solo per il vuoto TOTALE (Dependabot non riceve
+          # nessuno dei tre): un vuoto parziale è uno stato incoerente del
+          # secret store e resta rosso anche sul bot.
+          if [ "${PR_AUTHOR}" = "dependabot[bot]" ] && [ "${N}" -eq 3 ]; then
+            MSG="End-to-end SALTATO, 0 test eseguiti: questa PR è di Dependabot e GitHub non passa i secrets del repository ai run che Dependabot innesca, quindi i VITE_* sono vuoti e l'app non si avvia. Non è un giudizio sul contenuto della PR: si giudica sui 2 check obbligatori più la revisione. La stessa suite gira per intero sulle PR claude/*."
+            echo "::notice::${MSG}"
+            echo "${MSG}" >> "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error::Secrets VITE mancanti:${MISSING}. Cause possibili: secret rimosso o mai creato (Settings → Secrets and variables → Actions), oppure run senza accesso ai secrets del repository (es. PR da un fork). Il varco end-to-end non può girare senza."
+          exit 1
+
       - uses: actions/checkout@v7
+        if: steps.gate.outputs.run == 'true'
 
       - uses: actions/setup-node@v7
+        if: steps.gate.outputs.run == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
 
       # Stesso pin del varco 1: `npm ci` gira solo con l'npm dichiarato.
       - name: Inchioda npm (packageManager di package.json)
+        if: steps.gate.outputs.run == 'true'
         run: |
           WANTED=$(node -p "(String(require('./package.json').packageManager||'').match(/npm@([0-9][^+]*)/)||[])[1]||''")
           if [ -z "${WANTED}" ]; then
@@ -233,12 +283,15 @@ jobs:
           fi
 
       - run: npm ci
+        if: steps.gate.outputs.run == 'true'
 
       - name: Browser
+        if: steps.gate.outputs.run == 'true'
         run: npx playwright install --with-deps chromium
 
       # playwright.config.ts avvia da sé `npm run dev` su :8080 e aspetta.
       - name: Test end-to-end
+        if: steps.gate.outputs.run == 'true'
         run: npx playwright test
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -246,6 +299,8 @@ jobs:
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
           E2E_COACH_EMAIL: ${{ secrets.E2E_COACH_EMAIL }}
           E2E_COACH_PASSWORD: ${{ secrets.E2E_COACH_PASSWORD }}
+          E2E_ATHLETE_EMAIL: ${{ secrets.E2E_ATHLETE_EMAIL }}
+          E2E_ATHLETE_PASSWORD: ${{ secrets.E2E_ATHLETE_PASSWORD }}
 
       - name: Report Playwright
         if: always()
