@@ -122,7 +122,6 @@ interface ThemePreferences {
 interface MaterialYouContextValue {
   theme: MaterialTheme;
   setSeedColor: (color: string) => void;
-  toggleDarkMode: () => void;
   // Neuro-Sync features
   isNeuroSyncEnabled: boolean;
   setNeuroSyncEnabled: (enabled: boolean) => void;
@@ -555,10 +554,6 @@ export function MaterialYouProvider({ children }: MaterialYouProviderProps) {
     () => ({
       theme,
       setSeedColor: setManualColor,
-      toggleDarkMode: () => {
-        // Toggle next-themes class — the MutationObserver will sync isDark
-        document.documentElement.classList.toggle("dark");
-      },
       isNeuroSyncEnabled: preferences.isNeuroSyncEnabled,
       setNeuroSyncEnabled,
       manualColor: preferences.manualColor,
