@@ -4,7 +4,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
-import { SunThemeSync } from "@/components/logic/SunThemeSync";
 import { OfflineSyncProvider } from "@/providers/OfflineSyncProvider";
 import { InstallPrompt } from "@/components/mobile/InstallPrompt";
 import { NetworkBadge } from "@/components/ui/NetworkBadge";
@@ -66,6 +65,12 @@ const DashboardRedirect = () => {
 };
 
 const App = () => (
+  // forcedTheme="light" is what keeps the app light even for users with a
+  // leftover `theme: dark` in localStorage (written by the removed theme
+  // toggle): next-themes always applies the forced class regardless of the
+  // stored preference. There is no dark theme to switch to — only 18 stray
+  // `dark:` variants across 276 files. A real dark theme is planned as its
+  // own slice together with the color scale; until then this stays.
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
     <OfflineSyncProvider>
       <TooltipProvider>

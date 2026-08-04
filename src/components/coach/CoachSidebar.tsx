@@ -60,8 +60,6 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FeedbackDialog } from "@/components/common/FeedbackDialog";
-import { SunThemeToggle } from "@/components/SunThemeToggle";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sidebar,
   SidebarContent,
@@ -225,7 +223,7 @@ export function CoachSidebar() {
           2. MENU PRINCIPALE (scrollable)
           ───────────────────────────────────────────────────────────── */}
       <SidebarContent className="px-3 py-2 overflow-y-auto custom-scrollbar">
-        <nav className="flex flex-col gap-5">
+        <nav aria-label="Navigazione principale coach" className="flex flex-col gap-5">
           {NAV_SECTIONS.map((section) => (
             <SidebarNavGroup
               key={section.label}
@@ -301,27 +299,6 @@ export function CoachSidebar() {
                 <p className="text-on-surface font-bold text-label-md truncate">{displayName}</p>
                 <p className="text-xs text-on-surface-variant truncate">S&amp;C Coach</p>
               </div>
-
-              <Popover>
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Tema e impostazioni rapide"
-                        className="h-8 w-8 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high flex-shrink-0"
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Tema</TooltipContent>
-                </Tooltip>
-                <PopoverContent align="end" side="top" className="w-72">
-                  <SunThemeToggle />
-                </PopoverContent>
-              </Popover>
 
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>

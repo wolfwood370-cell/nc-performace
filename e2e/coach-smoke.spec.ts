@@ -2,10 +2,15 @@ import { test, expect } from "../playwright-fixture";
 
 // Authenticated smoke over the coach surface. Runs only in the `chromium-coach`
 // project (real session from auth.setup) and skips cleanly without credentials.
-// Each route must render the coach shell — asserted via the persistent sidebar
-// landmark `aria-label="Impostazioni"` — on an EMPTY backend (no seed needed).
-// `/coach/athlete/:id` is intentionally excluded: it requires a real athlete,
-// which a roster-empty backend cannot provide.
+// Each route must render the coach shell — asserted via the sidebar's
+// navigation landmark `aria-label="Navigazione principale coach"`
+// (CoachSidebar), the coach twin of the athlete layout's "Navigazione
+// principale atleta". The landmark exists in both sidebar states (collapsed
+// and expanded) but the sidebar itself is desktop-only (hidden below md),
+// so this assertion requires the Desktop Chrome viewport this project uses.
+// Runs on an EMPTY backend (no seed needed). `/coach/athlete/:id` is
+// intentionally excluded: it requires a real athlete, which a roster-empty
+// backend cannot provide.
 
 const HAS_CREDS = !!process.env.E2E_COACH_EMAIL && !!process.env.E2E_COACH_PASSWORD;
 
@@ -38,7 +43,9 @@ test.describe("Coach surface smoke — authenticated", () => {
       });
 
       await page.goto(route);
-      await expect(page.getByLabel("Impostazioni").first()).toBeVisible({ timeout: 15_000 });
+      await expect(
+        page.getByRole("navigation", { name: "Navigazione principale coach" }),
+      ).toBeVisible({ timeout: 15_000 });
 
       expect(fatal, `Errori pagina non filtrati:\n${fatal.join("\n")}`).toEqual([]);
     });
