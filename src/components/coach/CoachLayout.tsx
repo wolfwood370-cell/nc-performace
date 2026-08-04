@@ -1,11 +1,9 @@
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { CoachSidebar } from "./CoachSidebar";
 import { CoachBottomNav } from "./CoachBottomNav";
-import { AlertTriangle, Search, ChevronRight, Settings } from "lucide-react";
+import { AlertTriangle, Search, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SunThemeToggle } from "@/components/SunThemeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -77,16 +75,6 @@ function CoachHeader({ title }: { title?: string; subtitle?: string }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Impostazioni" className="h-9 w-9">
-              <Settings className="h-[18px] w-[18px] text-muted-foreground" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72">
-            <SunThemeToggle />
-          </PopoverContent>
-        </Popover>
         <NotificationBell />
       </div>
     </header>
