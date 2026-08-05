@@ -6,8 +6,10 @@
  * not there. `bg-error-container` shipped through every green gate and the
  * coach read a severity pill with no colour on it.
  *
- * Five checks, against the BUILT stylesheet, because only the built
- * stylesheet knows what Tailwind actually emitted:
+ * Six checks. The first five run against the BUILT stylesheet, because only
+ * the built stylesheet knows what Tailwind actually emitted; the sixth reads
+ * the sources and `src/index.css` directly, because its defect never reaches
+ * the stylesheet at all:
  *
  *   1. the stylesheet is not older than the sources that produce it;
  *   2. every expected class is emitted, reads the expected CSS variable, that
@@ -22,6 +24,14 @@
  *      protect what someone remembered to write into it — 24 `chart-[1-5]`
  *      utilities that no config ever knew survived for months under a green
  *      gate exactly this shape. Check 5 scans instead of remembering.
+ *   6. DERIVED like check 5, no list on either side: every `hsl(var(--x))`
+ *      written in the sources is checked against how `--x` is declared in
+ *      `src/index.css`. A variable that already holds a complete `hsl(...)`
+ *      turns the usage into `hsl(hsl(...))` — invalid CSS, the declaration
+ *      is dropped and the element paints nothing. Channel form is fine;
+ *      a variable not declared in `src/index.css` (runtime-written) is
+ *      assumed fine. Declared complete in ONE block and channels in another
+ *      is broken: the worst case is the one that reaches a screen.
  *
  * Opacity variants are listed on purpose: in Tailwind v3 a colour declared as
  * a complete `var(--x)` silently drops the opacity modifier — no rule is
@@ -51,6 +61,16 @@
  *   - comment lines are recognised by their START (`*`, `//`, `/*`, `{/*`):
  *     the continuation lines of a multi-line `{/* … ` JSX block are still
  *     scanned, so a chart utility written mid-block would count as code.
+ *     Check 6 shares this limit — and note that `src/index.css` itself
+ *     documents the pattern inside CSS comments, which is why its comments
+ *     are stripped before its declarations are parsed;
+ *   - check 6 reads declarations from `src/index.css` only: a variable
+ *     written exclusively at runtime (the `--m3-*` family, set by
+ *     MaterialYouProvider with bare channel values) is invisible to it and
+ *     passes on trust. Usages inside `index.css` itself are not scanned
+ *     (the source scan is `.ts/.tsx` — today the only two `hsl(var(--…))`
+ *     strings in that file sit inside comments), and neither a fallback
+ *     form `hsl(var(--x, …))` nor a name built dynamically would match.
  *
  * Usage: npm run build && npm run verify:css
  */
@@ -322,6 +342,75 @@ console.log(
   `  ✓ check 5: ${chartEmitted}/${chartClassSites.size} utility chart-* trovate nei sorgenti hanno una regola emessa`,
 );
 
+// ── 6. DERIVED: no source wraps a complete-colour variable in hsl(var()) ───
+// `hsl(var(--x))` is valid only while `--x` holds bare channels. Wrapped
+// around a variable that is already a complete colour it becomes
+// `hsl(hsl(…))` — the browser drops the declaration and the element paints
+// nothing: the defect class of this whole gate, one wrapper earlier.
+// Declarations are read from src/index.css with comments stripped (the
+// documentation in that file mentions these very patterns), across every
+// block that declares variables (`:root`, `.dark`, `.theme-athlete`).
+const INDEX_CSS = "src/index.css";
+const cssVarDecls = new Map(); // --name → every declared value, all blocks
+if (existsSync(INDEX_CSS)) {
+  const decommented = readFileSync(INDEX_CSS, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const m of decommented.matchAll(/(--[a-zA-Z0-9-]+)\s*:\s*([^;{}]+);/g)) {
+    if (!cssVarDecls.has(m[1])) cssVarDecls.set(m[1], []);
+    cssVarDecls.get(m[1]).push(m[2].trim());
+  }
+}
+
+// An empty map means the check would wave EVERYTHING through as
+// "runtime-written" — green with zero assertions, the silent-pass failure
+// mode this whole gate exists to prevent. Fail loudly instead.
+if (cssVarDecls.size === 0) {
+  failures.push(
+    `${INDEX_CSS} — nessuna dichiarazione di variabile trovata (file mancante o vuoto): ` +
+      `il check 6 non sta verificando nulla`,
+  );
+}
+
+const HSL_VAR_USE = /hsl\(var\((--[a-zA-Z0-9-]+)\)/g;
+let hslWrapOk = 0;
+let hslWrapBroken = 0;
+for (const file of SOURCE_FILES) {
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  lines.forEach((line, i) => {
+    if (isCommentLine(line.trim())) return;
+    for (const m of line.matchAll(HSL_VAR_USE)) {
+      const name = m[1];
+      const site = `${file.replace(/\\/g, "/")}:${i + 1}`;
+      const decls = cssVarDecls.get(name) ?? [];
+      const complete = decls.filter((v) => v.startsWith("hsl("));
+      const otherNonChannel = decls.find((v) => !v.startsWith("hsl(") && !CHANNEL_FORM.test(v));
+      if (complete.length > 0) {
+        const mixed =
+          complete.length < decls.length
+            ? " — e a canali in un altro blocco: vale il caso peggiore"
+            : "";
+        failures.push(
+          `${site} — hsl(var(${name})): ${name} è già un colore completo in ` +
+            `${INDEX_CSS} («${complete[0]}»${mixed}); hsl(hsl(…)) è invalido e ` +
+            `l'elemento resta senza colore — usa var(${name}) nuda`,
+        );
+        hslWrapBroken += 1;
+      } else if (otherNonChannel !== undefined) {
+        failures.push(
+          `${site} — hsl(var(${name})): ${name} è dichiarata in ${INDEX_CSS} come ` +
+            `«${otherNonChannel}», che non è una terna di canali: dentro hsl() produce CSS invalido`,
+        );
+        hslWrapBroken += 1;
+      } else {
+        hslWrapOk += 1; // channel form, or declared only at runtime
+      }
+    }
+  });
+}
+console.log(
+  `  ${hslWrapBroken === 0 ? "✓" : "✗"} check 6: ${hslWrapBroken} usi hsl(var(--x)) ` +
+    `su variabile-colore completa / ${hslWrapOk} corretti`,
+);
+
 if (failures.length > 0) {
   console.error(`\n✗ ${failures.length} controlli falliti — la gravità non arriva a schermo:`);
   for (const f of failures) console.error(`  - ${f}`);
@@ -335,5 +424,6 @@ if (failures.length > 0) {
 console.log(
   `\n✓ ${Object.keys(EXPECTED).length} classi presenti e in uso, ` +
     `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime, ` +
-    `${chartClassSites.size} utility chart-* derivate dai sorgenti tutte emesse.`,
+    `${chartClassSites.size} utility chart-* derivate dai sorgenti tutte emesse, ` +
+    `${hslWrapOk} usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime.`,
 );
