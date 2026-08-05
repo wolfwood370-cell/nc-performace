@@ -1115,9 +1115,8 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
 
   // INSERT a `body_measurements` row from the dialog form. Only fields the
   // coach actually filled in get persisted — empty strings collapse to
-  // `null`. After success the dialog closes and the body-measurements
-  // query (when wired in a follow-up PR) gets invalidated so the chart
-  // refreshes.
+  // `null`. After success the dialog closes and both weight readers (this
+  // tab and the Overview trend) are invalidated so the charts refresh.
   const addMeasurementMutation = useMutation({
     mutationFn: async (input: typeof newMetric) => {
       if (!athleteId) throw new Error("Atleta non selezionato.");
@@ -1152,6 +1151,9 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["body-measurements", athleteId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["athlete-weight-trend", athleteId],
       });
       toast.success("Misurazioni registrate");
       setIsAddDialogOpen(false);
@@ -2666,23 +2668,35 @@ export default function AthleteDetail() {
     enabled: !!id,
   });
 
-  // Fetch weight trend (30 days)
+  // Fetch weight trend (30 days) — union of the athlete's self-weighs
+  // (daily_metrics) and the coach's instrument measurements
+  // (body_measurements); on date collision the measurement wins.
   const { data: weightTrend } = useQuery({
     queryKey: ["athlete-weight-trend", id],
     queryFn: async () => {
       if (!id) return [];
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
-      const { data, error } = await supabase
-        .from("daily_metrics")
-        .select("date, weight_kg")
-        .eq("user_id", id)
-        .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
-        .order("date", { ascending: true });
+      const [selfWeighs, measured] = await Promise.all([
+        supabase
+          .from("daily_metrics")
+          .select("date, weight_kg")
+          .eq("user_id", id)
+          .gte("date", startDate)
+          .order("date", { ascending: true }),
+        supabase
+          .from("body_measurements")
+          .select("date, weight_kg")
+          .eq("athlete_id", id)
+          .gte("date", startDate)
+          .order("date", { ascending: true }),
+      ]);
 
-      if (error) throw error;
-      return data?.filter((d) => d.weight_kg !== null) || [];
+      if (selfWeighs.error) throw selfWeighs.error;
+      if (measured.error) throw measured.error;
+      return mergeWeightSources(selfWeighs.data ?? [], measured.data ?? []);
     },
     enabled: !!id,
   });
