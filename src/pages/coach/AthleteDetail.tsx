@@ -119,12 +119,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
+  computeTrendSeries,
+  computeWeightStats,
+  deriveMeasurementCards,
+  mergeWeightSources,
+  type MeasurementRow,
+} from "@/lib/measurements/weightTrend";
+import {
   format,
   formatDistanceToNow,
   startOfWeek,
   endOfWeek,
   addDays,
-  subDays,
+  parseISO,
   isAfter,
   isBefore,
   isSameDay,
@@ -1050,81 +1057,6 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
   );
 }
 
-// Generate mock weight data with trend calculation
-const generateMockWeightData = () => {
-  const data: Array<{
-    date: Date;
-    dateLabel: string;
-    weight: number;
-    trend: number | null;
-  }> = [];
-
-  const today = new Date();
-  let baseWeight = 82 + (Math.random() * 4 - 2); // Starting around 80-84kg
-
-  for (let i = 59; i >= 0; i--) {
-    const date = subDays(today, i);
-    // Add some natural fluctuation
-    const dailyFluctuation = Math.random() * 1.2 - 0.6; // +/- 0.6kg daily fluctuation
-    const progressTrend = -0.02; // Slight downward trend (cutting phase)
-
-    baseWeight += progressTrend + (Math.random() * 0.1 - 0.05);
-    const weight = Math.round((baseWeight + dailyFluctuation) * 10) / 10;
-
-    data.push({
-      date,
-      dateLabel: format(date, "MMM d"),
-      weight,
-      trend: null,
-    });
-  }
-
-  // Calculate 7-day moving average (trend line)
-  for (let i = 6; i < data.length; i++) {
-    const windowWeights = data.slice(i - 6, i + 1).map((d) => d.weight);
-    const average = windowWeights.reduce((sum, w) => sum + w, 0) / windowWeights.length;
-    data[i].trend = Math.round(average * 10) / 10;
-  }
-
-  return data;
-};
-
-// Generate mock body measurements
-const generateMockMeasurements = () => {
-  const today = new Date();
-  const measurementTypes = [
-    { key: "waist", label: "Vita", unit: "cm", baseValue: 84, change: -0.3 },
-    { key: "chest", label: "Petto", unit: "cm", baseValue: 104, change: 0.1 },
-    { key: "thigh", label: "Coscia", unit: "cm", baseValue: 58, change: 0.2 },
-    { key: "arm", label: "Braccio", unit: "cm", baseValue: 38, change: 0.15 },
-  ];
-
-  return measurementTypes.map((type) => {
-    const history: Array<{ date: Date; value: number }> = [];
-    let value = type.baseValue;
-
-    for (let i = 8; i >= 0; i--) {
-      const date = subDays(today, i * 7); // Weekly measurements
-      value += type.change + (Math.random() * 0.4 - 0.2);
-      history.push({
-        date,
-        value: Math.round(value * 10) / 10,
-      });
-    }
-
-    const latestValue = history[history.length - 1]?.value ?? type.baseValue;
-    const previousValue = history[history.length - 2]?.value ?? type.baseValue;
-    const weeklyChange = Math.round((latestValue - previousValue) * 10) / 10;
-
-    return {
-      ...type,
-      latestValue,
-      weeklyChange,
-      history,
-    };
-  });
-};
-
 // Mini sparkline component for measurements
 function MiniSparkline({
   data,
@@ -1133,7 +1065,8 @@ function MiniSparkline({
   data: Array<{ value: number }>;
   color?: string;
 }) {
-  if (!data.length) return null;
+  // A single point cannot draw a line (and would divide by zero below).
+  if (data.length < 2) return null;
 
   const values = data.map((d) => d.value);
   const min = Math.min(...values);
@@ -1182,9 +1115,8 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
 
   // INSERT a `body_measurements` row from the dialog form. Only fields the
   // coach actually filled in get persisted — empty strings collapse to
-  // `null`. After success the dialog closes and the body-measurements
-  // query (when wired in a follow-up PR) gets invalidated so the chart
-  // refreshes.
+  // `null`. After success the dialog closes and both weight readers (this
+  // tab and the Overview trend) are invalidated so the charts refresh.
   const addMeasurementMutation = useMutation({
     mutationFn: async (input: typeof newMetric) => {
       if (!athleteId) throw new Error("Atleta non selezionato.");
@@ -1220,6 +1152,9 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
       queryClient.invalidateQueries({
         queryKey: ["body-measurements", athleteId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["athlete-weight-trend", athleteId],
+      });
       toast.success("Misurazioni registrate");
       setIsAddDialogOpen(false);
       setNewMetric({ weight: "", waist: "", chest: "", thigh: "", arm: "" });
@@ -1229,30 +1164,62 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
     },
   });
 
-  // Mock data (in production, fetch from daily_metrics)
-  const weightData = useMemo(() => generateMockWeightData(), []);
-  const measurements = useMemo(() => generateMockMeasurements(), []);
+  // Coach-entered measurements — same query key the mutation above
+  // invalidates on success, so a new insert refreshes this tab.
+  const {
+    data: measurementRows = [],
+    isSuccess: measurementsLoaded,
+    isError: measurementsError,
+    fetchStatus: measurementsFetchStatus,
+  } = useQuery({
+    queryKey: ["body-measurements", athleteId],
+    queryFn: async (): Promise<MeasurementRow[]> => {
+      if (!athleteId) return [];
+      const { data, error } = await supabase
+        .from("body_measurements")
+        .select("date, weight_kg, waist_cm, chest_cm, thigh_cm, arm_cm")
+        .eq("athlete_id", athleteId)
+        .order("date", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!athleteId,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // Calculate weight stats
-  const weightStats = useMemo(() => {
-    const recentData = weightData.filter((d) => d.trend !== null);
-    if (recentData.length < 2) return { currentTrend: 0, weeklyChange: 0 };
+  // Weight series for this tab reads body_measurements only — the merged
+  // two-source view lives in the Overview card.
+  const trendSeries = useMemo(
+    () => computeTrendSeries(mergeWeightSources([], measurementRows)),
+    [measurementRows],
+  );
 
-    const currentTrend = recentData[recentData.length - 1]?.trend ?? 0;
-    const weekAgoTrend = recentData[recentData.length - 8]?.trend ?? currentTrend;
-    const weeklyChange = Math.round((currentTrend - weekAgoTrend) * 10) / 10;
+  const weightStats = useMemo(() => computeWeightStats(trendSeries), [trendSeries]);
 
-    return { currentTrend, weeklyChange };
-  }, [weightData]);
+  // Last 30 measurements, not last 30 days: with sparse data a day-window
+  // could blank a chart that has history.
+  const chartData = useMemo(
+    () =>
+      trendSeries.slice(-30).map((point) => ({
+        date: format(parseISO(point.date), "MMM d"),
+        weight: point.weight_kg,
+        trend: point.trend,
+      })),
+    [trendSeries],
+  );
 
-  // Chart data for last 30 days
-  const chartData = useMemo(() => {
-    return weightData.slice(-30).map((d) => ({
-      date: d.dateLabel,
-      weight: d.weight,
-      trend: d.trend,
-    }));
-  }, [weightData]);
+  const measurements = useMemo(() => deriveMeasurementCards(measurementRows), [measurementRows]);
+
+  // Waist clause of the weekly summary: same honesty rule as the weight —
+  // a change compared across more than 30 days is not narrated.
+  const waistCard = measurements.find((m) => m.key === "waist");
+  const waistChange =
+    waistCard != null &&
+    waistCard.weeklyChange !== null &&
+    waistCard.lastGapDays !== null &&
+    waistCard.lastGapDays <= 30
+      ? waistCard.weeklyChange
+      : null;
 
   const handleAddMetric = () => {
     addMeasurementMutation.mutate(newMetric);
@@ -1427,118 +1394,160 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Stats Row */}
-            <div className="flex items-center gap-6 mb-4 pb-4 border-b border-border/50">
-              <div>
-                <p className="text-sm text-muted-foreground">Trend Attuale</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {weightStats.currentTrend.toFixed(1)} kg
+            {/* Data first: rows already loaded keep rendering through a
+                failed background refetch; emptiness is asserted only on a
+                settled fresh answer, never while fetching or paused. */}
+            {trendSeries.length > 0 ? (
+              <>
+                {/* Stats Row */}
+                <div className="flex items-center gap-6 mb-4 pb-4 border-b border-border/50">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Trend Attuale</p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {weightStats.currentTrend?.toFixed(1)} kg
+                    </p>
+                  </div>
+                  <div className="h-10 w-px bg-border" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Variazione Settimanale</p>
+                    {weightStats.weeklyChange === null ? (
+                      <p className="text-2xl font-bold text-muted-foreground">—</p>
+                    ) : (
+                      <p
+                        className={cn(
+                          "text-2xl font-bold",
+                          weightStats.weeklyChange < 0
+                            ? "text-green-500"
+                            : weightStats.weeklyChange > 0
+                              ? "text-amber-500"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {weightStats.weeklyChange > 0 ? "+" : ""}
+                        {weightStats.weeklyChange.toFixed(1)} kg
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chart */}
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={chartData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+                    >
+                      <XAxis
+                        dataKey="date"
+                        stroke="var(--muted-foreground)"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        stroke="var(--muted-foreground)"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        domain={["dataMin - 1", "dataMax + 1"]}
+                        tickFormatter={(value) => `${value}kg`}
+                      />
+                      <ChartTooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
+                              <p className="text-sm font-medium text-foreground">{data.date}</p>
+                              <div className="space-y-1 mt-1">
+                                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <CircleDot className="h-3 w-3 text-muted-foreground/50" />
+                                  Effettivo:{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {data.weight} kg
+                                  </span>
+                                </p>
+                                {data.trend && (
+                                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <div className="w-3 h-0.5 bg-primary rounded" />
+                                    Trend:{" "}
+                                    <span className="font-semibold text-primary">
+                                      {data.trend} kg
+                                    </span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      {/* Raw weight as dots — bigger when few real points,
+                          or they would be nearly invisible. */}
+                      <Line
+                        type="monotone"
+                        dataKey="weight"
+                        stroke="var(--muted-foreground)"
+                        strokeWidth={0}
+                        dot={{
+                          fill: "var(--muted-foreground)",
+                          r: chartData.length <= 5 ? 4 : 2,
+                          opacity: chartData.length <= 5 ? 0.8 : 0.4,
+                        }}
+                        activeDot={{ r: 4, fill: "var(--foreground)" }}
+                      />
+                      {/* Trend line (7-day MA). A single point draws no
+                          segment, so it gets a visible dot instead. */}
+                      <Line
+                        type="monotone"
+                        dataKey="trend"
+                        stroke="var(--primary)"
+                        strokeWidth={3}
+                        dot={chartData.length === 1 ? { r: 5, fill: "var(--primary)" } : false}
+                        activeDot={{ r: 5, fill: "var(--primary)" }}
+                        connectNulls
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center justify-center gap-6 pt-4 border-t border-border/50">
+                  <div className="flex items-center gap-2">
+                    <CircleDot className="h-3 w-3 text-muted-foreground/50" />
+                    <span className="text-xs text-muted-foreground">Peso Giornaliero</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-0.5 bg-primary rounded" />
+                    <span className="text-xs text-muted-foreground">Trend 7 Giorni</span>
+                  </div>
+                </div>
+              </>
+            ) : measurementRows.length > 0 ? (
+              <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-medium text-foreground">Nessun peso registrato</p>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Le misurazioni salvate finora non includono il peso: usa «Registra Misurazione»
+                  qui sopra e il grafico comparirà qui.
                 </p>
               </div>
-              <div className="h-10 w-px bg-border" />
-              <div>
-                <p className="text-sm text-muted-foreground">Variazione Settimanale</p>
-                <p
-                  className={cn(
-                    "text-2xl font-bold",
-                    weightStats.weeklyChange < 0
-                      ? "text-green-500"
-                      : weightStats.weeklyChange > 0
-                        ? "text-amber-500"
-                        : "text-muted-foreground",
-                  )}
-                >
-                  {weightStats.weeklyChange > 0 ? "+" : ""}
-                  {weightStats.weeklyChange.toFixed(1)} kg
+            ) : measurementsError ? (
+              <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
+                Errore nel caricamento delle misurazioni.
+              </div>
+            ) : measurementsLoaded && measurementsFetchStatus === "idle" ? (
+              <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  Nessuna misurazione registrata
+                </p>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Usa «Registra Misurazione» qui sopra per salvare la prima: peso e trend
+                  compariranno qui.
                 </p>
               </div>
-            </div>
-
-            {/* Chart */}
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <XAxis
-                    dataKey="date"
-                    stroke="var(--muted-foreground)"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={4}
-                  />
-                  <YAxis
-                    stroke="var(--muted-foreground)"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={["dataMin - 1", "dataMax + 1"]}
-                    tickFormatter={(value) => `${value}kg`}
-                  />
-                  <ChartTooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-                          <p className="text-sm font-medium text-foreground">{data.date}</p>
-                          <div className="space-y-1 mt-1">
-                            <p className="text-sm text-muted-foreground flex items-center gap-2">
-                              <CircleDot className="h-3 w-3 text-muted-foreground/50" />
-                              Effettivo:{" "}
-                              <span className="font-semibold text-foreground">
-                                {data.weight} kg
-                              </span>
-                            </p>
-                            {data.trend && (
-                              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                                <div className="w-3 h-0.5 bg-primary rounded" />
-                                Trend:{" "}
-                                <span className="font-semibold text-primary">{data.trend} kg</span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  {/* Raw weight as dots */}
-                  <Line
-                    type="monotone"
-                    dataKey="weight"
-                    stroke="var(--muted-foreground)"
-                    strokeWidth={0}
-                    dot={{
-                      fill: "var(--muted-foreground)",
-                      r: 2,
-                      opacity: 0.4,
-                    }}
-                    activeDot={{ r: 4, fill: "var(--foreground)" }}
-                  />
-                  {/* Trend line (7-day MA) */}
-                  <Line
-                    type="monotone"
-                    dataKey="trend"
-                    stroke="var(--primary)"
-                    strokeWidth={3}
-                    dot={false}
-                    activeDot={{ r: 5, fill: "var(--primary)" }}
-                    connectNulls
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-6 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-2">
-                <CircleDot className="h-3 w-3 text-muted-foreground/50" />
-                <span className="text-xs text-muted-foreground">Peso Giornaliero</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-0.5 bg-primary rounded" />
-                <span className="text-xs text-muted-foreground">Trend 7 Giorni</span>
-              </div>
-            </div>
+            ) : (
+              <Skeleton className="h-[280px] w-full" />
+            )}
           </CardContent>
         </Card>
 
@@ -1549,66 +1558,105 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
             Misurazioni Corporee
           </h3>
 
-          {measurements.map((measurement) => (
-            <Card key={measurement.key} className="overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-foreground">{measurement.label}</span>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-xs",
-                      measurement.weeklyChange < 0 && measurement.key === "waist"
-                        ? "text-green-500 border-green-500/30"
-                        : measurement.weeklyChange > 0 && measurement.key !== "waist"
-                          ? "text-green-500 border-green-500/30"
-                          : measurement.weeklyChange !== 0
-                            ? "text-amber-500 border-amber-500/30"
-                            : "",
+          {/* Same data-first order as the weight card: loaded rows keep
+              rendering through a failed refetch; emptiness only settles
+              on a fresh idle answer. */}
+          {measurementRows.length > 0 ? (
+            measurements.map((measurement) => (
+              <Card key={measurement.key} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">{measurement.label}</span>
+                    {measurement.weeklyChange !== null && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs",
+                          measurement.weeklyChange < 0 && measurement.key === "waist"
+                            ? "text-green-500 border-green-500/30"
+                            : measurement.weeklyChange > 0 && measurement.key !== "waist"
+                              ? "text-green-500 border-green-500/30"
+                              : measurement.weeklyChange !== 0
+                                ? "text-amber-500 border-amber-500/30"
+                                : "",
+                        )}
+                      >
+                        {measurement.weeklyChange > 0 ? "+" : ""}
+                        {measurement.weeklyChange} {measurement.unit}
+                      </Badge>
                     )}
-                  >
-                    {measurement.weeklyChange > 0 ? "+" : ""}
-                    {measurement.weeklyChange} {measurement.unit}
-                  </Badge>
-                </div>
-
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">{measurement.latestValue}</p>
-                    <p className="text-xs text-muted-foreground">{measurement.unit}</p>
                   </div>
 
-                  <div className="flex-1 max-w-[80px]">
-                    <MiniSparkline
-                      data={measurement.history}
-                      color={measurement.key === "waist" ? "var(--success)" : "var(--primary)"}
-                    />
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-2xl font-bold text-foreground">
+                        {measurement.latestValue ?? "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{measurement.unit}</p>
+                    </div>
+
+                    <div className="flex-1 max-w-[80px]">
+                      <MiniSparkline
+                        data={measurement.history}
+                        color={measurement.key === "waist" ? "var(--success)" : "var(--primary)"}
+                      />
+                    </div>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : measurementsError ? (
+            <Card>
+              <CardContent className="p-4 text-sm text-muted-foreground">
+                Errore nel caricamento delle misurazioni.
               </CardContent>
             </Card>
-          ))}
+          ) : measurementsLoaded && measurementsFetchStatus === "idle" ? (
+            <Card>
+              <CardContent className="p-4 text-sm text-muted-foreground">
+                Nessuna circonferenza registrata: le card si riempiono con «Registra Misurazione».
+              </CardContent>
+            </Card>
+          ) : (
+            <Skeleton className="h-24 w-full" />
+          )}
 
-          {/* Quick Summary Card */}
-          <Card className="bg-muted/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Riepilogo Settimanale</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Peso in {weightStats.weeklyChange < 0 ? "calo" : "mantenimento"}, vita{" "}
-                {(measurements.find((m) => m.key === "waist")?.weeklyChange ?? 0) < 0
-                  ? "in diminuzione"
-                  : "stabile"}
-                .
-                {weightStats.weeklyChange < 0 &&
-                (measurements.find((m) => m.key === "waist")?.weeklyChange ?? 0) < 0
-                  ? "Buoni progressi nella fase di taglio!"
-                  : "Composizione in mantenimento."}
-              </p>
-            </CardContent>
-          </Card>
+          {/* Quick Summary Card — only written when a weekly change was
+              actually measured (two weight points, 7-30 days apart); the
+              waist clause additionally needs its own gap within 30 days.
+              Directions are stated as measured — an increase is named an
+              increase, and the verdict only exists where it is true. */}
+          {weightStats.weeklyChange !== null && (
+            <Card className="bg-muted/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Riepilogo Settimanale</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Peso in{" "}
+                  {weightStats.weeklyChange < 0
+                    ? "calo"
+                    : weightStats.weeklyChange > 0
+                      ? "aumento"
+                      : "mantenimento"}
+                  {waistChange !== null &&
+                    `, vita ${
+                      waistChange < 0
+                        ? "in diminuzione"
+                        : waistChange > 0
+                          ? "in aumento"
+                          : "stabile"
+                    }`}
+                  .
+                  {weightStats.weeklyChange < 0 &&
+                    waistChange !== null &&
+                    waistChange < 0 &&
+                    " Buoni progressi nella fase di taglio!"}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
@@ -2660,23 +2708,35 @@ export default function AthleteDetail() {
     enabled: !!id,
   });
 
-  // Fetch weight trend (30 days)
+  // Fetch weight trend (30 days) — union of the athlete's self-weighs
+  // (daily_metrics) and the coach's instrument measurements
+  // (body_measurements); on date collision the measurement wins.
   const { data: weightTrend } = useQuery({
     queryKey: ["athlete-weight-trend", id],
     queryFn: async () => {
       if (!id) return [];
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
-      const { data, error } = await supabase
-        .from("daily_metrics")
-        .select("date, weight_kg")
-        .eq("user_id", id)
-        .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
-        .order("date", { ascending: true });
+      const [selfWeighs, measured] = await Promise.all([
+        supabase
+          .from("daily_metrics")
+          .select("date, weight_kg")
+          .eq("user_id", id)
+          .gte("date", startDate)
+          .order("date", { ascending: true }),
+        supabase
+          .from("body_measurements")
+          .select("date, weight_kg")
+          .eq("athlete_id", id)
+          .gte("date", startDate)
+          .order("date", { ascending: true }),
+      ]);
 
-      if (error) throw error;
-      return data?.filter((d) => d.weight_kg !== null) || [];
+      if (selfWeighs.error) throw selfWeighs.error;
+      if (measured.error) throw measured.error;
+      return mergeWeightSources(selfWeighs.data ?? [], measured.data ?? []);
     },
     enabled: !!id,
   });
