@@ -221,7 +221,7 @@ export function OverviewTab({
                     config={{
                       weight: {
                         label: "Peso",
-                        color: "hsl(var(--primary))",
+                        color: "var(--primary)",
                       },
                     }}
                     className="h-full w-full"
@@ -229,8 +229,8 @@ export function OverviewTab({
                     <AreaChart data={weightTrend}>
                       <defs>
                         <linearGradient id="weightGradientOverview" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="date" hide />
@@ -239,7 +239,7 @@ export function OverviewTab({
                       <Area
                         type="monotone"
                         dataKey="weight_kg"
-                        stroke="hsl(var(--primary))"
+                        stroke="var(--primary)"
                         fill="url(#weightGradientOverview)"
                         strokeWidth={2}
                       />
