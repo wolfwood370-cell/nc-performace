@@ -1170,6 +1170,7 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
     data: measurementRows = [],
     isSuccess: measurementsLoaded,
     isError: measurementsError,
+    fetchStatus: measurementsFetchStatus,
   } = useQuery({
     queryKey: ["body-measurements", athleteId],
     queryFn: async (): Promise<MeasurementRow[]> => {
@@ -1209,7 +1210,16 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
 
   const measurements = useMemo(() => deriveMeasurementCards(measurementRows), [measurementRows]);
 
-  const waistChange = measurements.find((m) => m.key === "waist")?.weeklyChange ?? null;
+  // Waist clause of the weekly summary: same honesty rule as the weight —
+  // a change compared across more than 30 days is not narrated.
+  const waistCard = measurements.find((m) => m.key === "waist");
+  const waistChange =
+    waistCard != null &&
+    waistCard.weeklyChange !== null &&
+    waistCard.lastGapDays !== null &&
+    waistCard.lastGapDays <= 30
+      ? waistCard.weeklyChange
+      : null;
 
   const handleAddMetric = () => {
     addMeasurementMutation.mutate(newMetric);
@@ -1384,23 +1394,10 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
             </div>
           </CardHeader>
           <CardContent>
-            {!measurementsLoaded && !measurementsError ? (
-              <Skeleton className="h-[280px] w-full" />
-            ) : measurementsError ? (
-              <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
-                Errore nel caricamento delle misurazioni.
-              </div>
-            ) : trendSeries.length === 0 ? (
-              <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
-                <p className="text-sm font-medium text-foreground">
-                  Nessuna misurazione registrata
-                </p>
-                <p className="text-xs text-muted-foreground max-w-[280px]">
-                  Usa «Registra Misurazione» qui sopra per salvare la prima: peso e trend
-                  compariranno qui.
-                </p>
-              </div>
-            ) : (
+            {/* Data first: rows already loaded keep rendering through a
+                failed background refetch; emptiness is asserted only on a
+                settled fresh answer, never while fetching or paused. */}
+            {trendSeries.length > 0 ? (
               <>
                 {/* Stats Row */}
                 <div className="flex items-center gap-6 mb-4 pb-4 border-b border-border/50">
@@ -1446,7 +1443,7 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                         fontSize={10}
                         tickLine={false}
                         axisLine={false}
-                        interval={4}
+                        interval="preserveStartEnd"
                       />
                       <YAxis
                         stroke="var(--muted-foreground)"
@@ -1485,7 +1482,8 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                           );
                         }}
                       />
-                      {/* Raw weight as dots */}
+                      {/* Raw weight as dots — bigger when few real points,
+                          or they would be nearly invisible. */}
                       <Line
                         type="monotone"
                         dataKey="weight"
@@ -1493,18 +1491,19 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                         strokeWidth={0}
                         dot={{
                           fill: "var(--muted-foreground)",
-                          r: 2,
-                          opacity: 0.4,
+                          r: chartData.length <= 5 ? 4 : 2,
+                          opacity: chartData.length <= 5 ? 0.8 : 0.4,
                         }}
                         activeDot={{ r: 4, fill: "var(--foreground)" }}
                       />
-                      {/* Trend line (7-day MA) */}
+                      {/* Trend line (7-day MA). A single point draws no
+                          segment, so it gets a visible dot instead. */}
                       <Line
                         type="monotone"
                         dataKey="trend"
                         stroke="var(--primary)"
                         strokeWidth={3}
-                        dot={false}
+                        dot={chartData.length === 1 ? { r: 5, fill: "var(--primary)" } : false}
                         activeDot={{ r: 5, fill: "var(--primary)" }}
                         connectNulls
                       />
@@ -1524,6 +1523,30 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                   </div>
                 </div>
               </>
+            ) : measurementRows.length > 0 ? (
+              <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-medium text-foreground">Nessun peso registrato</p>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Le misurazioni salvate finora non includono il peso: usa «Registra Misurazione»
+                  qui sopra e il grafico comparirà qui.
+                </p>
+              </div>
+            ) : measurementsError ? (
+              <div className="h-[280px] flex items-center justify-center text-sm text-muted-foreground">
+                Errore nel caricamento delle misurazioni.
+              </div>
+            ) : measurementsLoaded && measurementsFetchStatus === "idle" ? (
+              <div className="h-[280px] flex flex-col items-center justify-center gap-2 text-center">
+                <p className="text-sm font-medium text-foreground">
+                  Nessuna misurazione registrata
+                </p>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Usa «Registra Misurazione» qui sopra per salvare la prima: peso e trend
+                  compariranno qui.
+                </p>
+              </div>
+            ) : (
+              <Skeleton className="h-[280px] w-full" />
             )}
           </CardContent>
         </Card>
@@ -1535,21 +1558,10 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
             Misurazioni Corporee
           </h3>
 
-          {!measurementsLoaded && !measurementsError ? (
-            <Skeleton className="h-24 w-full" />
-          ) : measurementsError ? (
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                Errore nel caricamento delle misurazioni.
-              </CardContent>
-            </Card>
-          ) : measurementRows.length === 0 ? (
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                Nessuna circonferenza registrata: le card si riempiono con «Registra Misurazione».
-              </CardContent>
-            </Card>
-          ) : (
+          {/* Same data-first order as the weight card: loaded rows keep
+              rendering through a failed refetch; emptiness only settles
+              on a fresh idle answer. */}
+          {measurementRows.length > 0 ? (
             measurements.map((measurement) => (
               <Card key={measurement.key} className="overflow-hidden">
                 <CardContent className="p-4">
@@ -1593,10 +1605,27 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                 </CardContent>
               </Card>
             ))
+          ) : measurementsError ? (
+            <Card>
+              <CardContent className="p-4 text-sm text-muted-foreground">
+                Errore nel caricamento delle misurazioni.
+              </CardContent>
+            </Card>
+          ) : measurementsLoaded && measurementsFetchStatus === "idle" ? (
+            <Card>
+              <CardContent className="p-4 text-sm text-muted-foreground">
+                Nessuna circonferenza registrata: le card si riempiono con «Registra Misurazione».
+              </CardContent>
+            </Card>
+          ) : (
+            <Skeleton className="h-24 w-full" />
           )}
 
           {/* Quick Summary Card — only written when a weekly change was
-              actually measured (two weight points, 7-30 days apart). */}
+              actually measured (two weight points, 7-30 days apart); the
+              waist clause additionally needs its own gap within 30 days.
+              Directions are stated as measured — an increase is named an
+              increase, and the verdict only exists where it is true. */}
           {weightStats.weeklyChange !== null && (
             <Card className="bg-muted/50">
               <CardContent className="p-4">
@@ -1605,14 +1634,25 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                   <span className="text-sm font-medium">Riepilogo Settimanale</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Peso in {weightStats.weeklyChange < 0 ? "calo" : "mantenimento"}
+                  Peso in{" "}
+                  {weightStats.weeklyChange < 0
+                    ? "calo"
+                    : weightStats.weeklyChange > 0
+                      ? "aumento"
+                      : "mantenimento"}
                   {waistChange !== null &&
-                    `, vita ${waistChange < 0 ? "in diminuzione" : "stabile"}`}
+                    `, vita ${
+                      waistChange < 0
+                        ? "in diminuzione"
+                        : waistChange > 0
+                          ? "in aumento"
+                          : "stabile"
+                    }`}
                   .
-                  {waistChange !== null &&
-                    (weightStats.weeklyChange < 0 && waistChange < 0
-                      ? " Buoni progressi nella fase di taglio!"
-                      : " Composizione in mantenimento.")}
+                  {weightStats.weeklyChange < 0 &&
+                    waistChange !== null &&
+                    waistChange < 0 &&
+                    " Buoni progressi nella fase di taglio!"}
                 </p>
               </CardContent>
             </Card>

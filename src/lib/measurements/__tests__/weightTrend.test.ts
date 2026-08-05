@@ -183,4 +183,102 @@ describe("deriveMeasurementCards", () => {
     expect(chest.latestValue).toBe(104.0);
     expect(chest.weeklyChange).toBeNull();
   });
+
+  it("lastGapDays is the distance of the last two values, null with fewer than 2", () => {
+    const cards = deriveMeasurementCards([
+      row({ date: "2026-06-05", waist_cm: 84.0 }),
+      row({ date: "2026-08-04", waist_cm: 82.0 }),
+      row({ date: "2026-08-05", chest_cm: 104.0 }),
+    ]);
+    const waist = cards.find((c) => c.key === "waist")!;
+    // The change IS reported (it is a real delta) but the gap lets the
+    // caller refuse to narrate it as "weekly".
+    expect(waist.weeklyChange).toBe(-2);
+    expect(waist.lastGapDays).toBe(60);
+    expect(cards.find((c) => c.key === "chest")!.lastGapDays).toBeNull();
+  });
+});
+
+// Pin anti-mutanti (review avversariale 2026-08-05): ognuno di questi test
+// uccide una mutazione che lasciava verde tutta la suite precedente.
+describe("pin anti-mutanti", () => {
+  it("weeklyChange usa il candidato PIU RECENTE quando piu punti cadono in [7,30] (break)", () => {
+    const stats = computeWeightStats(
+      computeTrendSeries([
+        { date: "2026-07-15", weight_kg: 85.0 },
+        { date: "2026-07-27", weight_kg: 83.0 },
+        { date: "2026-08-05", weight_kg: 82.0 },
+      ]),
+    );
+    // Reference = Jul 27 (gap 9); senza break vincerebbe Jul 15 (gap 21) → -3.
+    expect(stats.weeklyChange).toBe(-1);
+  });
+
+  it("le statistiche leggono il TREND smussato, non il peso grezzo", () => {
+    const stats = computeWeightStats(
+      computeTrendSeries([
+        { date: "2026-07-25", weight_kg: 84.0 },
+        { date: "2026-08-03", weight_kg: 83.0 },
+        { date: "2026-08-05", weight_kg: 82.0 },
+      ]),
+    );
+    // Finestra del 5/08 = {83, 82} → trend 82.5; sul grezzo sarebbe 82 e -2.
+    expect(stats.currentTrend).toBe(82.5);
+    expect(stats.weeklyChange).toBe(-1.5);
+  });
+
+  it("gap di esattamente 30 giorni è ancora valido (<= 30)", () => {
+    const stats = computeWeightStats(
+      computeTrendSeries([
+        { date: "2026-07-06", weight_kg: 84.0 },
+        { date: "2026-08-05", weight_kg: 82.0 },
+      ]),
+    );
+    expect(stats.weeklyChange).toBe(-2);
+  });
+
+  it("gap di esattamente 6 giorni NON è una settimana (>= 7)", () => {
+    const stats = computeWeightStats(
+      computeTrendSeries([
+        { date: "2026-07-30", weight_kg: 83.0 },
+        { date: "2026-08-05", weight_kg: 82.0 },
+      ]),
+    );
+    expect(stats.currentTrend).toBe(82.5);
+    expect(stats.weeklyChange).toBeNull();
+  });
+
+  it("il trend è arrotondato a 1 decimale anche con media periodica", () => {
+    const series = computeTrendSeries([
+      { date: "2026-08-01", weight_kg: 82.4 },
+      { date: "2026-08-04", weight_kg: 81.3 },
+      { date: "2026-08-07", weight_kg: 80.1 },
+    ]);
+    // mean(82.4, 81.3, 80.1) = 81.2666… → 81.3 senza round sarebbe periodico.
+    expect(series[2].trend).toBe(81.3);
+  });
+
+  it("computeTrendSeries ordina da sé un input disordinato", () => {
+    const series = computeTrendSeries([
+      { date: "2026-08-05", weight_kg: 82.0 },
+      { date: "2026-07-29", weight_kg: 83.0 },
+    ]);
+    expect(series.map((p) => p.date)).toEqual(["2026-07-29", "2026-08-05"]);
+    expect(series.map((p) => p.trend)).toEqual([83, 82]);
+    const stats = computeWeightStats(series);
+    expect(stats.currentTrend).toBe(82);
+    expect(stats.weeklyChange).toBe(-1);
+  });
+
+  it("il delta delle card è ultimo-meno-PRECEDENTE, non ultimo-meno-prima-misura", () => {
+    const cards = deriveMeasurementCards([
+      row({ date: "2026-07-22", waist_cm: 86.0 }),
+      row({ date: "2026-07-29", waist_cm: 84.0 }),
+      row({ date: "2026-08-05", waist_cm: 83.6 }),
+    ]);
+    const waist = cards.find((c) => c.key === "waist")!;
+    // Contro history[0] il mutante darebbe -2.4.
+    expect(waist.weeklyChange).toBe(-0.4);
+    expect(waist.lastGapDays).toBe(7);
+  });
 });

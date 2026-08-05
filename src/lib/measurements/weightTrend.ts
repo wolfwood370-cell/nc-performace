@@ -61,6 +61,12 @@ export interface MeasurementCard {
   latestValue: number | null;
   /** Latest minus previous recorded value, null with fewer than 2 values. */
   weeklyChange: number | null;
+  /**
+   * Calendar days between the last two recorded values, null with fewer
+   * than 2. Lets callers refuse to narrate a "weekly" change computed
+   * across a month-wide hole.
+   */
+  lastGapDays: number | null;
   history: Array<{ date: string; value: number }>;
 }
 
@@ -158,7 +164,11 @@ export function deriveMeasurementCards(rows: MeasurementRow[]): MeasurementCard[
       history.length >= 2
         ? round1(history[history.length - 1].value - history[history.length - 2].value)
         : null;
+    const lastGapDays =
+      history.length >= 2
+        ? daysBetween(history[history.length - 1].date, history[history.length - 2].date)
+        : null;
 
-    return { key, label, unit: "cm", latestValue, weeklyChange, history };
+    return { key, label, unit: "cm", latestValue, weeklyChange, lastGapDays, history };
   });
 }
