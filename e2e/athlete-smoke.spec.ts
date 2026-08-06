@@ -67,4 +67,20 @@ test.describe("Athlete surface smoke — authenticated", () => {
 
     await testInfo.attach("url-finale", { body: page.url(), contentType: "text/plain" });
   });
+
+  test("exercise preview aperta senza stato di rotta rimanda al training, non inventa", async ({
+    page,
+  }) => {
+    // A direct deep-link / refresh carries no location.state: the page
+    // used to fall back to a hardcoded default exercise ("A1. Barbell
+    // Back Squat, 4×6-8 @ 100 kg") rendered as if it were a coach
+    // prescription. Honest behavior, pinned here: redirect to the
+    // Training Hub. Read-only — nothing is written to the test backend.
+    await page.goto("/athlete/exercise-preview");
+
+    await expect(page).toHaveURL(/\/athlete\/training/, { timeout: 15_000 });
+    await expect(
+      page.getByRole("navigation", { name: "Navigazione principale atleta" }),
+    ).toBeVisible({ timeout: 15_000 });
+  });
 });

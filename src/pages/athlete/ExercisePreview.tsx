@@ -1,54 +1,31 @@
 // =============================================================================
 // src/pages/athlete/ExercisePreview.tsx
 // =============================================================================
-// Phase 6 — Single-exercise preview page. One file, four visual variants.
+// Single-exercise preview page. Two visual variants, driven by the
+// `exercise: PreviewExercise` payload on the router location state:
 //
-// Refactor (post-QA bug 5+6): the page used to render every variant via a
-// local `useState` demo toggle. It now accepts an `exercise: PreviewExercise`
-// off the router location state and renders EXACTLY ONE variant based on
-// `exercise.type`. Hardcoded "8 reps · 100 kg" strings have been replaced
-// by `exercise.sets` / `exercise.reps` / `exercise.weightKg` so the page
-// is consistent with whatever the caller (AthleteTraining or
-// WorkoutPhaseDetail) passed in.
+//   - "standard" — title + variables grid + rest chip + locked logging table.
+//   - "emom"     — block badge + numbered minute-window rows (reached from
+//                  WorkoutPhaseDetail; scheduled for cleanup with that page).
 //
-// Variant catalogue:
-//   - "standard"   ←  exercise_preview_locked.html
-//        Video poster + coach note + locked logging table.
-//   - "intensity"  ←  intensity_protocol_preview.html
-//        Hero card + protocol breakdown + Target / RPE widgets.
-//   - "emom"       ←  time_based_protocol_preview_emom.html
-//        EMOM badge + numbered minute-window rows.
-//   - "isometric"  ←  timed_isometric_exercise_preview.html
-//        Stat row (Target / Durata / Sovraccarico) + coach tip.
-//
-// Direct deep-links / refresh land on an empty route state — we fall
-// back to a sensible default exercise so the page never crashes.
+// Every rendered value comes from the payload; missing values render as
+// "—". There is NO default exercise: a direct deep-link / refresh lands
+// on an empty route state and the page redirects to /athlete/training
+// instead of showing an exercise the athlete never selected.
 //
 // Mount: SIBLING of <AthleteLayout> at /athlete/exercise-preview.
 // Back affordance points to /athlete/training.
 // =============================================================================
 
-import { useLocation, useNavigate } from "react-router-dom";
-import {
-  ChevronLeft,
-  Clock,
-  Info,
-  Lock,
-  Megaphone,
-  MoreVertical,
-  Play,
-  Repeat,
-  Timer,
-  Zap,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { ChevronLeft, Lock, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
 // Public contract — exported so AthleteTraining + WorkoutPhaseDetail can
 // build a typed payload before calling navigate(..., { state: { exercise }}).
 // =============================================================================
-export type ExerciseType = "standard" | "intensity" | "emom" | "isometric";
+export type ExerciseType = "standard" | "emom";
 
 export interface PreviewExercise {
   id: string;
@@ -62,35 +39,22 @@ export interface PreviewExercise {
   sets?: number;
   /** Free-form reps prescription ("8", "6-8", "AMRAP", "60s"). */
   reps?: string;
-  /** Prescribed load in kilograms. Undefined = bodyweight / N/A. */
+  /** Prescribed load in kilograms. 0 = bodyweight; undefined = not specified. */
   weightKg?: number;
   /** Target RPE 1..10. */
   rpe?: number;
   /** Tempo Under Tension descriptor ("3-0-1-0", "controlled", ...). */
   tut?: string;
-  /** Rest period between sets, in seconds. Drives the rest-timer button. */
+  /** Rest period between sets, in seconds. Drives the rest chip. */
   restSeconds?: number;
   /** Optional sub-line (phase or protocol descriptor). */
   meta?: string;
 }
 
-// Default fallback when the page is reached without route state (direct
-// URL, refresh, share). Renders a sensible "standard" preview so the
-// route doesn't 404 / blank-screen.
-const DEFAULT_EXERCISE: PreviewExercise = {
-  id: "a1",
-  code: "A1",
-  name: "Barbell Back Squat",
-  type: "standard",
-  sets: 4,
-  reps: "6-8",
-  weightKg: 100,
-  rpe: 8,
-  meta: "Forza Primaria",
-};
-
 // =============================================================================
-// TopBar — back + title + overflow menu.
+// TopBar — back + title. The trailing element is a spacer (same size as
+// the back button) so the title stays centered without offering a
+// control that does nothing.
 // =============================================================================
 function TopBar({ onBack }: { onBack: () => void }) {
   return (
@@ -113,75 +77,8 @@ function TopBar({ onBack }: { onBack: () => void }) {
       <h1 className="font-display text-lg font-bold tracking-tight text-on-surface">
         Anteprima Esercizio
       </h1>
-      <button
-        type="button"
-        aria-label="Altre opzioni"
-        className="h-10 w-10 rounded-full flex items-center justify-center text-brand-container hover:bg-surface-container/60 transition-colors active:scale-95"
-      >
-        <MoreVertical className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
-      </button>
+      <span aria-hidden="true" className="h-10 w-10" />
     </header>
-  );
-}
-
-// =============================================================================
-// VideoPlaceholder — 16:9 frame with a centered Play button.
-// =============================================================================
-function VideoPlaceholder({ caption }: { caption: string }) {
-  return (
-    <div className="relative w-full aspect-video rounded-3xl overflow-hidden bg-surface-container">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-br from-brand-container/10 to-brand-container/30"
-      />
-      <button
-        type="button"
-        aria-label={`Riproduci dimostrazione: ${caption}`}
-        className={cn(
-          "absolute inset-0 flex items-center justify-center",
-          "text-brand-container",
-          "transition-transform duration-200 hover:scale-105",
-        )}
-      >
-        <span className="h-16 w-16 rounded-full bg-white/85 backdrop-blur-md flex items-center justify-center shadow-lg">
-          <Play
-            className="h-7 w-7 fill-brand-container"
-            strokeWidth={0}
-            aria-hidden="true"
-          />
-        </span>
-      </button>
-    </div>
-  );
-}
-
-// =============================================================================
-// CoachNoteCard — small left-bordered glass card used by several variants.
-// =============================================================================
-function CoachNoteCard({ text }: { text: string }) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl p-4",
-        "bg-surface-container/40 backdrop-blur-xl",
-        "border-l-4 border-brand-container",
-        "border border-brand-container/15",
-      )}
-    >
-      <div className="flex items-start gap-3">
-        <Megaphone
-          className="h-5 w-5 text-brand-container mt-0.5 shrink-0"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-        <div>
-          <p className="font-display text-[11px] font-bold uppercase tracking-widest text-brand-container">
-            Nota del Coach
-          </p>
-          <p className="mt-1 text-sm text-on-surface-variant">{text}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -189,21 +86,32 @@ function CoachNoteCard({ text }: { text: string }) {
 // VariablesRow — compact 5-cell grid for the canonical training
 // variables (Sets, Reps, Weight, TUT, RPE). Adapts from 2 columns on
 // mobile to 3 on small+ viewports so labels never overflow.
-// Missing values render as "—" (no field) without breaking the grid.
+// Unspecified values render as "—". The release parser (releaseView.ts)
+// coerces missing sets/rpe to 0 and missing reps to "": those coerced
+// values are treated as unspecified too — a "0" the coach never wrote
+// must not be displayed as a prescription.
 // =============================================================================
 function VariablesRow({ exercise }: { exercise: PreviewExercise }) {
   const cells: { label: string; value: string }[] = [
-    { label: "Sets", value: exercise.sets !== undefined ? String(exercise.sets) : "—" },
-    { label: "Reps", value: exercise.reps ?? "—" },
+    {
+      label: "Sets",
+      value: exercise.sets !== undefined && exercise.sets > 0 ? String(exercise.sets) : "—",
+    },
+    { label: "Reps", value: exercise.reps ? exercise.reps : "—" },
     {
       label: "Peso",
       value:
-        exercise.weightKg !== undefined && exercise.weightKg > 0
-          ? `${exercise.weightKg} kg`
-          : "BW",
+        exercise.weightKg === undefined
+          ? "—"
+          : exercise.weightKg > 0
+            ? `${exercise.weightKg} kg`
+            : "BW",
     },
     { label: "TUT", value: exercise.tut ?? "—" },
-    { label: "RPE", value: exercise.rpe !== undefined ? String(exercise.rpe) : "—" },
+    {
+      label: "RPE",
+      value: exercise.rpe !== undefined && exercise.rpe > 0 ? String(exercise.rpe) : "—",
+    },
   ];
   return (
     <section
@@ -233,79 +141,54 @@ function VariablesRow({ exercise }: { exercise: PreviewExercise }) {
 }
 
 // =============================================================================
-// RestTimerButton — prominent CTA showing the rest period between sets.
-// Visible in both Preview and Execution Drawer. The click action is a
-// soft placeholder (toast) until a full countdown widget lands; the
-// surface itself is the contract — coaches and athletes can scan it
-// at a glance.
+// RestChip — static display of the prescribed rest period between sets.
+// "—" plus an explicit aria-label when the payload carries no value.
+// No countdown widget exists yet, so this is deliberately NOT a button:
+// a control promising a timer would be a lie.
 // =============================================================================
-function RestTimerButton({ seconds }: { seconds?: number }) {
+function RestChip({ seconds }: { seconds?: number }) {
   const display = seconds !== undefined ? `${seconds}s` : "—";
-  const onClick = () => {
-    toast("Timer recupero", {
-      description:
-        seconds !== undefined
-          ? `Conto alla rovescia di ${seconds} secondi (placeholder).`
-          : "Periodo di recupero non specificato.",
-    });
-  };
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Timer recupero ${display}`}
+    <div
+      aria-label={
+        seconds !== undefined
+          ? `Recupero previsto: ${seconds} secondi`
+          : "Periodo di recupero non specificato"
+      }
       className={cn(
         "w-full inline-flex items-center justify-center gap-2 rounded-2xl",
         "px-4 py-3",
-        "bg-brand-container text-white",
+        "bg-brand-container/10 text-brand-container",
         "font-sans text-sm font-bold tracking-wide uppercase",
-        "shadow-[0_8px_18px_rgba(34,111,163,0.25)]",
-        "transition-all duration-150 active:scale-[0.98] hover:brightness-110",
       )}
     >
       <Timer className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
       Recupero · {display}
-    </button>
+    </div>
   );
 }
 
 // =============================================================================
 // VARIANT 1 — Standard / Locked
-//   Video + title + coach note + lock banner + disabled logging table.
-//   Title, set count, reps target and weight all come from the prop so
-//   the same numbers shown in WorkoutPhaseDetail / AthleteTraining flow
-//   through unchanged.
+//   Title + variables grid + rest chip + lock banner + disabled logging
+//   table. Every value comes from the prop; the table renders only when
+//   a real set count exists.
 // =============================================================================
 function StandardVariant({ exercise }: { exercise: PreviewExercise }) {
-  const fullName = exercise.code
-    ? `${exercise.code}. ${exercise.name}`
-    : exercise.name;
-  const setCount = exercise.sets ?? 3;
-  const repsTarget = exercise.reps ?? "—";
-  // "Previous-session" entries are historical and not part of the
-  // PreviewExercise contract; keep a single mock derived from the
-  // current weight so the row looks coherent.
-  const previousLabel =
-    exercise.weightKg !== undefined
-      ? `${exercise.weightKg}kg × ${repsTarget}`
-      : "—";
+  const fullName = exercise.code ? `${exercise.code}. ${exercise.name}` : exercise.name;
+  // releaseView coerces missing reps to "": both count as unspecified.
+  const repsTarget = exercise.reps ? exercise.reps : null;
+  const setCount = exercise.sets !== undefined && exercise.sets > 0 ? exercise.sets : null;
 
   return (
     <>
-      <VideoPlaceholder caption={fullName} />
-
-      <section className="flex flex-col gap-4">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-on-surface">
-          {fullName}
-        </h2>
-        <CoachNoteCard text="Concentrati sulla profondità e su una concentrica esplosiva." />
-      </section>
+      <h2 className="font-display text-2xl font-bold tracking-tight text-on-surface">{fullName}</h2>
 
       {/* 5-variable summary grid (Sets / Reps / Peso / TUT / RPE). */}
       <VariablesRow exercise={exercise} />
 
-      {/* Prominent Rest Timer entry point. */}
-      <RestTimerButton seconds={exercise.restSeconds ?? 90} />
+      {/* Prescribed rest period (static). */}
+      <RestChip seconds={exercise.restSeconds} />
 
       {/* Preview / lock banner */}
       <div
@@ -315,255 +198,63 @@ function StandardVariant({ exercise }: { exercise: PreviewExercise }) {
           "flex items-center gap-3",
         )}
       >
-        <Lock
-          className="h-5 w-5 text-on-surface-variant"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
+        <Lock className="h-5 w-5 text-on-surface-variant" strokeWidth={2} aria-hidden="true" />
         <p className="text-sm text-on-surface-variant">
-          Modalità anteprima. Avvia la sessione per registrare le serie.
+          Modalità anteprima — la registrazione delle serie non è ancora disponibile.
         </p>
       </div>
 
-      {/* Locked logging table */}
-      <section
-        aria-label="Tabella set (anteprima, disabilitata)"
-        className="flex flex-col gap-2"
-      >
-        <div className="grid grid-cols-[28px_1fr_1fr_56px_56px] gap-2 px-2 pb-2 border-b border-[#c0c7d0]/25">
-          {["SET", "TARGET", "PRECEDENTE", "KG", "REPS"].map((h) => (
-            <span
-              key={h}
-              className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant text-center"
-            >
-              {h}
-            </span>
-          ))}
-        </div>
-        {Array.from({ length: setCount }).map((_, i) => (
-          <div
-            key={i}
-            className="grid grid-cols-[28px_1fr_1fr_56px_56px] gap-2 items-center px-2 py-3 bg-white/60 rounded-2xl border border-transparent"
-          >
-            <span className="font-sans text-xs font-semibold tabular-nums text-on-surface-variant text-center">
-              {i + 1}
-            </span>
-            <span className="text-sm text-on-surface-variant text-center">
-              {repsTarget} reps
-            </span>
-            {/* Horizontal-scroll wrapper: long previous-session strings
-                (e.g. "100kg × 8") would otherwise wrap to a second
-                line and break the row alignment. */}
-            <div
-              className={cn(
-                "flex overflow-x-auto whitespace-nowrap gap-2 justify-center",
-                "[scrollbar-width:none] [-ms-overflow-style:none]",
-                "[&::-webkit-scrollbar]:hidden",
-              )}
-            >
-              <span className="text-sm text-on-surface-variant">
-                {previousLabel}
-              </span>
-            </div>
-            <div
-              aria-disabled="true"
-              className="bg-surface-container/40 rounded-lg p-2 text-center border border-dashed border-[#c0c7d0]/60"
-            >
-              <span className="text-sm text-on-surface-variant">–</span>
-            </div>
-            <div
-              aria-disabled="true"
-              className="bg-surface-container/40 rounded-lg p-2 text-center border border-dashed border-[#c0c7d0]/60"
-            >
-              <span className="text-sm text-on-surface-variant">–</span>
-            </div>
-          </div>
-        ))}
-      </section>
-    </>
-  );
-}
-
-// =============================================================================
-// VARIANT 2 — Intensity Protocol (Rest-Pause)
-//   Hero card + Activation + Micro-Sets with branch connector + Target /
-//   Intensity widgets. Title + code from the prop; the protocol-specific
-//   stages (Activation Set / Micro-Sets) stay as internal copy because
-//   they're not part of the PreviewExercise contract.
-// =============================================================================
-function IntensityVariant({ exercise }: { exercise: PreviewExercise }) {
-  const fullName = exercise.code
-    ? `${exercise.code}. ${exercise.name}`
-    : exercise.name;
-  const rpe = exercise.rpe ?? 9.5;
-  // "Volume Target" — best derived as sets × an indicative rep count
-  // when both are known; otherwise we fall back to a sensible default.
-  const repsNumeric = Number(exercise.reps);
-  const volumeTarget =
-    exercise.sets !== undefined && Number.isFinite(repsNumeric)
-      ? exercise.sets * repsNumeric
-      : 24;
-
-  return (
-    <>
-      <section className="flex items-center justify-between">
-        <h2 className="font-display text-xl font-bold tracking-tight text-on-surface">
-          {exercise.meta ?? "Leg Day B"}
-        </h2>
-        <span className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant bg-surface-container/60 px-3 py-1 rounded-full inline-flex items-center gap-1">
-          <Clock className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
-          65 min
-        </span>
-      </section>
-
-      {/* Protocol card */}
-      <section
-        className={cn(
-          "rounded-3xl overflow-hidden",
-          "bg-white/70 backdrop-blur-xl",
-          "border border-[#c0c7d0]/30",
-          "shadow-[0_10px_30px_rgba(80,118,142,0.05)]",
-        )}
-      >
-        <VideoPlaceholder caption={fullName} />
-
-        <div className="p-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <span className="font-sans text-[10px] font-bold tracking-widest uppercase text-on-surface">
-              Tecnica di Intensità
-            </span>
-            <span className="bg-brand-container text-white text-xs font-bold tracking-wide px-4 py-1 rounded-full">
-              Rest-Pause
-            </span>
-          </div>
-
-          <div>
-            <h3 className="font-display text-xl font-bold leading-tight text-on-surface">
-              {fullName}
-            </h3>
-            <p className="mt-1 text-sm text-on-surface-variant">
-              Isolamento · 1 serie totale (protocollo esteso)
-            </p>
-          </div>
-
-          {/* Protocol breakdown */}
-          <div className="rounded-2xl p-5 bg-surface-container/40 border border-[#c0c7d0]/20 flex flex-col gap-6">
-            {/* Activation Set */}
-            <div className="flex items-start gap-3">
+      {/* Locked logging table — only when a real set count exists. */}
+      {setCount !== null && (
+        <section aria-label="Tabella set (anteprima, disabilitata)" className="flex flex-col gap-2">
+          <div className="grid grid-cols-[28px_1fr_56px_56px] gap-2 px-2 pb-2 border-b border-[#c0c7d0]/25">
+            {["SET", "TARGET", "KG", "REPS"].map((h) => (
               <span
-                aria-hidden="true"
-                className="mt-0.5 h-6 w-6 rounded-full bg-white border border-brand-container/30 flex items-center justify-center shrink-0"
+                key={h}
+                className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant text-center"
               >
-                <Zap
-                  className="h-3.5 w-3.5 text-brand-container fill-brand-container"
-                  strokeWidth={0}
-                />
+                {h}
               </span>
-              <div>
-                <h4 className="font-display text-sm font-bold text-on-surface">
-                  Activation Set: 10-12 Reps @ RPE 9
-                </h4>
-                <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">
-                  Raggiungi il cedimento, poi recupera esattamente 15 secondi.
-                </p>
+            ))}
+          </div>
+          {Array.from({ length: setCount }).map((_, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-[28px_1fr_56px_56px] gap-2 items-center px-2 py-3 bg-white/60 rounded-2xl border border-transparent"
+            >
+              <span className="font-sans text-xs font-semibold tabular-nums text-on-surface-variant text-center">
+                {i + 1}
+              </span>
+              <span className="text-sm text-on-surface-variant text-center">
+                {repsTarget !== null ? `${repsTarget} reps` : "—"}
+              </span>
+              <div
+                aria-disabled="true"
+                className="bg-surface-container/40 rounded-lg p-2 text-center border border-dashed border-[#c0c7d0]/60"
+              >
+                <span className="text-sm text-on-surface-variant">–</span>
+              </div>
+              <div
+                aria-disabled="true"
+                className="bg-surface-container/40 rounded-lg p-2 text-center border border-dashed border-[#c0c7d0]/60"
+              >
+                <span className="text-sm text-on-surface-variant">–</span>
               </div>
             </div>
-
-            {/* Micro-Sets with branch connector */}
-            <div className="relative pl-8">
-              <span
-                aria-hidden="true"
-                className="absolute left-0 top-0 bottom-1/2 w-px bg-[#c0c7d0]/50"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute left-0 top-1/2 w-3 h-px bg-[#c0c7d0]/50"
-              />
-              <div className="flex items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 h-6 w-6 rounded-full bg-white border border-brand-container/30 flex items-center justify-center shrink-0"
-                >
-                  <Repeat
-                    className="h-3.5 w-3.5 text-brand-container"
-                    strokeWidth={2.5}
-                  />
-                </span>
-                <div>
-                  <h4 className="font-display text-sm font-bold text-on-surface">
-                    Micro-Sets: 3-5 Reps × 4 round
-                  </h4>
-                  <p className="mt-1 text-xs text-on-surface-variant leading-relaxed">
-                    15 secondi di recupero fra i round. Fermati quando non
-                    raggiungi 3 reps.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footnote */}
-          <div className="rounded-2xl p-4 bg-brand-container/5 border border-brand-container/15 flex items-center gap-3">
-            <Megaphone
-              className="h-4 w-4 text-brand-container shrink-0"
-              strokeWidth={2}
-              aria-hidden="true"
-            />
-            <p className="font-sans text-[11px] font-semibold tracking-wider uppercase text-brand-container/80">
-              Mantieni tensione costante nel punto di massima contrazione.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Target / Intensity glance widgets — bound to the prop */}
-      <div className="grid grid-cols-2 gap-3">
-        <section
-          aria-label="Volume target"
-          className="rounded-3xl p-5 bg-white/70 backdrop-blur-xl border border-[#c0c7d0]/30"
-        >
-          <span className="block font-sans text-[10px] font-semibold tracking-widest uppercase text-on-surface-variant mb-2">
-            Volume Target
-          </span>
-          <div className="flex items-baseline gap-1">
-            <span className="font-display text-3xl font-bold text-on-surface tabular-nums">
-              {volumeTarget}
-            </span>
-            <span className="font-sans text-[11px] font-semibold text-on-surface-variant">
-              REPS
-            </span>
-          </div>
+          ))}
         </section>
-        <section
-          aria-label="Intensità target"
-          className="rounded-3xl p-5 bg-white/70 backdrop-blur-xl border border-[#c0c7d0]/30"
-        >
-          <span className="block font-sans text-[10px] font-semibold tracking-widest uppercase text-on-surface-variant mb-2">
-            Intensità
-          </span>
-          <div className="flex items-baseline gap-1">
-            <span className="font-display text-3xl font-bold text-on-surface tabular-nums">
-              {rpe}
-            </span>
-            <span className="font-sans text-[11px] font-semibold text-on-surface-variant">
-              RPE
-            </span>
-          </div>
-        </section>
-      </div>
+      )}
     </>
   );
 }
 
 // =============================================================================
-// VARIANT 3 — EMOM
+// VARIANT 2 — EMOM
 //   Block badge + numbered minute-windows. Block name + code from prop;
 //   the minute-window rows are protocol-specific and stay internal.
 // =============================================================================
 function EmomVariant({ exercise }: { exercise: PreviewExercise }) {
-  const fullName = exercise.code
-    ? `${exercise.code}. ${exercise.name}`
-    : exercise.name;
+  const fullName = exercise.code ? `${exercise.code}. ${exercise.name}` : exercise.name;
   // For EMOM the `reps` slot conventionally carries minutes — fall back
   // to "12'" when missing so the badge never reads "—'".
   const minutesLabel = exercise.reps ? `${exercise.reps}'` : "12'";
@@ -627,10 +318,7 @@ function EmomVariant({ exercise }: { exercise: PreviewExercise }) {
               </div>
             </div>
             {i < rows.length - 1 && (
-              <div
-                aria-hidden="true"
-                className="mt-5 border-t border-dashed border-[#c0c7d0]/50"
-              />
+              <div aria-hidden="true" className="mt-5 border-t border-dashed border-[#c0c7d0]/50" />
             )}
           </div>
         ))}
@@ -640,138 +328,13 @@ function EmomVariant({ exercise }: { exercise: PreviewExercise }) {
 }
 
 // =============================================================================
-// VARIANT 4 — Isometric
-//   Big stat row (Target / Durata / Sovraccarico) + coach tip. All three
-//   stat values are bound to the prop:
-//     - Target      = exercise.sets serie
-//     - Durata      = exercise.reps  (free-form "60s" / "60 secondi")
-//     - Sovraccarico = weightKg-or-Bodyweight string
-// =============================================================================
-function IsometricVariant({ exercise }: { exercise: PreviewExercise }) {
-  const fullName = exercise.code
-    ? `${exercise.code}. ${exercise.name}`
-    : exercise.name;
-  const targetLabel = `${exercise.sets ?? 3} Serie`;
-  const durationLabel = exercise.reps ? exercise.reps : "60 secondi";
-  const overloadLabel =
-    exercise.weightKg !== undefined && exercise.weightKg > 0
-      ? `+${exercise.weightKg} kg`
-      : "Bodyweight";
-
-  return (
-    <section
-      className={cn(
-        "rounded-3xl p-6 overflow-hidden",
-        "bg-white/70 backdrop-blur-xl",
-        "border border-[#c0c7d0]/30",
-        "shadow-[0_10px_30px_rgba(80,118,142,0.05)]",
-        "flex flex-col gap-6",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <span className="font-sans text-[10px] font-semibold tracking-widest uppercase text-on-surface">
-          {exercise.meta ?? "Fase 1: Core & Stability"}
-        </span>
-        <span className="shrink-0 inline-flex items-center gap-1 bg-brand-container text-white text-xs font-bold tracking-wide px-3 py-1.5 rounded-full">
-          <Timer className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-          Isometria
-        </span>
-      </div>
-
-      <h2 className="font-display text-2xl font-bold text-on-surface">
-        {fullName}
-      </h2>
-
-      <VideoPlaceholder caption={fullName} />
-
-      {/* Stat row — all three values bound to the prop */}
-      <div className="grid grid-cols-3 gap-3 rounded-2xl p-4 bg-surface-container/40 border border-[#c0c7d0]/25">
-        {[
-          { label: "Target", value: targetLabel, emphasised: false },
-          { label: "Durata", value: durationLabel, emphasised: true },
-          { label: "Sovraccarico", value: overloadLabel, emphasised: false },
-        ].map((s) => (
-          <div key={s.label} className="flex flex-col items-center text-center">
-            <span className="font-sans text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-              {s.label}
-            </span>
-            <span
-              className={cn(
-                "mt-1 font-display text-sm",
-                s.emphasised
-                  ? "font-bold text-brand-container"
-                  : "font-semibold text-on-surface",
-              )}
-            >
-              {s.value}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-3 items-start border-l-2 border-brand-container pl-4 py-1 rounded-r-lg bg-surface-container/30">
-        <Info
-          className="h-4 w-4 text-on-surface-variant shrink-0 mt-1"
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-        <p className="text-sm italic text-on-surface-variant">
-          Mantieni la retroversione del bacino e contrai i glutei al massimo.
-          Non collassare con la zona lombare.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// =============================================================================
-// StickyStartCTA — fixed glass bar with primary action + secondary close.
-// =============================================================================
-function StickyStartCTA({ onStart }: { onStart: () => void }) {
-  return (
-    <div
-      className={cn(
-        "fixed bottom-0 inset-x-0 z-50",
-        "backdrop-blur-2xl bg-white/90",
-        "border-t border-[#c0c7d0]/40",
-        "rounded-t-[32px]",
-        "shadow-[0_-10px_40px_rgba(80,118,142,0.1)]",
-        "pt-4 pb-[max(env(safe-area-inset-bottom),1rem)]",
-      )}
-    >
-      <div className="max-w-lg mx-auto px-6">
-        <button
-          type="button"
-          onClick={onStart}
-          className={cn(
-            "w-full py-4 rounded-full",
-            "flex items-center justify-center gap-2",
-            "bg-brand-container text-white",
-            "font-display text-sm font-bold uppercase tracking-widest",
-            "shadow-[0_8px_20px_rgba(34,111,163,0.3)]",
-            "transition-all duration-200",
-            "hover:brightness-110 active:scale-[0.98]",
-          )}
-        >
-          <Play
-            className="h-5 w-5 fill-white"
-            strokeWidth={0}
-            aria-hidden="true"
-          />
-          Avvia Esercizio
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
 // readExerciseFromLocationState — defensively type-narrows the unknown
-// `location.state` blob into a PreviewExercise. Anything missing or
-// shaped wrong falls back to DEFAULT_EXERCISE so the page never crashes
-// on a direct link / refresh.
+// `location.state` blob into a PreviewExercise. Returns null when the
+// state is missing or malformed: the page then redirects to
+// /athlete/training instead of inventing an exercise the athlete never
+// selected. Exported for the unit tests that pin this contract.
 // =============================================================================
-function readExerciseFromLocationState(state: unknown): PreviewExercise {
+export function readExerciseFromLocationState(state: unknown): PreviewExercise | null {
   if (
     state &&
     typeof state === "object" &&
@@ -783,54 +346,40 @@ function readExerciseFromLocationState(state: unknown): PreviewExercise {
     if (
       typeof candidate.id === "string" &&
       typeof candidate.name === "string" &&
-      (candidate.type === "standard" ||
-        candidate.type === "intensity" ||
-        candidate.type === "emom" ||
-        candidate.type === "isometric")
+      (candidate.type === "standard" || candidate.type === "emom")
     ) {
-      return {
-        ...DEFAULT_EXERCISE,
-        ...candidate,
-      } as PreviewExercise;
+      return candidate as PreviewExercise;
     }
   }
-  return DEFAULT_EXERCISE;
+  return null;
 }
 
 // =============================================================================
 // ExercisePreview — page composition. Reads `exercise` off the router
 // location state (set by AthleteTraining / WorkoutPhaseDetail before
 // navigate) and renders EXACTLY ONE variant based on `exercise.type`.
+// Missing / malformed state → redirect, never a made-up exercise.
 // =============================================================================
 export default function ExercisePreview() {
   const navigate = useNavigate();
   const location = useLocation();
   const exercise = readExerciseFromLocationState(location.state);
 
-  const handleStart = () => {
-    toast.success("Esercizio avviato", {
-      description: "L'esperienza di esecuzione arriverà nel prossimo step.",
-    });
-  };
+  // No hooks below this point, so the early return is hook-order safe.
+  if (!exercise) {
+    return <Navigate to="/athlete/training" replace />;
+  }
 
   return (
-    <div className="min-h-[100dvh] bg-surface text-on-surface font-sans antialiased pb-32">
+    <div className="min-h-[100dvh] bg-surface text-on-surface font-sans antialiased pb-16">
       <TopBar onBack={() => navigate("/athlete/training")} />
 
       <main className="pt-20 px-5 max-w-lg mx-auto flex flex-col gap-6">
         {/* Conditional rendering on the exercise type — only ONE variant
             renders at a time, driven by the data the caller passed in. */}
         {exercise.type === "standard" && <StandardVariant exercise={exercise} />}
-        {exercise.type === "intensity" && (
-          <IntensityVariant exercise={exercise} />
-        )}
         {exercise.type === "emom" && <EmomVariant exercise={exercise} />}
-        {exercise.type === "isometric" && (
-          <IsometricVariant exercise={exercise} />
-        )}
       </main>
-
-      <StickyStartCTA onStart={handleStart} />
     </div>
   );
 }
