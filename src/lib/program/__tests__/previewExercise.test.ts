@@ -1,14 +1,22 @@
 // =============================================================================
-// Pins the route-state contract of ExercisePreview: the page must never
-// invent an exercise. Missing / malformed state → null (the page then
-// redirects to /athlete/training); a valid payload passes through
-// UNTOUCHED — no default merged in, no fields injected.
-// The parser is pure, so this stays a node-env unit test (no jsdom,
-// decision 2026-07-14).
+// Pins the route-state contract and the display formatting of the athlete
+// Exercise Preview. Two families of guards, both anti-revert:
+//   1. Parser: missing / malformed state → null (the page redirects);
+//      a valid payload passes through UNTOUCHED — no default merged in.
+//   2. Formatters: values the payload does not carry — or that the
+//      release parser (releaseView.ts) coerced to "" / 0 — render as "—",
+//      never as a number the coach did not write.
+// Pure module, node-env only (no jsdom — decision 2026-07-14).
 // =============================================================================
 
 import { describe, expect, it } from "vitest";
-import { readExerciseFromLocationState } from "../ExercisePreview";
+import {
+  formatRestDisplay,
+  formatVariableCells,
+  lockedTableSetCount,
+  readExerciseFromLocationState,
+  type PreviewExercise,
+} from "../previewExercise";
 
 // Mirror of the REAL payload built by AthleteTraining.tsx
 // (handleSelectExercise): the exact key set that reaches the page today.
@@ -87,4 +95,60 @@ describe("readExerciseFromLocationState — stato assente o malformato", () => {
       ).toBeNull();
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// Formatters — mai numeri che il coach non ha scritto.
+// ---------------------------------------------------------------------------
+
+const base: PreviewExercise = { id: "a1", name: "Back Squat", type: "standard" };
+
+describe("formatVariableCells", () => {
+  it("payload reale (senza weightKg/tut): Peso e TUT '—', il resto passa", () => {
+    const cells = formatVariableCells(trainingState.exercise);
+    expect(cells).toEqual({
+      sets: "4",
+      reps: "6-8",
+      weight: "—",
+      tut: "—",
+      rpe: "8",
+    });
+  });
+
+  it("campi assenti → tutti '—'", () => {
+    expect(formatVariableCells(base)).toEqual({
+      sets: "—",
+      reps: "—",
+      weight: "—",
+      tut: "—",
+      rpe: "—",
+    });
+  });
+
+  it("coercizioni del parser release (sets 0, reps '', rpe 0) → '—', mai '0'", () => {
+    const cells = formatVariableCells({ ...base, sets: 0, reps: "", rpe: 0 });
+    expect(cells.sets).toBe("—");
+    expect(cells.reps).toBe("—");
+    expect(cells.rpe).toBe("—");
+  });
+
+  it("weightKg 0 esplicito → 'BW'; weightKg positivo → 'N kg'", () => {
+    expect(formatVariableCells({ ...base, weightKg: 0 }).weight).toBe("BW");
+    expect(formatVariableCells({ ...base, weightKg: 100 }).weight).toBe("100 kg");
+  });
+});
+
+describe("lockedTableSetCount", () => {
+  it("sets reale → conteggio; sets assente o 0-coercizzato → null (tabella nascosta)", () => {
+    expect(lockedTableSetCount({ ...base, sets: 4 })).toBe(4);
+    expect(lockedTableSetCount(base)).toBeNull();
+    expect(lockedTableSetCount({ ...base, sets: 0 })).toBeNull();
+  });
+});
+
+describe("formatRestDisplay", () => {
+  it("90 → '90s'; assente → '—'", () => {
+    expect(formatRestDisplay(90)).toBe("90s");
+    expect(formatRestDisplay(undefined)).toBe("—");
+  });
 });

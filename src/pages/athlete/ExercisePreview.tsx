@@ -20,36 +20,19 @@
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, Lock, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  formatRestDisplay,
+  formatVariableCells,
+  lockedTableSetCount,
+  readExerciseFromLocationState,
+  type PreviewExercise,
+} from "@/lib/program/previewExercise";
 
-// =============================================================================
-// Public contract — exported so AthleteTraining + WorkoutPhaseDetail can
-// build a typed payload before calling navigate(..., { state: { exercise }}).
-// =============================================================================
-export type ExerciseType = "standard" | "emom";
-
-export interface PreviewExercise {
-  id: string;
-  /** Programme code: "A1", "B2", "C1"... optional for warm-up moves. */
-  code?: string;
-  /** Display name, e.g. "Barbell Back Squat". */
-  name: string;
-  /** Drives which variant is rendered. */
-  type: ExerciseType;
-  /** Prescribed sets count. */
-  sets?: number;
-  /** Free-form reps prescription ("8", "6-8", "AMRAP", "60s"). */
-  reps?: string;
-  /** Prescribed load in kilograms. 0 = bodyweight; undefined = not specified. */
-  weightKg?: number;
-  /** Target RPE 1..10. */
-  rpe?: number;
-  /** Tempo Under Tension descriptor ("3-0-1-0", "controlled", ...). */
-  tut?: string;
-  /** Rest period between sets, in seconds. Drives the rest chip. */
-  restSeconds?: number;
-  /** Optional sub-line (phase or protocol descriptor). */
-  meta?: string;
-}
+// Public contract re-export — AthleteTraining + WorkoutPhaseDetail build a
+// typed payload before calling navigate(..., { state: { exercise }}). The
+// contract itself lives in src/lib/program/previewExercise.ts (pure module,
+// node-only unit tests) — this page keeps component-only value exports.
+export type { ExerciseType, PreviewExercise } from "@/lib/program/previewExercise";
 
 // =============================================================================
 // TopBar — back + title. The trailing element is a spacer (same size as
@@ -86,32 +69,17 @@ function TopBar({ onBack }: { onBack: () => void }) {
 // VariablesRow — compact 5-cell grid for the canonical training
 // variables (Sets, Reps, Weight, TUT, RPE). Adapts from 2 columns on
 // mobile to 3 on small+ viewports so labels never overflow.
-// Unspecified values render as "—". The release parser (releaseView.ts)
-// coerces missing sets/rpe to 0 and missing reps to "": those coerced
-// values are treated as unspecified too — a "0" the coach never wrote
-// must not be displayed as a prescription.
+// Unspecified (or parser-coerced) values render as "—" — the rule lives
+// in formatVariableCells, pinned by its unit tests.
 // =============================================================================
 function VariablesRow({ exercise }: { exercise: PreviewExercise }) {
+  const values = formatVariableCells(exercise);
   const cells: { label: string; value: string }[] = [
-    {
-      label: "Sets",
-      value: exercise.sets !== undefined && exercise.sets > 0 ? String(exercise.sets) : "—",
-    },
-    { label: "Reps", value: exercise.reps ? exercise.reps : "—" },
-    {
-      label: "Peso",
-      value:
-        exercise.weightKg === undefined
-          ? "—"
-          : exercise.weightKg > 0
-            ? `${exercise.weightKg} kg`
-            : "BW",
-    },
-    { label: "TUT", value: exercise.tut ?? "—" },
-    {
-      label: "RPE",
-      value: exercise.rpe !== undefined && exercise.rpe > 0 ? String(exercise.rpe) : "—",
-    },
+    { label: "Sets", value: values.sets },
+    { label: "Reps", value: values.reps },
+    { label: "Peso", value: values.weight },
+    { label: "TUT", value: values.tut },
+    { label: "RPE", value: values.rpe },
   ];
   return (
     <section
@@ -142,19 +110,14 @@ function VariablesRow({ exercise }: { exercise: PreviewExercise }) {
 
 // =============================================================================
 // RestChip — static display of the prescribed rest period between sets.
-// "—" plus an explicit aria-label when the payload carries no value.
+// "—" when the payload carries no value, with an sr-only clarification
+// (no aria-label: on a generic div it is a prohibited attribute).
 // No countdown widget exists yet, so this is deliberately NOT a button:
 // a control promising a timer would be a lie.
 // =============================================================================
 function RestChip({ seconds }: { seconds?: number }) {
-  const display = seconds !== undefined ? `${seconds}s` : "—";
   return (
     <div
-      aria-label={
-        seconds !== undefined
-          ? `Recupero previsto: ${seconds} secondi`
-          : "Periodo di recupero non specificato"
-      }
       className={cn(
         "w-full inline-flex items-center justify-center gap-2 rounded-2xl",
         "px-4 py-3",
@@ -163,7 +126,10 @@ function RestChip({ seconds }: { seconds?: number }) {
       )}
     >
       <Timer className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-      Recupero · {display}
+      Recupero · {formatRestDisplay(seconds)}
+      {seconds === undefined && (
+        <span className="sr-only">Periodo di recupero non specificato</span>
+      )}
     </div>
   );
 }
@@ -176,9 +142,8 @@ function RestChip({ seconds }: { seconds?: number }) {
 // =============================================================================
 function StandardVariant({ exercise }: { exercise: PreviewExercise }) {
   const fullName = exercise.code ? `${exercise.code}. ${exercise.name}` : exercise.name;
-  // releaseView coerces missing reps to "": both count as unspecified.
-  const repsTarget = exercise.reps ? exercise.reps : null;
-  const setCount = exercise.sets !== undefined && exercise.sets > 0 ? exercise.sets : null;
+  const repsTarget = formatVariableCells(exercise).reps;
+  const setCount = lockedTableSetCount(exercise);
 
   return (
     <>
@@ -226,7 +191,7 @@ function StandardVariant({ exercise }: { exercise: PreviewExercise }) {
                 {i + 1}
               </span>
               <span className="text-sm text-on-surface-variant text-center">
-                {repsTarget !== null ? `${repsTarget} reps` : "—"}
+                {repsTarget !== "—" ? `${repsTarget} reps` : "—"}
               </span>
               <div
                 aria-disabled="true"
@@ -325,33 +290,6 @@ function EmomVariant({ exercise }: { exercise: PreviewExercise }) {
       </div>
     </section>
   );
-}
-
-// =============================================================================
-// readExerciseFromLocationState — defensively type-narrows the unknown
-// `location.state` blob into a PreviewExercise. Returns null when the
-// state is missing or malformed: the page then redirects to
-// /athlete/training instead of inventing an exercise the athlete never
-// selected. Exported for the unit tests that pin this contract.
-// =============================================================================
-export function readExerciseFromLocationState(state: unknown): PreviewExercise | null {
-  if (
-    state &&
-    typeof state === "object" &&
-    "exercise" in state &&
-    state.exercise &&
-    typeof state.exercise === "object"
-  ) {
-    const candidate = state.exercise as Partial<PreviewExercise>;
-    if (
-      typeof candidate.id === "string" &&
-      typeof candidate.name === "string" &&
-      (candidate.type === "standard" || candidate.type === "emom")
-    ) {
-      return candidate as PreviewExercise;
-    }
-  }
-  return null;
 }
 
 // =============================================================================

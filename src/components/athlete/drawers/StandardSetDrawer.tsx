@@ -215,7 +215,6 @@ export function StandardSetDrawer({
             NOT a button: a control promising a timer would be a lie. */}
         {restSeconds !== undefined && (
           <div
-            aria-label={`Recupero previsto: ${restSeconds} secondi`}
             className={cn(
               "w-full inline-flex items-center justify-center gap-2 rounded-2xl",
               "px-4 py-3",
