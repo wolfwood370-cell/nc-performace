@@ -4,8 +4,9 @@
 // Standard sets execution drawer, wired to the Supabase data layer.
 //
 // UI model:
-//   - Header: title + close.
-//   - Coach's protocol card.
+//   - Header: title (+ optional meta line) + close.
+//   - Optional "previous" reference line — rendered only when the caller
+//     provides a real value; same for the rest-period chip.
 //   - "Completed sets" list — reads `exercise_logs` filtered to this
 //     exercise via React Query. Empty when nothing has been logged yet.
 //   - Active input row — bound to local `weight` + `reps` state. Tapping
@@ -13,14 +14,19 @@
 //     `set_number`, clears the inputs, and refocuses the kg field.
 //   - Sticky footer: "Termina Esercizio" → closes the drawer.
 //
+// Every prop describing the exercise must carry REAL data: there are no
+// mock defaults. Blocks whose value is missing simply don't render.
+// NOTE: this component currently has no call-site — ActiveWorkout lost
+// its mock exercise cards (the only trigger) and will re-wire the drawer
+// when the release document actually reaches that page.
+//
 // Inputs use `type="number" inputMode="decimal"` per the project's
 // established mobile-keyboard convention. Empty / NaN inputs land as 0
 // in the row — honest about what the user actually typed.
 // =============================================================================
 
 import { useRef, useState } from "react";
-import { Check, Megaphone, Plus, Play, Timer, X } from "lucide-react";
-import { toast } from "sonner";
+import { Check, Plus, Play, Timer, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DrawerShell } from "./DrawerShell";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
@@ -43,12 +49,13 @@ interface StandardSetDrawerProps {
    * commit lands on the right `exercise_logs` row.
    */
   exerciseId: string;
-  /** Optional override title — defaults to the mock "A1. Barbell Back Squat". */
-  exerciseName?: string;
+  /** Real exercise title, e.g. "A1. Barbell Back Squat". No default. */
+  exerciseName: string;
+  /** Optional sub-line (phase / protocol descriptor). Hidden if absent. */
   meta?: string;
-  /** Coach's previous best — surfaced above the input as a reference. */
+  /** Last logged reference for this exercise. Hidden if absent. */
   previousReference?: string;
-  /** Rest period between sets, in seconds. Drives the timer button. */
+  /** Rest period between sets, in seconds. Hidden if absent. */
   restSeconds?: number;
 }
 
@@ -56,10 +63,10 @@ export function StandardSetDrawer({
   isOpen,
   onClose,
   exerciseId,
-  exerciseName = "A1. Barbell Back Squat",
-  meta = "Forza Primaria · RPE 8",
-  previousReference = "100kg × 8",
-  restSeconds = 90,
+  exerciseName,
+  meta,
+  previousReference,
+  restSeconds,
 }: StandardSetDrawerProps) {
   // -- Local input state --------------------------------------------------
   // Strings (not numbers) so an empty field renders as "" rather than 0.
@@ -124,9 +131,11 @@ export function StandardSetDrawer({
           <h2 className="font-display text-xl font-bold tracking-tight text-on-surface truncate">
             {exerciseName}
           </h2>
-          <p className="mt-1 font-sans text-[11px] font-semibold tracking-widest uppercase text-on-surface-variant">
-            {meta}
-          </p>
+          {meta && (
+            <p className="mt-1 font-sans text-[11px] font-semibold tracking-widest uppercase text-on-surface-variant">
+              {meta}
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -142,35 +151,21 @@ export function StandardSetDrawer({
           Body
           ------------------------------------------------------------------ */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-5">
-        {/* Coach's protocol */}
-        <div
-          className={cn(
-            "rounded-2xl p-4",
-            "bg-surface-container/50 border-l-4 border-brand-container",
-            "border border-brand-container/15",
-          )}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <Megaphone
-              className="h-4 w-4 text-brand-container"
-              strokeWidth={2}
-              aria-hidden="true"
-            />
-            <h3 className="font-display text-[11px] font-bold tracking-widest uppercase text-brand-container">
-              Note del Coach
-            </h3>
-          </div>
-          <p className="text-sm text-on-surface">
-            Eccentrica controllata di 3 secondi. Esplosivo in concentrica. Non sacrificare la
-            profondità per il carico.
-          </p>
-          {previousReference && (
-            <p className="mt-3 font-sans text-[11px] text-on-surface-variant">
+        {/* Previous-session reference — only when the caller provides one */}
+        {previousReference && (
+          <div
+            className={cn(
+              "rounded-2xl p-4",
+              "bg-surface-container/50 border-l-4 border-brand-container",
+              "border border-brand-container/15",
+            )}
+          >
+            <p className="font-sans text-[11px] text-on-surface-variant">
               <span className="font-semibold tracking-wider uppercase">Precedente</span> ·{" "}
               {previousReference}
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Completed sets — derived from the store */}
         <section aria-label="Serie completate" className="flex flex-col gap-2">
@@ -215,28 +210,23 @@ export function StandardSetDrawer({
           )}
         </section>
 
-        {/* Prominent rest-timer entry point — placeholder action until
-            the full countdown widget lands. */}
-        <button
-          type="button"
-          onClick={() =>
-            toast("Timer recupero", {
-              description: `Conto alla rovescia di ${restSeconds} secondi (placeholder).`,
-            })
-          }
-          aria-label={`Timer recupero ${restSeconds} secondi`}
-          className={cn(
-            "w-full inline-flex items-center justify-center gap-2 rounded-2xl",
-            "px-4 py-3",
-            "bg-brand-container text-white",
-            "font-sans text-sm font-bold tracking-wide uppercase",
-            "shadow-[0_8px_18px_rgba(34,111,163,0.25)]",
-            "transition-all duration-150 active:scale-[0.98] hover:brightness-110",
-          )}
-        >
-          <Timer className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-          Recupero · {restSeconds}s
-        </button>
+        {/* Prescribed rest period — static information, shown only when
+            known. No countdown widget exists yet, so this is deliberately
+            NOT a button: a control promising a timer would be a lie. */}
+        {restSeconds !== undefined && (
+          <div
+            aria-label={`Recupero previsto: ${restSeconds} secondi`}
+            className={cn(
+              "w-full inline-flex items-center justify-center gap-2 rounded-2xl",
+              "px-4 py-3",
+              "bg-brand-container/10 text-brand-container",
+              "font-sans text-sm font-bold tracking-wide uppercase",
+            )}
+          >
+            <Timer className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+            Recupero · {restSeconds}s
+          </div>
+        )}
 
         {/* Active input row */}
         <section
