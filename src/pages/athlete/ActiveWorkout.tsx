@@ -1,25 +1,28 @@
 // =============================================================================
 // src/pages/athlete/ActiveWorkout.tsx
 // =============================================================================
-// Phase 7 — The Active Workout Hub.
-//
-// A full-screen focus-mode overlay (z-50) that hides the global
-// BottomNavBar. Adapted from active_workout_hub.html.
+// The Active Workout Hub — a full-screen focus-mode overlay (z-50) that
+// hides the global BottomNavBar.
 //
 // Composition:
 //   - <GlobalTimerHUD> — sticky top bar with X (opens the friction
-//     modal), centered live MM:SS timer + pulsing red dot, overflow
-//     menu placeholder, thin progress bar across the bottom edge.
-//   - <CompletedPhase> — first section, opacity-60, green check, all
-//     exercises rendered with line-through.
-//   - <ActivePhase> — numbered phase badge + the currently-active
-//     exercise card (segmented set pills + "current set target")
-//     followed by upcoming exercise cards.
+//     modal) and the centered live MM:SS timer + pulsing red dot.
+//   - <EmptySessionNotice> — explicit empty state: this page has no real
+//     source for the session's exercises yet (no route state, no release
+//     query), and says so instead of rendering an invented workout.
 //   - <BottomActionBar> — sticky glass strip with a 70/30 split:
 //     Pause/Resume toggle (wider) + Termina (narrower, opens dialog).
 //   - <ExitWorkoutDialog> — friction modal shown when the user taps X
-//     or Termina. Resume closes; Finish/Discard navigate to
-//     /athlete/training with a toast.
+//     or Termina. Resume closes; Finish navigates to the debrief,
+//     Discard back to /athlete/training with a toast.
+//
+// What is real here: the persisted timer (Zustand store), the session
+// lifecycle (useStartSessionMutation on mount — DB-backed only when an
+// authenticated user is available at that moment; see the hook's
+// local-only fallback), and the exit/debrief flows. The mock exercise
+// list, per-set "coach prescription" targets, pre-completed warm-up
+// phase and the hardcoded session progress bar have been removed: they
+// return only when the release document is actually wired in.
 //
 // Timer: pure useEffect + setInterval, paused via local boolean.
 // Cleanup on unmount via the effect's return.
@@ -29,93 +32,16 @@
 // the layout the global nav would be obscured anyway — but mounting it
 // outside the layout subtree is the architecturally honest choice for
 // "stack-pushed full-screen flow" pages.
-//
-// No Supabase wiring. Backend integration lands in the next commit.
 // =============================================================================
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowUpDown,
-  CheckCircle2,
-  Dumbbell,
-  Info,
-  MoreVertical,
-  Pause,
-  Play,
-  X,
-} from "lucide-react";
+import { Dumbbell, Pause, Play, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ExitWorkoutDialog } from "@/components/athlete/ExitWorkoutDialog";
-import { StandardSetDrawer } from "@/components/athlete/drawers/StandardSetDrawer";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
-import {
-  useSessionSetsQuery,
-  useStartSessionMutation,
-} from "@/hooks/athlete/useAthleteWorkoutHooks";
-
-// =============================================================================
-// Domain types
-// =============================================================================
-interface CompletedExercise {
-  id: string;
-  name: string;
-  scheme: string;
-}
-
-interface UpcomingExercise {
-  id: string;
-  code: string;
-  name: string;
-  /** Coach-prescribed total sets for the exercise. */
-  targetSets: number;
-}
-
-interface ActiveExercise {
-  /** Stable id used as the key in `loggedSets[id]`. */
-  id: string;
-  code: string;
-  name: string;
-  /** Coach-prescribed total sets for the exercise. */
-  targetSets: number;
-  /**
-   * Coach-prescribed target for the next set. The current set index is
-   * derived live from the store (= completed sets count + 1), so this
-   * struct holds only the prescription, not the live progress.
-   */
-  setTarget: {
-    reps: number;
-    weightKg: number;
-  };
-}
-
-// =============================================================================
-// Mock data — single source of truth for this page.
-// =============================================================================
-const COMPLETED_PHASE = {
-  name: "Movement Prep",
-  exercises: [
-    { id: "warm_1", name: "90/90 Stretch", scheme: "2 set × 10 reps per lato" },
-    { id: "warm_2", name: "Cat-Cow", scheme: "1 set × 15 reps" },
-  ] as CompletedExercise[],
-};
-
-const ACTIVE_EXERCISE: ActiveExercise = {
-  id: "a1",
-  code: "A1",
-  name: "Barbell Back Squat",
-  targetSets: 4,
-  setTarget: { reps: 8, weightKg: 100 },
-};
-
-const UPCOMING: UpcomingExercise[] = [
-  { id: "b1", code: "B1", name: "Romanian Deadlift", targetSets: 3 },
-  { id: "b2", code: "B2", name: "Weighted Pull-ups", targetSets: 3 },
-];
-
-// Progress bar (% of session completed) — driven from mock for now.
-const SESSION_PROGRESS_PERCENT = 30;
+import { useStartSessionMutation } from "@/hooks/athlete/useAthleteWorkoutHooks";
 
 // =============================================================================
 // formatMMSS — shared with the dialog component.
@@ -128,36 +54,18 @@ function formatMMSS(seconds: number): string {
 }
 
 // =============================================================================
-// useCompletedSetCount — DB-backed count of completed sets for an
-// exercise inside the currently-active session. Reads `exercise_logs`
-// via React Query (invalidated by `useLogSetMutation`), filters down to
-// the requested exercise. Returns 0 if no session is active or the
-// query is still loading.
-// =============================================================================
-function useCompletedSetCount(exerciseId: string): number {
-  const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
-  const sessionSets = useSessionSetsQuery(activeSessionId);
-  if (!sessionSets.data) return 0;
-  let n = 0;
-  for (const row of sessionSets.data) {
-    if (row.exercise_id === exerciseId) n += 1;
-  }
-  return n;
-}
-
-// =============================================================================
-// GlobalTimerHUD — sticky top header with the live MM:SS timer.
+// GlobalTimerHUD — sticky top header with the live MM:SS timer. The
+// trailing element is a spacer (same size as the X button) so the timer
+// stays optically centered without offering a control that does nothing.
 // =============================================================================
 function GlobalTimerHUD({
   seconds,
   isPaused,
   onExit,
-  onMenu,
 }: {
   seconds: number;
   isPaused: boolean;
   onExit: () => void;
-  onMenu: () => void;
 }) {
   return (
     <header
@@ -204,266 +112,41 @@ function GlobalTimerHUD({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onMenu}
-          aria-label="Altre opzioni"
-          className={cn(
-            "h-10 w-10 rounded-full",
-            "flex items-center justify-center text-on-surface",
-            "transition-colors hover:bg-surface-container/60",
-            "active:scale-95",
-          )}
-        >
-          <MoreVertical
-            className="h-5 w-5"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-
-      {/* Session progress bar */}
-      <div
-        role="progressbar"
-        aria-valuenow={SESSION_PROGRESS_PERCENT}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label="Avanzamento sessione"
-        className="h-1 w-full bg-surface-container/60"
-      >
-        <div
-          className="h-full bg-brand-container transition-[width] duration-300"
-          style={{ width: `${SESSION_PROGRESS_PERCENT}%` }}
-        />
+        <span aria-hidden="true" className="h-10 w-10" />
       </div>
     </header>
   );
 }
 
 // =============================================================================
-// CompletedPhase — first section, dimmed.
+// EmptySessionNotice — explicit empty state for the exercise area. The
+// page cannot know which exercises belong to this session (nothing real
+// reaches it), so it says exactly that and points to what does work.
 // =============================================================================
-function CompletedPhase() {
+function EmptySessionNotice() {
   return (
     <section
-      aria-label={`Fase 1: ${COMPLETED_PHASE.name} (completata)`}
-      className="opacity-60"
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <span
-          aria-hidden="true"
-          className="h-7 w-7 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center"
-        >
-          <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
-        </span>
-        <h2 className="font-display text-base font-bold tracking-tight text-on-surface">
-          Fase 1: {COMPLETED_PHASE.name}
-        </h2>
-      </div>
-
-      <div
-        className={cn(
-          "rounded-3xl",
-          "bg-white border border-[#c0c7d0]/30",
-          "divide-y divide-[#c0c7d0]/20",
-        )}
-      >
-        {COMPLETED_PHASE.exercises.map((ex) => (
-          <div key={ex.id} className="px-5 py-4">
-            <h3 className="font-display text-sm font-semibold text-on-surface line-through">
-              {ex.name}
-            </h3>
-            <p className="mt-0.5 font-sans text-xs text-on-surface-variant">
-              {ex.scheme}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// =============================================================================
-// ActiveExerciseCard — focal card for the in-progress exercise.
-// Live two-way binding to the store: the completed-set count, the pill
-// segments, and the "Set N · Obiettivo" line all derive from
-// `useCompletedSetCount(exercise.id)`. As soon as a set is committed
-// from the StandardSetDrawer, this card updates without a refetch.
-// =============================================================================
-function ActiveExerciseCard({
-  exercise,
-  onOpen,
-}: {
-  exercise: ActiveExercise;
-  onOpen: (exerciseId: string) => void;
-}) {
-  const completedSets = useCompletedSetCount(exercise.id);
-  // Clamp at targetSets so an over-shoot doesn't render bogus state.
-  const safeCompleted = Math.min(completedSets, exercise.targetSets);
-  const currentSetIndex = Math.min(safeCompleted + 1, exercise.targetSets);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(exercise.id)}
-      aria-label={`Apri esecuzione ${exercise.code}. ${exercise.name}`}
+      aria-label="Esercizi non collegati"
       className={cn(
-        "relative overflow-hidden w-full text-left",
         "rounded-3xl p-6",
-        "bg-white border border-brand-container/40",
-        "border-l-4 border-l-brand-container",
-        "shadow-[0_4px_24px_rgba(34,111,163,0.08)]",
-        "transition-transform active:scale-[0.99]",
-      )}
-    >
-      <div className="flex items-start justify-between mb-5">
-        <div>
-          <h3 className="font-display text-lg font-bold text-on-surface leading-tight">
-            <span className="text-brand-container mr-1">{exercise.code}.</span>
-            {exercise.name}
-          </h3>
-          <p className="mt-1 font-sans text-xs font-semibold tracking-wide text-brand-container">
-            {safeCompleted}/{exercise.targetSets} serie completate
-          </p>
-        </div>
-        <span
-          aria-hidden="true"
-          className="h-8 w-8 rounded-full flex items-center justify-center text-on-surface-variant"
-        >
-          <Info className="h-4 w-4" strokeWidth={2} />
-        </span>
-      </div>
-
-      {/* Pill segments — one per set, filled for completed */}
-      <div
-        role="group"
-        aria-label="Avanzamento serie"
-        className="flex gap-2 mb-5"
-      >
-        {Array.from({ length: exercise.targetSets }).map((_, i) => {
-          const isDone = i < safeCompleted;
-          return (
-            <div
-              key={i}
-              aria-label={`Serie ${i + 1}${isDone ? " completata" : " in attesa"}`}
-              className={cn(
-                "h-1.5 flex-1 rounded-full",
-                isDone ? "bg-brand-container" : "bg-surface-container",
-              )}
-            />
-          );
-        })}
-      </div>
-
-      {/* Current set target — coach prescription, indexed by live progress */}
-      <div className="rounded-2xl p-4 bg-surface-container/50 flex items-center justify-between gap-3">
-        <div>
-          <span className="font-sans text-[10px] font-semibold tracking-widest uppercase text-on-surface-variant">
-            Set {currentSetIndex} · Obiettivo
-          </span>
-          <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-on-surface">
-            {exercise.setTarget.reps}
-            <span className="ml-1 text-base font-normal text-on-surface-variant">
-              reps
-            </span>
-            <span className="mx-2 text-base font-normal text-on-surface-variant">
-              @
-            </span>
-            {exercise.setTarget.weightKg}
-            <span className="ml-1 text-base font-normal text-on-surface-variant">
-              kg
-            </span>
-          </p>
-        </div>
-        <Dumbbell
-          className="h-8 w-8 text-brand-container/30 shrink-0"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      </div>
-    </button>
-  );
-}
-
-// =============================================================================
-// UpcomingExerciseCard — compact card for queued exercises. The whole
-// row is a button that opens the drawer for its exercise; the
-// trailing ArrowUpDown becomes a non-interactive decoration to avoid
-// nested interactive elements.
-// =============================================================================
-function UpcomingExerciseCard({
-  exercise,
-  onOpen,
-}: {
-  exercise: UpcomingExercise;
-  onOpen: (exerciseId: string) => void;
-}) {
-  const completedSets = useCompletedSetCount(exercise.id);
-  const safeCompleted = Math.min(completedSets, exercise.targetSets);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(exercise.id)}
-      aria-label={`Apri esecuzione ${exercise.code}. ${exercise.name}`}
-      className={cn(
-        "rounded-3xl p-5 w-full text-left",
         "bg-white border border-[#c0c7d0]/30",
-        "flex items-center justify-between gap-3",
-        "transition-transform active:scale-[0.99]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-container/40",
+        "flex flex-col items-center text-center gap-3",
       )}
     >
-      <div className="min-w-0">
-        <h3 className="font-display text-sm font-semibold text-on-surface truncate">
-          <span className="text-brand-container mr-1">{exercise.code}.</span>
-          {exercise.name}
-        </h3>
-        <p className="mt-1 font-sans text-xs text-on-surface-variant">
-          {safeCompleted}/{exercise.targetSets} Set
-        </p>
-      </div>
       <span
         aria-hidden="true"
-        className="h-9 w-9 rounded-full flex items-center justify-center text-on-surface-variant"
+        className="h-12 w-12 rounded-full bg-surface-container/60 flex items-center justify-center text-on-surface-variant"
       >
-        <ArrowUpDown className="h-4 w-4" strokeWidth={2} />
+        <Dumbbell className="h-6 w-6" strokeWidth={1.75} />
       </span>
-    </button>
-  );
-}
-
-// =============================================================================
-// ActivePhase — section containing the focal exercise + upcoming queue.
-// The same `onOpen(exerciseId)` callback is wired to both card variants:
-// the parent decides which exerciseId is "active" via local state.
-// =============================================================================
-function ActivePhase({
-  onOpen,
-}: {
-  onOpen: (exerciseId: string) => void;
-}) {
-  return (
-    <section aria-label="Fase 2: Main Session (attiva)">
-      <div className="flex items-center gap-3 mb-3">
-        <span
-          aria-hidden="true"
-          className="h-7 w-7 rounded-full bg-brand-container text-white flex items-center justify-center font-display text-xs font-bold tabular-nums"
-        >
-          2
-        </span>
-        <h2 className="font-display text-base font-bold tracking-tight text-on-surface">
-          Fase 2: Main Session
-        </h2>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <ActiveExerciseCard exercise={ACTIVE_EXERCISE} onOpen={onOpen} />
-        {UPCOMING.map((ex) => (
-          <UpcomingExerciseCard key={ex.id} exercise={ex} onOpen={onOpen} />
-        ))}
-      </div>
+      <h2 className="font-display text-base font-bold tracking-tight text-on-surface">
+        Esercizi non collegati
+      </h2>
+      <p className="font-sans text-sm text-on-surface-variant max-w-prose">
+        Questa schermata non è ancora collegata agli esercizi del tuo programma. Se hai un programma
+        attivo, trovi il dettaglio della seduta nella scheda Allenamento. Qui puoi cronometrare la
+        sessione e chiuderla quando hai finito.
+      </p>
     </section>
   );
 }
@@ -505,20 +188,12 @@ function BottomActionBar({
         >
           {isPaused ? (
             <>
-              <Play
-                className="h-5 w-5 fill-on-surface"
-                strokeWidth={0}
-                aria-hidden="true"
-              />
+              <Play className="h-5 w-5 fill-on-surface" strokeWidth={0} aria-hidden="true" />
               Riprendi
             </>
           ) : (
             <>
-              <Pause
-                className="h-5 w-5 fill-on-surface"
-                strokeWidth={0}
-                aria-hidden="true"
-              />
+              <Pause className="h-5 w-5 fill-on-surface" strokeWidth={0} aria-hidden="true" />
               Pausa
             </>
           )}
@@ -549,7 +224,7 @@ export default function ActiveWorkout() {
   const navigate = useNavigate();
 
   // -- Store integration ----------------------------------------------------
-  // Live timer + active flag now live in the persisted Zustand store, so a
+  // Live timer + active flag live in the persisted Zustand store, so a
   // mid-session refresh, accidental tab close, or a navigation away (e.g.
   // to /athlete/profile from the global nav while the workout is somehow
   // running in the background) doesn't lose the elapsed time.
@@ -557,36 +232,25 @@ export default function ActiveWorkout() {
   // component that doesn't read the seconds counter.
   const seconds = useAthleteWorkoutStore((s) => s.elapsedTime);
   const isSessionActive = useAthleteWorkoutStore((s) => s.isSessionActive);
-  const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const stopSession = useAthleteWorkoutStore((s) => s.stopSession);
   const tick = useAthleteWorkoutStore((s) => s.tick);
 
-  // INSERT a `workout_logs` row when this page mounts without an active
-  // session. On success, stash the id in the store so set-logging
-  // mutations can FK to it.
+  // Session start on mount. Whether a workout_logs row is actually
+  // persisted depends on the auth state the hook sees at that moment
+  // (see useStartSessionMutation's local-only fallback).
   const startSessionMutation = useStartSessionMutation();
 
   // -- Local UI state -------------------------------------------------------
   // `isPaused` is page-local: pause halts the visible timer without ending
-  // the session (the store stays `isSessionActive=true`). Dialog and drawer
-  // visibility are also page-local.
-  //
-  // `selectedExerciseId` decides WHICH exercise the drawer is currently
-  // logging against. Held outside `isDrawerOpen` so the close animation
-  // can read the id during teardown without flicker.
+  // the session (the store stays `isSessionActive=true`). Dialog visibility
+  // is also page-local.
   const [isPaused, setIsPaused] = useState(false);
   const [isExitOpen, setIsExitOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(
-    null,
-  );
 
   // Always start a fresh session on mount. Discarding any persisted
-  // `activeSessionId` FIRST means the `useSessionSetsQuery(activeSessionId)`
-  // that drives per-exercise completed counts can never return rows
-  // from a previous workout — so exercises always render at 0/X sets
-  // on entry. (Previously, a leftover persisted id leaked stale set
-  // history and made exercises appear pre-completed.)
+  // `activeSessionId` FIRST means the id held in the store can only ever
+  // belong to THIS session — never to a leftover one from a previous
+  // workout restored by the persist middleware.
   useEffect(() => {
     useAthleteWorkoutStore.getState().stopSession();
     startSessionMutation.mutate(
@@ -597,7 +261,7 @@ export default function ActiveWorkout() {
         },
       },
     );
-    // Mount-only: re-running would re-INSERT every render.
+    // Mount-only: re-running would restart the session every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -636,12 +300,6 @@ export default function ActiveWorkout() {
     navigate("/athlete/training");
   };
 
-  const handleMenu = () => {
-    toast.message("Opzioni in arrivo", {
-      description: "Riordino esercizi, swap, note coach — prossimo step.",
-    });
-  };
-
   return (
     <>
       {/* Full-screen overlay — sits above the global BottomNavBar (z-50).
@@ -657,21 +315,10 @@ export default function ActiveWorkout() {
           "flex flex-col",
         )}
       >
-        <GlobalTimerHUD
-          seconds={seconds}
-          isPaused={isPaused}
-          onExit={openExitDialog}
-          onMenu={handleMenu}
-        />
+        <GlobalTimerHUD seconds={seconds} isPaused={isPaused} onExit={openExitDialog} />
 
         <main className="flex-1 overflow-y-auto px-5 py-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
-          <CompletedPhase />
-          <ActivePhase
-            onOpen={(exerciseId) => {
-              setSelectedExerciseId(exerciseId);
-              setIsDrawerOpen(true);
-            }}
-          />
+          <EmptySessionNotice />
         </main>
 
         <BottomActionBar
@@ -680,25 +327,6 @@ export default function ActiveWorkout() {
           onFinishRequest={openExitDialog}
         />
       </div>
-
-      {/* Phase 8 — protocol execution drawer. Rendered BEFORE the
-          ExitWorkoutDialog so that if both are open simultaneously the
-          dialog wins z-stacking via JSX order. Currently wired to
-          StandardSet; the other drawers (Superset/AMRAP/Intensity/
-          Isometric) are ready to swap in based on the active exercise
-          protocol when the workout data layer lands.
-
-          We only render the drawer when an exerciseId is actually
-          selected so the prop contract (`exerciseId: string`) stays
-          honest — passing "" would let bogus commits land on a
-          string-keyed store slot. */}
-      {selectedExerciseId !== null && (
-        <StandardSetDrawer
-          isOpen={isDrawerOpen}
-          onClose={() => setIsDrawerOpen(false)}
-          exerciseId={selectedExerciseId}
-        />
-      )}
 
       {/* Friction modal — sits at z-[60] above the workout overlay. */}
       <ExitWorkoutDialog
