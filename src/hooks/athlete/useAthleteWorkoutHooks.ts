@@ -21,8 +21,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { log } from "@/lib/logger";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 export type WorkoutLogRow = Tables<"workout_logs">;
@@ -44,70 +42,30 @@ export interface StartSessionInput {
 }
 
 /**
- * Build a synthetic, local-only `workout_logs` row used when no Supabase
- * session is available (typically: dev / local testing without auth).
- *
- * Both `id` and `athlete_id` MUST be valid UUIDs (not prefixed strings)
- * because their TS types are `string` but the underlying Postgres
- * columns are `uuid`. Any downstream `.eq("id", row.id)` query would
- * otherwise fail with "invalid input syntax for type uuid".
- *
- * No DB INSERT happens here — the caller just uses the synthetic id
- * locally; set-logging mutations will FK-fail against `exercise_logs`
- * (no parent workout_logs row in DB) and surface a toast.
- */
-function makeLocalSessionRow(workoutId: string | null): WorkoutLogRow {
-  const now = new Date().toISOString();
-  return {
-    id: crypto.randomUUID(),
-    athlete_id: crypto.randomUUID(),
-    workout_id: workoutId,
-    started_at: now,
-    completed_at: null,
-    created_at: now,
-    duration_minutes: null,
-    duration_seconds: null,
-    exercises_data: [],
-    google_event_id: null,
-    local_id: null,
-    notes: null,
-    program_id: null,
-    program_workout_id: null,
-    rpe_global: null,
-    scheduled_date: null,
-    scheduled_start_time: null,
-    srpe: null,
-    coach_feedback: null,
-    coach_feedback_at: null,
-    status: "in_progress",
-    sync_status: "pending",
-    total_load_au: null,
-  };
-}
-
-/**
  * Insert a new `workout_logs` row in `in_progress` state, stamped with
  * `started_at = now()`. Returns the new row so the caller can stash the
  * session id (used as the FK target for `exercise_logs`).
  *
- * Local-only fallback: when no authenticated user is present, returns a
- * synthetic row instead of throwing. This lets the local Zustand state
- * boot a visible session for QA / dev without backend, without firing
- * a blocking error toast on every cold start.
+ * Identity is resolved inside `mutationFn` via `supabase.auth.getSession()`
+ * — which awaits client initialization and refreshes an expired token —
+ * NOT captured from React state at render time. The INSERT must never
+ * depend on when a per-instance `useAuth` finishes populating (that race
+ * used to silently return a fabricated local row and persist nothing).
+ * No authenticated session → throw; `onError` surfaces the red toast.
  */
 export function useStartSessionMutation() {
-  const { user } = useAuth();
-
   return useMutation({
     mutationFn: async (input: StartSessionInput = {}): Promise<WorkoutLogRow> => {
-      if (!user?.id) {
-        log.warn(
-          "[useStartSessionMutation] No authenticated user — falling back to local-only session.",
-        );
-        return makeLocalSessionRow(input.workout_id ?? null);
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session?.user?.id) {
+        throw new Error("Non sei autenticato: accedi di nuovo per salvare l'allenamento.");
       }
       const payload: TablesInsert<"workout_logs"> = {
-        athlete_id: user.id,
+        athlete_id: session.user.id,
         workout_id: input.workout_id ?? null,
         started_at: new Date().toISOString(),
         status: "in_progress",
