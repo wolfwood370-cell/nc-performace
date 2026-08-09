@@ -6,10 +6,15 @@
 //
 // Composition:
 //   - <GlobalTimerHUD> — sticky top bar with X (opens the friction
-//     modal) and the centered live MM:SS timer + pulsing red dot.
+//     modal) and the centered live MM:SS timer. The red dot pulses only
+//     while a session actually exists and is running (isLive), never as
+//     decoration.
 //   - <EmptySessionNotice> — explicit empty state: this page has no real
 //     source for the session's exercises yet (no route state, no release
 //     query), and says so instead of rendering an invented workout.
+//   - <SessionStartFailedNotice> — explicit failure state when the
+//     workout_logs INSERT did not happen: nothing done here would be
+//     saved, so the page says so and offers a retry.
 //   - <BottomActionBar> — sticky glass strip with a 70/30 split:
 //     Pause/Resume toggle (wider) + Termina (narrower, opens dialog).
 //   - <ExitWorkoutDialog> — friction modal shown when the user taps X
@@ -17,12 +22,14 @@
 //     Discard back to /athlete/training with a toast.
 //
 // What is real here: the persisted timer (Zustand store), the session
-// lifecycle (useStartSessionMutation on mount — DB-backed only when an
-// authenticated user is available at that moment; see the hook's
-// local-only fallback), and the exit/debrief flows. The mock exercise
-// list, per-set "coach prescription" targets, pre-completed warm-up
-// phase and the hardcoded session progress bar have been removed: they
-// return only when the release document is actually wired in.
+// lifecycle (useStartSessionMutation on mount — the hook resolves the
+// athlete's identity inside mutationFn via supabase.auth.getSession(),
+// so the INSERT never depends on render-time auth state; on failure the
+// page shows the explicit error state with a retry), and the
+// exit/debrief flows. The mock exercise list, per-set "coach
+// prescription" targets, pre-completed warm-up phase and the hardcoded
+// session progress bar have been removed: they return only when the
+// release document is actually wired in.
 //
 // Timer: pure useEffect + setInterval, paused via local boolean.
 // Cleanup on unmount via the effect's return.
@@ -36,7 +43,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Dumbbell, Pause, Play, X } from "lucide-react";
+import { Dumbbell, Pause, Play, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ExitWorkoutDialog } from "@/components/athlete/ExitWorkoutDialog";
@@ -60,11 +67,18 @@ function formatMMSS(seconds: number): string {
 // =============================================================================
 function GlobalTimerHUD({
   seconds,
-  isPaused,
+  isLive,
+  hasSession,
   onExit,
 }: {
   seconds: number;
-  isPaused: boolean;
+  /** True only while a session row exists and the timer is running —
+   *  the red dot must never pulse over a session that was never started
+   *  (nor over a paused one). */
+  isLive: boolean;
+  /** True once the workout_logs row exists (store has its id) — the
+   *  eyebrow must not claim a running workout that was never started. */
+  hasSession: boolean;
   onExit: () => void;
 }) {
   return (
@@ -92,14 +106,14 @@ function GlobalTimerHUD({
 
         <div className="flex flex-col items-center">
           <span className="font-sans text-[10px] font-semibold tracking-widest uppercase text-on-surface-variant">
-            Workout in corso
+            {hasSession ? "Workout in corso" : "Workout non avviato"}
           </span>
           <div className="flex items-center gap-2 mt-0.5">
             <span
               aria-hidden="true"
               className={cn(
                 "h-2 w-2 rounded-full",
-                isPaused ? "bg-on-surface-variant/40" : "bg-error animate-pulse",
+                isLive ? "bg-error animate-pulse" : "bg-on-surface-variant/40",
               )}
             />
             <span
@@ -147,6 +161,61 @@ function EmptySessionNotice() {
         attivo, trovi il dettaglio della seduta nella scheda Allenamento. Qui puoi cronometrare la
         sessione e chiuderla quando hai finito.
       </p>
+    </section>
+  );
+}
+
+// =============================================================================
+// SessionStartFailedNotice — explicit failure state: the workout_logs
+// INSERT did not go through, so nothing done on this page would be
+// saved. The specific cause lives in the mutation's error toast; this
+// card states the consequence and offers the retry. It stays mounted
+// through the retry itself (mutate() resets isError for the whole
+// request) with the button disabled, so the page never flashes back to
+// the healthy-looking empty state while nothing is saved yet.
+// =============================================================================
+function SessionStartFailedNotice({
+  onRetry,
+  isRetrying,
+}: {
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  return (
+    <section
+      aria-label="Sessione non avviata"
+      className={cn(
+        "rounded-3xl p-6",
+        "bg-white border border-[#c0c7d0]/30",
+        "flex flex-col items-center text-center gap-3",
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="h-12 w-12 rounded-full bg-surface-container/60 flex items-center justify-center text-error"
+      >
+        <TriangleAlert className="h-6 w-6" strokeWidth={1.75} />
+      </span>
+      <h2 className="font-display text-base font-bold tracking-tight text-on-surface">
+        Sessione non avviata
+      </h2>
+      <p className="font-sans text-sm text-on-surface-variant max-w-prose">
+        Questo allenamento non verrebbe salvato. Riprova.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={cn(
+          "mt-1 px-6 py-3 rounded-full",
+          "bg-on-surface text-white",
+          "font-display text-sm font-bold tracking-wide",
+          "transition-all duration-200 hover:brightness-110 active:scale-[0.98]",
+          "disabled:opacity-60 disabled:pointer-events-none",
+        )}
+      >
+        {isRetrying ? "Riavvio in corso…" : "Riprova"}
+      </button>
     </section>
   );
 }
@@ -235,32 +304,53 @@ export default function ActiveWorkout() {
   const stopSession = useAthleteWorkoutStore((s) => s.stopSession);
   const tick = useAthleteWorkoutStore((s) => s.tick);
 
-  // Session start on mount. Whether a workout_logs row is actually
-  // persisted depends on the auth state the hook sees at that moment
-  // (see useStartSessionMutation's local-only fallback).
+  // Session start on mount. The hook resolves the athlete's identity
+  // inside mutationFn (supabase.auth.getSession()), so the INSERT does
+  // not depend on when any render-time auth state finishes populating.
   const startSessionMutation = useStartSessionMutation();
 
   // -- Local UI state -------------------------------------------------------
   // `isPaused` is page-local: pause halts the visible timer without ending
   // the session (the store stays `isSessionActive=true`). Dialog visibility
-  // is also page-local.
+  // is also page-local. `hasStartFailed` is the page's memory of a failed
+  // start: mutation.isError alone cannot drive the failure card because
+  // mutate() resets it to false for the whole duration of a retry — the
+  // card would flash back to the healthy empty state mid-retry.
   const [isPaused, setIsPaused] = useState(false);
   const [isExitOpen, setIsExitOpen] = useState(false);
+  const [hasStartFailed, setHasStartFailed] = useState(false);
 
-  // Always start a fresh session on mount. Discarding any persisted
+  // Start (or retry) the session. Discarding any leftover
   // `activeSessionId` FIRST means the id held in the store can only ever
-  // belong to THIS session — never to a leftover one from a previous
-  // workout restored by the persist middleware.
-  useEffect(() => {
+  // belong to THIS session — never to one from a previous workout. On
+  // failure the mutation throws: `hasStartFailed` keeps the explicit
+  // failure notice up (through retries too) and the toast names the
+  // cause; the store stays empty, so the timer never pretends a session
+  // exists.
+  const startSession = () => {
+    // Re-entry guard: a second mutate() while one is in flight would fire
+    // a second INSERT and re-subscribe the observer, silently dropping
+    // the first call's onSuccess (TanStack v5) — an orphaned in_progress
+    // row in DB with no id in the store.
+    if (startSessionMutation.isPending) return;
     useAthleteWorkoutStore.getState().stopSession();
     startSessionMutation.mutate(
       {},
       {
         onSuccess: (row) => {
+          setHasStartFailed(false);
           useAthleteWorkoutStore.getState().startSession(row.id);
+        },
+        onError: () => {
+          setHasStartFailed(true);
         },
       },
     );
+  };
+
+  // Always start a fresh session on mount.
+  useEffect(() => {
+    startSession();
     // Mount-only: re-running would restart the session every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -308,17 +398,29 @@ export default function ActiveWorkout() {
           scrolls. */}
       <div
         role="region"
-        aria-label="Allenamento in corso"
+        aria-label="Schermata allenamento"
         className={cn(
           "fixed inset-0 z-50",
           "bg-surface text-on-surface font-sans antialiased",
           "flex flex-col",
         )}
       >
-        <GlobalTimerHUD seconds={seconds} isPaused={isPaused} onExit={openExitDialog} />
+        <GlobalTimerHUD
+          seconds={seconds}
+          isLive={isSessionActive && !isPaused}
+          hasSession={isSessionActive}
+          onExit={openExitDialog}
+        />
 
         <main className="flex-1 overflow-y-auto px-5 py-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
-          <EmptySessionNotice />
+          {hasStartFailed ? (
+            <SessionStartFailedNotice
+              onRetry={startSession}
+              isRetrying={startSessionMutation.isPending}
+            />
+          ) : (
+            <EmptySessionNotice />
+          )}
         </main>
 
         <BottomActionBar
