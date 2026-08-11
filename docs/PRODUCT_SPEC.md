@@ -31,7 +31,7 @@
 **Routing** (`src/App.tsx`, tutte le pagine lazy-loaded):
 
 - **Coach** (15 route, tutte dentro `SubscriptionGuard`): `/coach` (Home), `/coach/athletes`, `/coach/athlete/:id`, `/coach/programs` (ProgramBuilder), `/coach/calendar`, `/coach/messages`, `/coach/library`, `/coach/exercises`, `/coach/analytics`, `/coach/business`, `/coach/inbox`, `/coach/fms`, `/coach/knowledge`, `/coach/copilot`, `/coach/settings`.
-- **Atleta** (dentro `ProtectedAthleteRoute`): `/athlete` (layout → `index` Dashboard, `training`, `profile`) + sibling full-screen `/athlete/daily-checkin`, `/athlete/readiness`, `/athlete/readiness/today`, `/athlete/weekly-checkin`, `/athlete/training/phase`, `/athlete/exercise-preview`, `/athlete/active-workout`, `/athlete/post-workout`, `/athlete/analytics`, `/athlete/analytics/acwr`.
+- **Atleta** (dentro `ProtectedAthleteRoute`): `/athlete` (layout → `index` Dashboard, `training`, `profile`, `nutrition` entitlement-gated) + sibling full-screen `/athlete/daily-checkin`, `/athlete/weekly-checkin`, `/athlete/exercise-preview`, `/athlete/active-workout`, `/athlete/post-workout`. (Le pagine mock `/athlete/readiness`, `/athlete/readiness/today`, `/athlete/training/phase`, `/athlete/analytics`, `/athlete/analytics/acwr` sono state rimosse — fetta pagine-da-scollegare, 2026-08-11.)
 - **Pubblico**: `/auth`, `/reset-password`, `/onboarding`, `/privacy`, `/terms`.
 
 **State management**: TanStack Query per lo stato server (persistito su IndexedDB); Zustand+immer per stato client complesso (`stores/programBuilder`, `useAthleteReadinessStore`, `useAthleteWorkoutStore`, `useMovementStore`); React state locale per il resto.
@@ -275,7 +275,7 @@ Wizard **8 step** (`OnboardingWizard.tsx`): Termini → Biometria → PAR-Q → 
 
 ### 6.2 Daily readiness check-in
 
-**Entry condizionale**: `useDailyReadinessQuery(today)` → se completato `/athlete/readiness` (analisi), altrimenti `/athlete/daily-checkin` (logging). **Logging** (`DailyCheckin.tsx`): 5 righe scala 1-5 (Sonno/Energia/Stress/Umore/Digestione) + tag-cloud 11 muscoli con intensità 3-livelli. **Salva**: mappa 1-5→0-10, **inverte Energia in Fatica** `(6-energy)×2`, aggrega soreness 0-10; persiste su `daily_readiness` (upsert UNIQUE `athlete_id,date`). ⚠ `score` inviato è **placeholder fisso 85** ("weighted composite server-side in follow-up"). **Viste analisi** (`AthleteReadinessDetails`, `DailyReadiness`): gauge + barre fattori + trend 7gg — **dati interamente mock**. ⚠ **Niente `navigator.vibrate`** (il design system lo prescrive, non implementato). ⚠ submit **non** accodata offline (fallisce con toast).
+**Entry**: `useDailyReadinessQuery(today)` → a check-in completato la card Prontezza è statica (mostra solo lo score reale, nessuna navigazione); altrimenti il tap porta a `/athlete/daily-checkin` (logging). **Logging** (`DailyCheckin.tsx`): 5 righe scala 1-5 (Sonno/Energia/Stress/Umore/Digestione) + tag-cloud 11 muscoli con intensità 3-livelli. **Salva**: mappa 1-5→0-10, **inverte Energia in Fatica** `(6-energy)×2`, aggrega soreness 0-10; persiste su `daily_readiness` (upsert UNIQUE `athlete_id,date`). ⚠ `score` inviato è **placeholder fisso 85** ("weighted composite server-side in follow-up"). **Viste analisi**: non esistono — le pagine mock `AthleteReadinessDetails` e `DailyReadiness` sono state rimosse (2026-08-11). ⚠ **Niente `navigator.vibrate`** (il design system lo prescrive, non implementato). ⚠ submit **non** accodata offline (fallisce con toast).
 
 ### 6.3 Dashboard "Oggi"
 
@@ -283,8 +283,8 @@ Wizard **8 step** (`OnboardingWizard.tsx`): Termini → Biometria → PAR-Q → 
 
 ### 6.4 Training lifecycle (Hub → preview → ActiveWorkout → Debrief)
 
-- **Training Hub** (`AthleteTraining`): week-strip Mon-Sun; `HeroWorkoutCard`/`WorkoutBlueprint` **mock** (fasi "Movement Prep"/"Main Session", codici A1/B1 → exercise preview); `GlanceCards` (Carico → analytics; Prontezza reale). CTA "Inizia Sessione" → `startSession(uuid)` + `/athlete/active-workout`.
-- **Phase/Exercise preview** (`WorkoutPhaseDetail`, `ExercisePreview`): **mock**; `ExercisePreview` rende 1 di 4 varianti per `type` (standard/intensity/emom/isometric); CTA → toast placeholder **(non implementato)**.
+- **Training Hub** (`AthleteTraining`): week-strip Mon-Sun; `HeroWorkoutCard`/`WorkoutBlueprint` **mock** (fasi "Movement Prep"/"Main Session", codici A1/B1 → exercise preview); `GlanceCards` (sola card Prontezza a larghezza piena, reale: score a check-in fatto, «—» + tap→daily-checkin altrimenti; la card Carico mock è stata rimossa). CTA "Inizia Sessione" → `startSession(uuid)` + `/athlete/active-workout`.
+- **Exercise preview** (`ExercisePreview`): legge l'esercizio REALE da `location.state` (redirect a `/athlete/training` se assente). Rende la variante `standard`; nel codice esiste anche la variante `emom`, oggi **irraggiungibile** — l'unico produttore era `WorkoutPhaseDetail`, pagina mock rimossa (2026-08-11); cleanup del ramo emom a piano.
 - **ActiveWorkout** (focus-mode `fixed inset-0 z-50`, copre la nav): **on-mount** `stopSession()` → INSERT `workout_logs (in_progress)` → `startSession(row.id)`. Timer 1Hz. Esercizi **mock** ma conteggio set **live da `exercise_logs`**. **Logging set**: `StandardSetDrawer` → INSERT `exercise_logs (session_id, exercise_id, set_number, weight, reps)` + rifocalizza campo kg. Bottone "Recupero" → toast **(timer non implementato)**.
 - **Exit/friction modal** (`ExitWorkoutDialog`, `z-[60]`): Riprendi (anche Escape/backdrop) / Termina e Salva → `/athlete/post-workout` / Annulla (distruttivo) → `stopSession()`.
 - **PostWorkoutDebrief**: stats **derivate da `exercise_logs`** (serie = righe, volume = Σ weight×reps); `RpeSelector` 1-10 + note. **Salva**: UPDATE `workout_logs` (`completed_at`, `duration_seconds`, `rpe_global`, `notes`, `status=completed`) → `stopSession()`.
@@ -294,9 +294,9 @@ Wizard **8 step** (`OnboardingWizard.tsx`): Termini → Biometria → PAR-Q → 
 
 `WeeklyCheckin.tsx`: foto progresso (placeholder, **nessun file picker reale**) + textarea narrativa. **Submit NON persiste** (solo `log.info` + toast — backend "in follow-up"). NB: la rotta non è linkata da altre pagine atleta. Da non confondere con `useWeeklyCheckins` (lato **coach**).
 
-### 6.6 Analytics atleta — **interamente mock**
+### 6.6 Analytics atleta — **rimosse**
 
-`TrainingAnalytics` (e1RM 142.5kg, volume/RPE, PR) e `AcwrAnalysis` (gauge ratio 1.15) sono **tutte costanti**, grafici inline SVG. Esistono hook reali (`useAthleteAcwrData`, `useAthleteVbtData`, `useAthleteAnalytics`) **non collegati** a queste pagine.
+Le pagine `TrainingAnalytics` (e1RM 142.5kg) e `AcwrAnalysis` (gauge fisso 1.15 «Sweet Spot» per chiunque, anche in sovraccarico) erano **tutte costanti** e sono state rimosse (fetta pagine-da-scollegare, 2026-08-11): oggi non esiste una superficie analytics lato atleta. Gli hook reali (`useAthleteAcwrData`, `useAthleteVbtData`, `useAthleteAnalytics`) esistono e non erano collegati a quelle pagine.
 
 ### 6.7 Profilo
 
