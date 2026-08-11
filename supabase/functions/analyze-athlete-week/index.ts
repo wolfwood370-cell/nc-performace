@@ -158,13 +158,15 @@ serve(async (req) => {
       totalVelocityPoints > 0
         ? Math.round((sumVelocity / totalVelocityPoints) * 1000) / 1000
         : null;
+    // A missing RPE is an absence, not a 0: it must leave numerator AND
+    // denominator, or the weekly mean silently drops. Zero valid values →
+    // null, rendered as "N/D" by the template below.
+    const rpeValues = completedWorkouts
+      .map((w) => w.rpe_global)
+      .filter((r): r is number => r != null);
     const avgRpe =
-      completedWorkouts.length > 0
-        ? Math.round(
-            (completedWorkouts.reduce((s, w) => s + (w.rpe_global || 0), 0) /
-              completedWorkouts.length) *
-              10,
-          ) / 10
+      rpeValues.length > 0
+        ? Math.round((rpeValues.reduce((s, r) => s + r, 0) / rpeValues.length) * 10) / 10
         : null;
 
     const vbtDetail = Object.entries(exerciseSummaries)

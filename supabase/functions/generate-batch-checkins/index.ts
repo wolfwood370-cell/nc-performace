@@ -182,11 +182,16 @@ Deno.serve(async (req) => {
               totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
 
             const totalVolume = completed.reduce((sum, l) => sum + (l.total_load_au || 0), 0);
+            // A missing RPE is an absence, not a 0: it must leave numerator
+            // AND denominator, or the weekly mean silently drops. Zero valid
+            // values → the existing "N/A" sentinel (already guarded by the
+            // FE before Number()).
+            const rpeValues = completed
+              .map((l) => l.rpe_global)
+              .filter((r): r is number => r != null);
             const avgRpe =
-              completed.length > 0
-                ? (
-                    completed.reduce((sum, l) => sum + (l.rpe_global || 0), 0) / completed.length
-                  ).toFixed(1)
+              rpeValues.length > 0
+                ? (rpeValues.reduce((sum, r) => sum + r, 0) / rpeValues.length).toFixed(1)
                 : "N/A";
 
             const avgCalories =
