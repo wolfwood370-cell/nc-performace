@@ -134,9 +134,20 @@ function SessionStatsCard() {
 }
 
 // =============================================================================
-// RpeSelector — horizontal 1..10 scale + active-state description.
+// RpeSelector — horizontal 1..10 toggle group + active-state description.
+// Tapping the active pill clears it back to null ("not declared"): the RPE
+// is an optional athlete declaration, so the pills are toggle buttons
+// (aria-pressed) in a role="group" — deliberately NOT a radiogroup, whose
+// forced-choice semantics (see intake OptionButtons) would make "none
+// selected" a malformed state instead of a legitimate one.
 // =============================================================================
-function RpeSelector({ value, onChange }: { value: Rpe | null; onChange: (next: Rpe) => void }) {
+function RpeSelector({
+  value,
+  onChange,
+}: {
+  value: Rpe | null;
+  onChange: (next: Rpe | null) => void;
+}) {
   return (
     <section aria-label="Sforzo percepito della sessione">
       <div className="mb-4">
@@ -149,7 +160,7 @@ function RpeSelector({ value, onChange }: { value: Rpe | null; onChange: (next: 
       </div>
 
       <div
-        role="radiogroup"
+        role="group"
         aria-label="Scala RPE da 1 a 10"
         className="flex flex-wrap justify-center gap-2 pb-1"
       >
@@ -158,10 +169,10 @@ function RpeSelector({ value, onChange }: { value: Rpe | null; onChange: (next: 
           return (
             <button
               key={n}
-              role="radio"
-              aria-checked={isActive}
+              aria-pressed={isActive}
+              aria-label={`RPE ${n}`}
               type="button"
-              onClick={() => onChange(n)}
+              onClick={() => onChange(value === n ? null : n)}
               className={cn(
                 "w-11 h-11 rounded-xl flex items-center justify-center",
                 "font-display font-semibold tabular-nums text-sm",
