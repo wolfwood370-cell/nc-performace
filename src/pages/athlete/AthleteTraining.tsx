@@ -14,14 +14,14 @@
 //   - Diario view:
 //       1. Hero workout card (glass, left brand border, eyebrow badge,
 //          meta with Clock + Zap lucide icons).
-//       2. Glance cards grid: weekly load (mini bar chart in pure CSS),
-//          readiness chip (mini ring + label).
+//       2. Glance card: today's readiness (mini ring + real score, or a
+//          tappable "Da registrare" card into the daily check-in).
 //       3. Workout blueprint: numbered phases ("Fase 1: ...") with the
 //          dashed vertical guide line and a glass card per exercise.
 //          Main-session exercises get a thin primary left-border + a
 //          letter code prefix (A1, B1, ...).
-//   - Metriche view: placeholder card pointing to /athlete/readiness
-//     and noting that the dedicated metrics surface is in progress.
+//   - Metriche view: placeholder card noting that the dedicated
+//     metrics surface is in progress.
 //   - Sticky bottom "Inizia Sessione" CTA at bottom-24 — sits above the
 //     global BottomNavBar (which lives in <AthleteLayout> and uses
 //     bottom-0). pb-32 on the content wrapper guarantees the last
@@ -37,15 +37,12 @@
 // Without a release the page derives its state: consent required / pending
 // review / generate CTA (autonomous) or waiting-for-coach (coached). The edge
 // function stays the authoritative gate; no clinical detail is shown (art. 9).
-// The weekly-load glance card is still mock (separate slice).
 // =============================================================================
 
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
-  BarChart3,
-  ChevronRight,
   ChevronsUpDown,
   Dumbbell,
   Hourglass,
@@ -102,16 +99,6 @@ function compareDays(a: Date, b: Date): number {
 // Domain types
 // =============================================================================
 type View = "diario" | "metriche";
-
-const WEEKLY_LOAD = {
-  totalKg: 12_450,
-  daily: [40, 60, 50, 85, 75], // mini bar chart heights (%)
-};
-
-const READINESS = {
-  scorePercent: 85,
-  label: "Ottima",
-};
 
 interface WeekDay {
   label: string;
@@ -388,13 +375,14 @@ function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
 }
 
 // =============================================================================
-// GlanceCards — 2-col grid: Weekly Load + Prontezza. Both cards are
-// now clickable buttons:
-//   - Carico Settimanale → /athlete/analytics (analytics hub)
-//   - Prontezza         → /athlete/readiness (analysis) when the
-//     check-in is already done today, otherwise /athlete/daily-checkin
-//     (logging). The branch matches the dashboard's ReadinessCard so
-//     both entry points stay symmetrical.
+// GlanceCards — single full-width Prontezza card, honest in both states:
+//   - check-in missing → tappable button into /athlete/daily-checkin;
+//     the score slot shows "—" (absent value → dash, never an invented
+//     number) under the "Da registrare" state label.
+//   - check-in done → static, non-interactive card with the REAL score
+//     only. No qualitative label: a score→label mapping is not a
+//     validated method yet, and the mock analysis pages the card used
+//     to open were removed.
 // =============================================================================
 function GlanceCards() {
   const navigate = useNavigate();
@@ -403,95 +391,49 @@ function GlanceCards() {
   const isReadinessCompletedToday = Boolean(readinessToday.data);
   const dailyScore = readinessToday.data?.score ?? null;
 
-  // Display values for the Prontezza card. Falls back to the static
-  // READINESS mock until the day's check-in is submitted, so the card
-  // never shows "—%" out of context.
-  const displayScore =
-    isReadinessCompletedToday && dailyScore !== null ? dailyScore : READINESS.scorePercent;
-  const displayLabel = isReadinessCompletedToday ? READINESS.label : "Da registrare";
+  const cardShell = cn(
+    "w-full rounded-3xl p-5 text-left",
+    "bg-white/70 backdrop-blur-xl",
+    "border border-[#c0c7d0]/30",
+    "flex flex-col justify-between gap-3 min-h-[144px]",
+  );
 
-  const handleOpenAnalytics = () => navigate("/athlete/analytics");
-  const handleOpenReadiness = () => {
-    navigate(isReadinessCompletedToday ? "/athlete/readiness" : "/athlete/daily-checkin");
-  };
+  const header = (
+    <div className="flex items-start justify-between">
+      <span className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">
+        Prontezza
+      </span>
+      <MiniReadinessRing percent={dailyScore ?? 0} />
+    </div>
+  );
 
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {/* Weekly load — whole card now routes to /athlete/analytics */}
+  if (!isReadinessCompletedToday) {
+    return (
       <button
         type="button"
-        onClick={handleOpenAnalytics}
-        aria-label="Apri analitiche: carico settimanale"
+        onClick={() => navigate("/athlete/daily-checkin")}
+        aria-label="Registra la prontezza di oggi"
         className={cn(
-          "rounded-3xl p-5 text-left",
-          "bg-white/70 backdrop-blur-xl",
-          "border border-[#c0c7d0]/30",
-          "flex flex-col justify-between gap-3 min-h-[144px]",
+          cardShell,
           "transition-transform active:scale-[0.99]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-container/40",
         )}
       >
-        <div className="flex items-start justify-between">
-          <span className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">
-            Carico Sett.
-          </span>
-          <BarChart3
-            className="h-4 w-4 text-on-surface-variant"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
-        </div>
-        <p className="font-display text-xl font-bold tabular-nums text-on-surface leading-none">
-          {WEEKLY_LOAD.totalKg.toLocaleString("it-IT")} kg
-        </p>
-        <div
-          aria-hidden="true"
-          className="w-full h-8 flex items-end gap-1 px-1 py-1 rounded-xl bg-surface-container/40"
-        >
-          {WEEKLY_LOAD.daily.map((h, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex-1 rounded-t-sm",
-                i === WEEKLY_LOAD.daily.length - 1 ? "bg-brand-container" : "bg-brand-container/40",
-              )}
-              style={{ height: `${h}%` }}
-            />
-          ))}
-        </div>
-      </button>
-
-      {/* Prontezza — whole card now routes conditionally. Score chip is
-          downgraded from a <Link> to a <span> so we don't nest an
-          interactive element inside the parent button. */}
-      <button
-        type="button"
-        onClick={handleOpenReadiness}
-        aria-label={
-          isReadinessCompletedToday ? "Apri analisi prontezza" : "Registra la prontezza di oggi"
-        }
-        className={cn(
-          "rounded-3xl p-5 text-left",
-          "bg-white/70 backdrop-blur-xl",
-          "border border-[#c0c7d0]/30",
-          "flex flex-col justify-between gap-3 min-h-[144px]",
-          "transition-transform active:scale-[0.99]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-container/40",
-        )}
-      >
-        <div className="flex items-start justify-between">
-          <span className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">
-            Prontezza
-          </span>
-          <MiniReadinessRing percent={displayScore} />
-        </div>
-        <p className="font-display text-xl font-bold text-on-surface leading-none">
-          {displayLabel}
-        </p>
+        {header}
+        <p className="font-display text-xl font-bold text-on-surface leading-none">Da registrare</p>
         <span className="self-start px-2 py-0.5 rounded-full bg-brand-container/10 text-brand-container font-sans text-[10px] font-bold tabular-nums">
-          {displayScore}% Score
+          —
         </span>
       </button>
+    );
+  }
+
+  return (
+    <div className={cardShell}>
+      {header}
+      <p className="font-display text-xl font-bold tabular-nums text-on-surface leading-none">
+        {dailyScore !== null ? `${dailyScore}%` : "—"}
+      </p>
     </div>
   );
 }
@@ -654,17 +596,6 @@ function MetricheView() {
       <p className="text-sm text-on-surface-variant max-w-[280px]">
         Volume, intensità e progressione settimanale saranno qui dopo le prime sessioni completate.
       </p>
-      <Link
-        to="/athlete/readiness"
-        className={cn(
-          "mt-2 inline-flex items-center gap-1.5",
-          "font-display text-xs font-semibold text-brand-container",
-          "hover:underline",
-        )}
-      >
-        Intanto, vedi la Prontezza
-        <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-      </Link>
     </section>
   );
 }

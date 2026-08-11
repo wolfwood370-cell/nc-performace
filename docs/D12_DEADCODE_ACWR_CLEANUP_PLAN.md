@@ -16,7 +16,7 @@ L'ACWR **è già cablato e vivo** lato coch e atleta tramite un'implementazione 
 
 - Hook vivo: `src/hooks/useAthleteAcwrData.ts` (math inline 28gg, RPE×min).
 - Componente: `src/components/coach/analytics/AcwrGauge.tsx` → consuma `useAthleteAcwrData`.
-- Reso in: `CoachAnalytics.tsx` (`/coach/analytics`, voce sidebar "Analisi"), `AthleteDetail.tsx`, e atleta `AcwrAnalysis.tsx`.
+- Reso in: `CoachAnalytics.tsx` (`/coach/analytics`, voce sidebar "Analisi") — **unico** punto di resa del componente. (Correzione 2026-08-11: `AthleteDetail.tsx` consuma direttamente `useAthleteAcwrData`, non il componente; il riferimento ad `AcwrAnalysis.tsx` era un errore — quella pagina definiva un omonimo `AcwrGauge` locale e statico, ed è stata rimossa con la fetta pagine-da-scollegare.)
 
 Il modulo WIP `useAcwrData` (math centralizzata 42gg via `trainingMetrics`/`constants`) è una **seconda implementazione mai collegata** → duplicato superato, non "da agganciare".
 
@@ -81,6 +81,8 @@ docs/WIP_MODULES.md e il glossario 02-ATHLETE-APP.md.
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 ```
+
+> **Nota editoriale (2026-08-11):** il commit message qui sopra è citato com'era, ma la sua premessa era imprecisa: `AcwrGauge` non è mai stato reso in `AthleteDetail` (che consuma direttamente `useAthleteAcwrData`) né in `AcwrAnalysis` (omonimo locale statico, pagina poi rimossa con la fetta pagine-da-scollegare). L'unico punto di resa del componente è `CoachAnalytics.tsx`.
 
 ---
 

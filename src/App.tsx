@@ -45,15 +45,10 @@ const AthleteDashboard = lazy(() => import("./pages/athlete/AthleteDashboard"));
 const AthleteTraining = lazy(() => import("./pages/athlete/AthleteTraining"));
 const AthleteProfile = lazy(() => import("./pages/athlete/AthleteProfile"));
 const DailyCheckin = lazy(() => import("./pages/athlete/DailyCheckin"));
-const AthleteReadinessDetails = lazy(() => import("./pages/athlete/AthleteReadinessDetails"));
 const WeeklyCheckin = lazy(() => import("./pages/athlete/WeeklyCheckin"));
-const WorkoutPhaseDetail = lazy(() => import("./pages/athlete/WorkoutPhaseDetail"));
 const ExercisePreview = lazy(() => import("./pages/athlete/ExercisePreview"));
 const ActiveWorkout = lazy(() => import("./pages/athlete/ActiveWorkout"));
 const PostWorkoutDebrief = lazy(() => import("./pages/athlete/PostWorkoutDebrief"));
-const TrainingAnalytics = lazy(() => import("./pages/athlete/TrainingAnalytics"));
-const AcwrAnalysis = lazy(() => import("./pages/athlete/AcwrAnalysis"));
-const DailyReadiness = lazy(() => import("./pages/athlete/DailyReadiness"));
 const AthleteNutrition = lazy(() => import("./features/nutrition/AthleteNutrition"));
 
 /** Sends /athlete/dashboard (Stripe's success_url) to the real athlete home,
@@ -294,17 +289,6 @@ const App = () => (
                 }
               />
 
-              {/* Readiness Analysis — stack-pushed detail page with its own
-                  back affordance; no bottom nav. Sibling, not child. */}
-              <Route
-                path="/athlete/readiness"
-                element={
-                  <ProtectedAthleteRoute>
-                    <AthleteReadinessDetails />
-                  </ProtectedAthleteRoute>
-                }
-              />
-
               {/* Weekly Check-in — focus-mode full-screen flow with its own
                   sticky bottom action bar. Sibling, not child (same reason
                   as DailyCheckin: two competing bottom bars otherwise). */}
@@ -317,18 +301,9 @@ const App = () => (
                 }
               />
 
-              {/* Phase 6 — Session preview (phase overview) and single
-                  exercise preview. Both are stack-pushed detail flows with
-                  their own sticky CTA, so they sit as siblings of the
-                  AthleteLayout rather than children. */}
-              <Route
-                path="/athlete/training/phase"
-                element={
-                  <ProtectedAthleteRoute>
-                    <WorkoutPhaseDetail />
-                  </ProtectedAthleteRoute>
-                }
-              />
+              {/* Phase 6 — single exercise preview: a stack-pushed detail
+                  flow with its own sticky CTA, so it sits as a sibling of
+                  the AthleteLayout rather than a child. */}
               <Route
                 path="/athlete/exercise-preview"
                 element={
@@ -351,39 +326,14 @@ const App = () => (
                 }
               />
 
-              {/* Phase 9 — Post-workout debrief + deep analytics surfaces.
-                  All stack-pushed detail flows; siblings of the layout
-                  so they own their own headers / CTAs without the
-                  global BottomNavBar competing. */}
+              {/* Phase 9 — Post-workout debrief. Stack-pushed detail flow;
+                  sibling of the layout so it owns its own header / CTA
+                  without the global BottomNavBar competing. */}
               <Route
                 path="/athlete/post-workout"
                 element={
                   <ProtectedAthleteRoute>
                     <PostWorkoutDebrief />
-                  </ProtectedAthleteRoute>
-                }
-              />
-              <Route
-                path="/athlete/analytics"
-                element={
-                  <ProtectedAthleteRoute>
-                    <TrainingAnalytics />
-                  </ProtectedAthleteRoute>
-                }
-              />
-              <Route
-                path="/athlete/analytics/acwr"
-                element={
-                  <ProtectedAthleteRoute>
-                    <AcwrAnalysis />
-                  </ProtectedAthleteRoute>
-                }
-              />
-              <Route
-                path="/athlete/readiness/today"
-                element={
-                  <ProtectedAthleteRoute>
-                    <DailyReadiness />
                   </ProtectedAthleteRoute>
                 }
               />

@@ -51,15 +51,20 @@ Tutte le route athlete sono **lazy-loaded** + wrappate in `<ProtectedAthleteRout
 
 ### 1.1 Route map completa
 
-| Path                      | Page               |  LOC | Note                             |
-| ------------------------- | ------------------ | ---: | -------------------------------- |
-| `/athlete`                | `AthleteDashboard` |  695 | Focus dashboard + readiness gate |
-| `/athlete/training`       | `AthleteTraining`  |  914 | Workout execution                |
-| `/athlete/profile`        | `AthleteProfile`   | ~400 |                                  |
-| `/athlete/daily-checkin`  | `DailyCheckin`     | ~300 | Gate readiness daily             |
-| `/athlete/readiness`      | `ReadinessDetails` |  636 | Detail readiness score           |
-| `/athlete/exercise/:id`   | `ExercisePreview`  |  836 | Pre-workout exercise preview     |
-| `/athlete/active-workout` | `ActiveWorkout`    |  713 | Live workout in-progress         |
+| Path                        | Page                 | Note                                         |
+| --------------------------- | -------------------- | -------------------------------------------- |
+| `/athlete`                  | `AthleteDashboard`   | Figlia `index` del layout (bottom nav)       |
+| `/athlete/dashboard`        | `DashboardRedirect`  | Redirect → `/athlete` (success_url Stripe)   |
+| `/athlete/training`         | `AthleteTraining`    | Training hub, figlia del layout              |
+| `/athlete/profile`          | `AthleteProfile`     | Figlia del layout                            |
+| `/athlete/nutrition`        | `AthleteNutrition`   | Figlia del layout, entitlement-gated         |
+| `/athlete/daily-checkin`    | `DailyCheckin`       | Sibling full-screen, logging readiness       |
+| `/athlete/weekly-checkin`   | `WeeklyCheckin`      | Sibling full-screen                          |
+| `/athlete/exercise-preview` | `ExercisePreview`    | Sibling, esercizio reale da `location.state` |
+| `/athlete/active-workout`   | `ActiveWorkout`      | Sibling, focus-mode overlay                  |
+| `/athlete/post-workout`     | `PostWorkoutDebrief` | Sibling, debrief + salvataggio log           |
+
+> Le pagine mock `/athlete/readiness`, `/athlete/readiness/today`, `/athlete/analytics`, `/athlete/analytics/acwr` e `/athlete/training/phase` sono state **rimosse** (fetta pagine-da-scollegare, 2026-08-11). La colonna LOC è stata tolta: era stantia e nessun varco la tiene vera.
 
 ### 1.2 Onboarding gate
 

@@ -28,7 +28,7 @@
 // query) lands in the follow-up commit.
 // =============================================================================
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -198,27 +198,29 @@ function MetricTrendRow({ metric, snapshot }: { metric: MetricKey; snapshot: Met
 }
 
 // =============================================================================
-// ReadinessCard — top glass widget, fully driven by useAthleteReadinessStore.
+// ReadinessCard — top glass widget for today's readiness.
 //
 // Behaviour:
-//   - The whole surface routes on tap: when the day's check-in is
-//     completed → /athlete/readiness (multi-tab analysis), otherwise
-//     → /athlete/daily-checkin (logging flow). The route decision uses
-//     `isCompletedToday` from the store.
-//   - The ring renders `dailyScore` when available, else 0 with a hint.
+//   - Interactive ONLY while today's check-in is missing: the whole
+//     surface then routes to /athlete/daily-checkin (logging flow) via
+//     the parent's `onLogToday`. Once the check-in exists the card goes
+//     static — real score, no navigation (the mock analysis page it
+//     used to open was removed).
+//   - Completion flag and score come from the card's own
+//     useDailyReadinessQuery (DB row for today), not from the store.
+//   - The ring renders `dailyScore` when available, else 0.
 //   - The left column maps over `selectedDashboardMetrics` and renders
 //     one MetricTrendRow per pick (default: Sonno / Stress / Fatica).
-//   - A small Settings2 button (top-right) opens a native prompt so
-//     the athlete can pick which 3 metrics to surface. stopPropagation
-//     prevents it from triggering the card's navigation. The card uses
-//     `role="button"` (not an actual <button>) precisely so this inner
-//     button is HTML-valid.
+//   - A small Settings2 button (top-right) opens the settings dialog.
+//     stopPropagation keeps it from triggering the card's tap action;
+//     the card uses `role="button"` (not an actual <button>) precisely
+//     so this inner button stays HTML-valid.
 // =============================================================================
 function ReadinessCard({
-  onOpen,
+  onLogToday,
   onEditMetrics,
 }: {
-  onOpen: () => void;
+  onLogToday: () => void;
   onEditMetrics: () => void;
 }) {
   // Source of truth: the DB row for today. `isCompletedToday` is just
@@ -240,30 +242,35 @@ function ReadinessCard({
     isCustomMetricsPinned || worstMetrics.length === 0 ? selectedDashboardMetrics : worstMetrics;
 
   const ringValue = isCompletedToday && dailyScore !== null ? dailyScore : 0;
-  const ariaLabel = isCompletedToday
-    ? "Apri l'analisi della Prontezza"
-    : "Registra la tua Prontezza di oggi";
+
+  // Interactive only while the check-in is missing. A completed card is
+  // a static region: no role, no tabIndex, no aria-label (a generic div
+  // must not carry one), no pointer affordance.
+  const interactiveProps = isCompletedToday
+    ? {}
+    : {
+        role: "button",
+        tabIndex: 0,
+        onClick: onLogToday,
+        onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onLogToday();
+          }
+        },
+        "aria-label": "Registra la tua Prontezza di oggi",
+      };
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
-      aria-label={ariaLabel}
+      {...interactiveProps}
       className={cn(
         "relative overflow-hidden w-full text-left",
         "rounded-3xl p-6",
         "bg-white/70 backdrop-blur-xl",
         "border border-[#c0c7d0]/30",
         "flex justify-between items-center",
-        "transition-transform active:scale-[0.99]",
-        "cursor-pointer",
+        !isCompletedToday && "transition-transform active:scale-[0.99] cursor-pointer",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-container/40",
       )}
     >
@@ -307,7 +314,8 @@ function ReadinessCard({
         ))}
       </div>
 
-      {/* Right half: circular gauge — value bound to the store */}
+      {/* Right half: circular gauge — real value from today's check-in
+          (0 while the check-in is missing) */}
       <ReadinessRing value={ringValue} />
     </div>
   );
@@ -585,27 +593,14 @@ function MetricsSettingsDialog({
 export default function AthleteDashboard() {
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  // Atomic selectors — read state primitives only, never an object that
-  // would force re-renders on every store mutation.
-  // DB-backed "did the athlete check in today" — used to pick whether
-  // the Prontezza card opens the analysis page or the logging flow.
-  const todayReadinessQuery = useDailyReadinessQuery(todayIso());
-  const isReadinessCompletedToday = Boolean(todayReadinessQuery.data);
   // Stripe's success_url lands here with ?payment=success.
   usePaymentOutcome();
 
-  /**
-   * Readiness card tap — log first, analyse second. The branch reads
-   * `isCompletedToday` straight from the store so a fresh check-in
-   * submitted from /athlete/daily-checkin flips this to true and the
-   * card transparently starts opening the analysis surface.
-   */
-  const handleReadinessCardClick = () => {
-    if (isReadinessCompletedToday) {
-      navigate("/athlete/readiness");
-    } else {
-      navigate("/athlete/daily-checkin");
-    }
+  /** Card tap while today's check-in is missing — hands off to the
+   *  logging flow. Once the check-in exists the card goes static
+   *  (ReadinessCard decides from its own query). */
+  const handleLogReadiness = () => {
+    navigate("/athlete/daily-checkin");
   };
 
   /** Settings2 affordance on the Readiness card opens the settings
@@ -635,7 +630,7 @@ export default function AthleteDashboard() {
         <p className="mt-1 text-sm text-on-surface-variant">Ecco il tuo riepilogo di oggi.</p>
       </section>
 
-      <ReadinessCard onOpen={handleReadinessCardClick} onEditMetrics={handleEditMetrics} />
+      <ReadinessCard onLogToday={handleLogReadiness} onEditMetrics={handleEditMetrics} />
       <NextWorkoutCard onStart={handleStartWorkout} />
 
       <MetricsSettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
