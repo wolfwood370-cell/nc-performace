@@ -19,12 +19,7 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  CheckCircle2,
-  MoreVertical,
-  X,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, MoreVertical, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
@@ -135,13 +130,7 @@ function SessionStatsCard() {
 // =============================================================================
 // RpeSelector — horizontal 1..10 scale + active-state description.
 // =============================================================================
-function RpeSelector({
-  value,
-  onChange,
-}: {
-  value: Rpe | null;
-  onChange: (next: Rpe) => void;
-}) {
+function RpeSelector({ value, onChange }: { value: Rpe | null; onChange: (next: Rpe) => void }) {
   return (
     <section aria-label="Sforzo percepito della sessione">
       <div className="mb-4">
@@ -186,19 +175,15 @@ function RpeSelector({
         aria-live="polite"
         className={cn(
           "mt-4 text-center text-sm font-medium transition-colors",
-          value === null
-            ? "text-on-surface-variant/60 italic"
-            : "text-brand-container",
+          value === null ? "text-on-surface-variant/60 italic" : "text-brand-container",
         )}
       >
         {value === null ? (
           "Seleziona un valore"
         ) : (
           <>
-            <span className="font-display text-base font-bold mr-1">
-              {value}
-            </span>
-            — {RPE_LABELS[value]}
+            <span className="font-display text-base font-bold mr-1">{value}</span>—{" "}
+            {RPE_LABELS[value]}
           </>
         )}
       </p>
@@ -215,7 +200,7 @@ export default function PostWorkoutDebrief() {
   const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const elapsedTime = useAthleteWorkoutStore((s) => s.elapsedTime);
   const finishSession = useFinishSessionMutation();
-  const [rpe, setRpe] = useState<Rpe | null>(8);
+  const [rpe, setRpe] = useState<Rpe | null>(null);
   const [notes, setNotes] = useState("");
 
   /**
@@ -278,11 +263,7 @@ export default function PostWorkoutDebrief() {
           aria-label="Altre opzioni"
           className="h-10 w-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container/60 transition-colors active:scale-95"
         >
-          <MoreVertical
-            className="h-5 w-5"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
+          <MoreVertical className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </button>
       </header>
 
@@ -293,10 +274,7 @@ export default function PostWorkoutDebrief() {
             aria-hidden="true"
             className="h-24 w-24 rounded-full bg-surface-container flex items-center justify-center mb-6 shadow-[0_8px_30px_rgba(34,111,163,0.15)]"
           >
-            <CheckCircle2
-              className="h-12 w-12 fill-emerald-500 text-white"
-              strokeWidth={2}
-            />
+            <CheckCircle2 className="h-12 w-12 fill-emerald-500 text-white" strokeWidth={2} />
           </div>
           <h2 className="font-display text-4xl font-bold tracking-tight text-on-surface mb-1">
             Workout Completo
