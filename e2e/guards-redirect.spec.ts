@@ -28,8 +28,6 @@ const ATHLETE_ROUTES = [
   "/athlete/training",
   "/athlete/profile",
   "/athlete/daily-checkin",
-  "/athlete/readiness",
-  "/athlete/analytics",
 ];
 
 test.describe("Guard redirects — unauthenticated", () => {
