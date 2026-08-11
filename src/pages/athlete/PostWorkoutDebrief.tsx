@@ -4,29 +4,29 @@
 // Phase 9 — Post-Workout Debrief.
 //
 // Modal-style summary shown after a finished session. Captures:
-//   - A celebratory hero (mock title + duration).
+//   - A celebratory hero (mock title + the REAL elapsed duration from the
+//     session timer).
 //   - Session stats (total volume, sets/sets, muscle chips).
-//   - Session RPE: 1..10 horizontal scale; the selected number becomes
-//     the focal pill (brand-filled, scale-110, shadow). The descriptive
-//     text below updates from RPE_LABELS.
+//   - Session RPE: 1..10 horizontal scale, no preselection — the scale
+//     starts empty and a value exists only if the athlete declares it.
+//     The selected number becomes the focal pill (brand-filled,
+//     scale-110, shadow). The descriptive text below updates from
+//     RPE_LABELS.
 //   - Free-form coach notes textarea, bound to local state.
 //   - Sticky bottom CTA "Salva e Torna alla Home".
 //
 // Mount: SIBLING of <AthleteLayout> at /athlete/post-workout — modal-style
-// full-screen flow, the close button + the CTA both route back to
-// /athlete/training. No Supabase wiring.
+// full-screen flow. The close button routes back to /athlete/training; the
+// CTA saves the session (UPDATE on workout_logs via
+// useFinishSessionMutation) and routes to /athlete.
 // =============================================================================
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  CheckCircle2,
-  MoreVertical,
-  X,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, MoreVertical, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDurationHuman } from "@/lib/time/duration";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
 import {
   useFinishSessionMutation,
@@ -34,17 +34,18 @@ import {
 } from "@/hooks/athlete/useAthleteWorkoutHooks";
 
 // =============================================================================
-// Constants — mock workout stats + RPE label dictionary.
+// Constants — mock session labels + RPE label dictionary.
 // =============================================================================
 /**
- * Mock metadata for the just-finished session. The DERIVED stats —
- * total volume + total sets completed — are computed live from
- * `useAthleteWorkoutStore.loggedSets` inside SessionStatsCard, so this
- * struct only carries the static "what session was this" labels.
+ * Mock labels for the just-finished session. Everything DERIVED is live:
+ * total volume + total sets come from the session-sets query
+ * (exercise_logs rows) inside SessionStatsCard, and the hero duration
+ * comes from the store's `elapsedTime` timer. What remains here — title +
+ * muscles — is still mock until the program release is wired in as the
+ * source of "what session was this".
  */
 const WORKOUT_SUMMARY = {
   title: "Lower Body Power",
-  duration: "1h 15m",
   muscles: ["Quadricipiti", "Glutei", "Femorali", "Core"] as const,
 };
 
@@ -135,13 +136,7 @@ function SessionStatsCard() {
 // =============================================================================
 // RpeSelector — horizontal 1..10 scale + active-state description.
 // =============================================================================
-function RpeSelector({
-  value,
-  onChange,
-}: {
-  value: Rpe | null;
-  onChange: (next: Rpe) => void;
-}) {
+function RpeSelector({ value, onChange }: { value: Rpe | null; onChange: (next: Rpe) => void }) {
   return (
     <section aria-label="Sforzo percepito della sessione">
       <div className="mb-4">
@@ -186,19 +181,15 @@ function RpeSelector({
         aria-live="polite"
         className={cn(
           "mt-4 text-center text-sm font-medium transition-colors",
-          value === null
-            ? "text-on-surface-variant/60 italic"
-            : "text-brand-container",
+          value === null ? "text-on-surface-variant/60 italic" : "text-brand-container",
         )}
       >
         {value === null ? (
           "Seleziona un valore"
         ) : (
           <>
-            <span className="font-display text-base font-bold mr-1">
-              {value}
-            </span>
-            — {RPE_LABELS[value]}
+            <span className="font-display text-base font-bold mr-1">{value}</span>—{" "}
+            {RPE_LABELS[value]}
           </>
         )}
       </p>
@@ -215,7 +206,7 @@ export default function PostWorkoutDebrief() {
   const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const elapsedTime = useAthleteWorkoutStore((s) => s.elapsedTime);
   const finishSession = useFinishSessionMutation();
-  const [rpe, setRpe] = useState<Rpe | null>(8);
+  const [rpe, setRpe] = useState<Rpe | null>(null);
   const [notes, setNotes] = useState("");
 
   /**
@@ -278,11 +269,7 @@ export default function PostWorkoutDebrief() {
           aria-label="Altre opzioni"
           className="h-10 w-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container/60 transition-colors active:scale-95"
         >
-          <MoreVertical
-            className="h-5 w-5"
-            strokeWidth={2}
-            aria-hidden="true"
-          />
+          <MoreVertical className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
         </button>
       </header>
 
@@ -293,16 +280,13 @@ export default function PostWorkoutDebrief() {
             aria-hidden="true"
             className="h-24 w-24 rounded-full bg-surface-container flex items-center justify-center mb-6 shadow-[0_8px_30px_rgba(34,111,163,0.15)]"
           >
-            <CheckCircle2
-              className="h-12 w-12 fill-emerald-500 text-white"
-              strokeWidth={2}
-            />
+            <CheckCircle2 className="h-12 w-12 fill-emerald-500 text-white" strokeWidth={2} />
           </div>
           <h2 className="font-display text-4xl font-bold tracking-tight text-on-surface mb-1">
             Workout Completo
           </h2>
           <p className="text-base text-on-surface-variant">
-            {WORKOUT_SUMMARY.title} · {WORKOUT_SUMMARY.duration}
+            {WORKOUT_SUMMARY.title} · {formatDurationHuman(elapsedTime)}
           </p>
         </section>
 

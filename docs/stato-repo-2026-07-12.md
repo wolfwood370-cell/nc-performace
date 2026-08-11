@@ -321,7 +321,7 @@ Pattern costante-tabella cercato (`= "nome_tabella"`): l'unico è `ASSESSMENTS_T
 
 ### Mock dichiarato
 
-Le pagine atleta sono esplicitamente mock nei commenti di testa: `AthleteDashboard.tsx:27,101-103` («All data here is mock», costante `MOCK`), `AthleteTraining.tsx:34`, `AthleteReadinessDetails.tsx:49`, `WorkoutPhaseDetail.tsx:21`, `ExercisePreview.tsx:286`, `PostWorkoutDebrief.tsx:7,37` (hero mock), `ActiveWorkout.tsx:117` (progress bar da mock). **Ma non è tutto mock**: le 3 mutation reali dell'anello atleta di cui sopra sono cablate dentro queste stesse pagine.
+Le pagine atleta sono esplicitamente mock nei commenti di testa: `AthleteDashboard.tsx:27,101-103` («All data here is mock», costante `MOCK`), `AthleteTraining.tsx:34`, `AthleteReadinessDetails.tsx:49`, `WorkoutPhaseDetail.tsx:21`, `ExercisePreview.tsx:286`, `PostWorkoutDebrief.tsx:7,37` (hero mock), `ActiveWorkout.tsx:117` (progress bar da mock). (Correzione 2026-08-11: con la fetta rpe-non-preselezionato la durata dell'hero del debrief è **reale** — cronometro `elapsedTime` — e i commenti `:7`/`:37` sono stati riformulati; dell'hero restano mock titolo e muscoli. La fotografia qui sopra resta valida per il 2026-07-12.) **Ma non è tutto mock**: le 3 mutation reali dell'anello atleta di cui sopra sono cablate dentro queste stesse pagine.
 
 ### Codice senza referenze (morto/WIP scollegato)
 
