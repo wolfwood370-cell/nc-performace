@@ -28,6 +28,7 @@
 import { useEffect } from "react";
 import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMMSS } from "@/lib/time/duration";
 
 interface ExitWorkoutDialogProps {
   open: boolean;
@@ -39,13 +40,6 @@ interface ExitWorkoutDialogProps {
   onFinish: () => void;
   /** Destructive: confirm discard. */
   onDiscard: () => void;
-}
-
-function formatMMSS(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(safe / 60);
-  const s = safe % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export function ExitWorkoutDialog({

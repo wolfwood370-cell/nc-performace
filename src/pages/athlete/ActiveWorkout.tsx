@@ -46,19 +46,10 @@ import { useNavigate } from "react-router-dom";
 import { Dumbbell, Pause, Play, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatMMSS } from "@/lib/time/duration";
 import { ExitWorkoutDialog } from "@/components/athlete/ExitWorkoutDialog";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
 import { useStartSessionMutation } from "@/hooks/athlete/useAthleteWorkoutHooks";
-
-// =============================================================================
-// formatMMSS — shared with the dialog component.
-// =============================================================================
-function formatMMSS(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(safe / 60);
-  const s = safe % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 // =============================================================================
 // GlobalTimerHUD — sticky top header with the live MM:SS timer. The
