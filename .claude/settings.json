@@ -11,7 +11,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit|MultiEdit",
+        "matcher": "Bash|Write|Edit|MultiEdit|Read",
         "hooks": [{ "type": "command", "command": "node .claude/hooks/hooks.mjs" }]
       }
     ],
