@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "defaultMode": "plan",
+    "deny": [
+      "Bash(gh pr merge)",
+      "Bash(gh pr merge *)",
+      "Bash(git checkout -- *)",
+      "Bash(git checkout .)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
