@@ -8,7 +8,7 @@
 > **rimuovilo da questa tabella e dall'`ignore` di `knip.config.ts`**, poi rilancia
 > `npm run audit:all`.
 
-Origine: audit **D8** (`docs/D8_AUDIT_CODICE_MORTO.md`, 2026-06-14).
+Origine: audit **D8** (2026-06-14; report potato il 2026-08-16, storia nei commit).
 
 | Feature                           | File                                                                                                                                | Punto di aggancio previsto                                     |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
