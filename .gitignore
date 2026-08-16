@@ -28,7 +28,7 @@ dist-ssr
 
 # Claude Code session/agent artifacts (worktrees, local settings, hooks).
 # Anything inside .claude/ is per-session state and must not be committed,
-# EXCEPT methodology/, agents/, hooks/ and settings.json (versioned config).
+# EXCEPT methodology/, agents/, hooks/, skills/ and settings.json (versioned config).
 .claude/*
 !.claude/methodology/
 !.claude/methodology/**
@@ -36,6 +36,8 @@ dist-ssr
 !.claude/agents/**
 !.claude/hooks/
 !.claude/hooks/**
+!.claude/skills/
+!.claude/skills/**
 !.claude/settings.json
 
 # Lint baseline snapshot — regenerated locally with `npm run lint > LINT_BASELINE.txt`.
