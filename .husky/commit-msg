@@ -1,0 +1,43 @@
+# Commit-message gate — makes 00-CORE.md §7.1-7.2 executable.
+# Exemptions: "Merge " (git writes those without type/area), fixup!/squash!
+# (they only live until autosquash), and "Revert " — git revert is this
+# project's RECOVERY path: a gate that blocks a revert gives way at the one
+# moment it is truly needed, so reverts pass unchecked by design.
+# The third §7.1 rule — message written in ITALIAN — stays G4 (human judgment):
+# a language cannot be verified by a regex without false positives, so this
+# gate only enforces the first-line form and the trailer.
+
+MSG_FILE="$1"
+# CRLF: an editor that saves the message with Windows line endings leaves
+# a \r on every line, so a whole-line -x match on the trailer fails and the
+# gate reports "trailer mancante" while the trailer is right there.
+MSG=$(tr -d '\r' < "$MSG_FILE")
+FIRST_LINE=$(printf '%s\n' "$MSG" | head -n 1)
+
+case "$FIRST_LINE" in
+  "Merge "*|"Revert "*|fixup!*|squash!*) exit 0 ;;
+esac
+
+FAIL=0
+
+# Both checks always run (each one guarded, so `sh -e` cannot abort early):
+# a message broken in both ways must report BOTH causes at once.
+if ! printf '%s' "$FIRST_LINE" | grep -Eq '^(feat|fix|refactor|style|design|chore|docs|perf|test)(\([^)]+\))?: .+'; then
+  echo "⛔ commit-msg: prima riga non conforme a 00-CORE.md §7.1-7.2." >&2
+  echo "   Attesa : <tipo>(<area>): <descrizione>   (area opzionale)" >&2
+  echo "   Tipi   : feat fix refactor style design chore docs perf test" >&2
+  echo "   Trovata: $FIRST_LINE" >&2
+  FAIL=1
+fi
+
+# -x (whole-line match): with `git commit -v` the staged diff sits in the same
+# message file, and a diff line quoting the trailer (docs cite it verbatim,
+# this very file included) carries a +/-/space prefix — it must not satisfy
+# the check. Only a bare, exact trailer line does.
+if ! printf '%s\n' "$MSG" | grep -qxF 'Co-Authored-By: Claude <noreply@anthropic.com>'; then
+  echo "⛔ commit-msg: trailer mancante o non canonico (CLAUDE.md legge #9)." >&2
+  echo "   Atteso (esatto): Co-Authored-By: Claude <noreply@anthropic.com>" >&2
+  FAIL=1
+fi
+
+exit $FAIL

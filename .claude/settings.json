@@ -1,8 +1,19 @@
 {
+  "permissions": {
+    "defaultMode": "plan",
+    "deny": [
+      "Bash(gh pr merge)",
+      "Bash(gh pr merge *)",
+      "Bash(git checkout -- *)",
+      "Bash(git checkout .)",
+      "Bash(git restore)",
+      "Bash(git restore *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit|MultiEdit",
+        "matcher": "Bash|Write|Edit|MultiEdit|Read",
         "hooks": [{ "type": "command", "command": "node .claude/hooks/hooks.mjs" }]
       }
     ],

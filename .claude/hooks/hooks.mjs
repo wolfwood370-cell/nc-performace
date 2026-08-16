@@ -2,7 +2,8 @@
 // Cross-platform (Node, funziona anche su Windows). Eseguito da .claude/settings.json.
 // Riceve su stdin il JSON dell'evento CC (hook_event_name, tool_name, tool_input).
 // Convenzione: exit 2 = BLOCCA + manda stderr a Claude; exit 0 = procedi.
-// Assume cwd = root del repo (default di CC).
+// Repo root is resolved live via `git rev-parse` in the build gate — the cwd
+// may be a linked worktree, so a cwd-relative tsconfig path is never assumed.
 import { execSync } from "node:child_process";
 
 let raw = "";
@@ -12,6 +13,10 @@ process.stdin.on("end", () => {
   try {
     p = JSON.parse(raw);
   } catch {
+    // DELIBERATE fail-open (here only): malformed stdin is not a defect of the
+    // guard — the input is uninterpretable, so there is nothing to judge, and
+    // blocking every tool over broken harness JSON would make the session
+    // inoperable. The fail-closed path lives in the dispatch catch below.
     process.exit(0);
   }
   const event = p.hook_event_name || "";
@@ -20,8 +25,19 @@ process.stdin.on("end", () => {
   try {
     if (event === "PreToolUse") preToolUse(tool, input);
     else if (event === "PostToolUse") postToolUse(tool, input);
-  } catch {
-    /* non bloccare mai per un errore interno dell'hook */
+  } catch (err) {
+    // Fail-closed: a defect INSIDE the guard must never count as consent —
+    // swallowing it would make the guard equal to its own absence, silently.
+    // Print a diagnosable trace (event, tool, error) and block.
+    console.error(
+      "⛔ hooks.mjs: errore interno della guardia su " +
+        (event || "?") +
+        "/" +
+        (tool || "?") +
+        ": " +
+        (err && err.message ? err.message : String(err)),
+    );
+    process.exit(2);
   }
   process.exit(0);
 });
@@ -117,8 +133,25 @@ function preToolUse(tool, input) {
 
     // Legge #3 — build gate verde PRIMA del commit
     if (/\bgit\s+commit\b/.test(cmdReal)) {
+      // Resolve the real repo root instead of assuming cwd: from a linked
+      // worktree a cwd-relative tsconfig would measure the wrong tree. If the
+      // root cannot be resolved, BLOCK — never fall back to a guessed path.
+      let root = "";
       try {
-        execSync("npx tsc --noEmit -p tsconfig.app.json", { stdio: ["ignore", "ignore", "pipe"] });
+        root = execSync("git rev-parse --show-toplevel", { stdio: ["ignore", "pipe", "ignore"] })
+          .toString()
+          .trim();
+      } catch {
+        /* root stays "" → blocked below */
+      }
+      if (!root)
+        block(
+          "⛔ Root del repo non risolvibile (git rev-parse --show-toplevel fallito): build gate non eseguibile, commit bloccato.",
+        );
+      try {
+        execSync("npx tsc --noEmit -p " + JSON.stringify(root + "/tsconfig.app.json"), {
+          stdio: ["ignore", "ignore", "pipe"],
+        });
       } catch (e) {
         const out = (
           (e.stderr && e.stderr.toString()) ||
@@ -134,12 +167,25 @@ function preToolUse(tool, input) {
     return;
   }
 
-  if (tool === "Write" || tool === "Edit" || tool === "MultiEdit") {
+  if (tool === "Write" || tool === "Edit" || tool === "MultiEdit" || tool === "Read") {
     const fp = String(input.file_path || "").replace(/\\/g, "/");
     // Carve-out: .env.example is a names-only template tracked in the repo —
     // the guard stays intact for every real env file (.env, .env.local, ...).
     const isEnvExample = /(^|\/)\.env\.example$/.test(fp);
-    if ((/(^|\/)\.env(\.[^/]+)?$/.test(fp) && !isEnvExample) || /(^|\/)\.mcp\.json$/.test(fp))
+    const isEnvFile = /(^|\/)\.env(\.[^/]+)?$/.test(fp) && !isEnvExample;
+    if (tool === "Read") {
+      // Read guard covers env files only: .mcp.json holds variable NAMES
+      // ("${CONTEXT7_API_KEY}"), not values — reading it is harmless and is
+      // how the agent learns its own tool configuration.
+      if (isEnvFile)
+        block(
+          "⛔ Lettura di " +
+            fp +
+            " bloccata: credenziali/secrets/env li gestisci tu (CLAUDE.md §5).",
+        );
+      return;
+    }
+    if (isEnvFile || /(^|\/)\.mcp\.json$/.test(fp))
       block(
         "⛔ Scrittura su " +
           fp +
