@@ -79,7 +79,11 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 ```
 Inizio sessione                                  → leggi questo CLAUDE.md
                                                  → leggi methodology/00-CORE.md
-                                                 → leggi docs/auto-miglioramento.md (lezioni di processo)
+                                                 → di docs/auto-miglioramento.md leggi SOLO le sezioni-istruzione
+                                                   § DA NON FARE · § Cosa funziona · § Fragilità (righe 1-73;
+                                                   1.413 parole, misura 2026-08-16). Il Log delle retrospettive
+                                                   (24.829 parole) NON si legge a boot: si interroga con la
+                                                   skill lezioni-di-processo (.claude/skills/)
 
 Richiesta utente coinvolge…
 
@@ -117,7 +121,8 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 ## 6. Workflow standard (riassunto)
 
 ```
-0. Leggi docs/auto-miglioramento.md              (lezioni di processo; aggiorna la RETRO a fine sessione)
+0. Leggi le sezioni-istruzione di                (righe 1-73 — il Log delle retrospettive NON si legge a boot:
+   docs/auto-miglioramento.md                     skill lezioni-di-processo; aggiorna la RETRO a fine sessione)
 1. Leggi CLAUDE.md (this file) + 00-CORE.md      (auto, inizio sessione)
 2. Identifica file metodologia rilevante         (§4 decision flow)
 3. Read del file metodologia
@@ -149,12 +154,12 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 
 **Altri file di processo (fuori da `methodology/`):**
 
-| File                             | Quando                                                                               |
-| -------------------------------- | ------------------------------------------------------------------------------------ |
-| `docs/auto-miglioramento.md`     | A inizio (leggi) e fine (RETRO) di ogni sessione. Lezioni di processo + DA NON FARE. |
-| `docs/prompts/_template-task.md` | Template per ogni prompt-file di task (obiettivo · contratto · file · verifica).     |
-| `docs/DESIGN.md`                 | Corsia Claude Design (design system, handoff a Code).                                |
-| `docs/HANDOFF.md`                | Stato del repo + prompt di trasferimento §8 (Code) / §9 (Cowork).                    |
+| File                             | Quando                                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `docs/auto-miglioramento.md`     | A inizio SOLO le sezioni-istruzione (righe 1-73); il Log via skill `lezioni-di-processo`. RETRO a fine sessione. |
+| `docs/prompts/_template-task.md` | Template per ogni prompt-file di task (obiettivo · contratto · file · verifica).                                 |
+| `docs/DESIGN.md`                 | Corsia Claude Design (design system, handoff a Code).                                                            |
+| `docs/HANDOFF.md`                | Stato del repo + prompt di trasferimento §8 (Code) / §9 (Cowork).                                                |
 
 ---
 
