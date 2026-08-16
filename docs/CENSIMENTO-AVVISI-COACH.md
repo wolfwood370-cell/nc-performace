@@ -3,7 +3,7 @@
 > **Cos'è.** Mappa completa, in sola lettura, di ogni segnale clinico/operativo che il sistema PRODUCE per il coach e di ogni superficie che glielo MOSTRA — con il confronto fra le due liste. Nessun file di codice è stato modificato.
 > **Base:** commit `5e4eaa8` (= `origin/main` al 2026-08-01, include il merge PR #16 `canale-dolore`: `has_pain` valorizzato dal check-in).
 > **Metodo:** ricognizione multi-agente (6 lenti parallele read-only, 111 finding; ogni `file:riga` riletto e confermato da un verificatore avversariale indipendente) + spot-check diretti sui file portanti. I verdetti CORRECTED del verificatore sono già incorporati nelle righe qui sotto.
-> **Mandato:** spec `app/spec-censimento-avvisi-coach-2026-08-01.md`; prompt-file `docs/prompts/2026-08-01-censimento-avvisi-coach.md`.
+> **Mandato:** spec `app/spec-censimento-avvisi-coach-2026-08-01.md`; prompt-file della fetta potato il 2026-08-16 (storia nei commit).
 
 ---
 
