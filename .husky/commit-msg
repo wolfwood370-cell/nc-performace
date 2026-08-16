@@ -8,7 +8,11 @@
 # gate only enforces the first-line form and the trailer.
 
 MSG_FILE="$1"
-FIRST_LINE=$(head -n 1 "$MSG_FILE")
+# CRLF: an editor that saves the message with Windows line endings leaves
+# a \r on every line, so a whole-line -x match on the trailer fails and the
+# gate reports "trailer mancante" while the trailer is right there.
+MSG=$(tr -d '\r' < "$MSG_FILE")
+FIRST_LINE=$(printf '%s\n' "$MSG" | head -n 1)
 
 case "$FIRST_LINE" in
   "Merge "*|"Revert "*|fixup!*|squash!*) exit 0 ;;
@@ -30,7 +34,7 @@ fi
 # message file, and a diff line quoting the trailer (docs cite it verbatim,
 # this very file included) carries a +/-/space prefix — it must not satisfy
 # the check. Only a bare, exact trailer line does.
-if ! grep -qxF 'Co-Authored-By: Claude <noreply@anthropic.com>' "$MSG_FILE"; then
+if ! printf '%s\n' "$MSG" | grep -qxF 'Co-Authored-By: Claude <noreply@anthropic.com>'; then
   echo "⛔ commit-msg: trailer mancante o non canonico (CLAUDE.md legge #9)." >&2
   echo "   Atteso (esatto): Co-Authored-By: Claude <noreply@anthropic.com>" >&2
   FAIL=1

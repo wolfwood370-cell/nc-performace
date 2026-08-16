@@ -5,7 +5,9 @@
       "Bash(gh pr merge)",
       "Bash(gh pr merge *)",
       "Bash(git checkout -- *)",
-      "Bash(git checkout .)"
+      "Bash(git checkout .)",
+      "Bash(git restore)",
+      "Bash(git restore *)"
     ]
   },
   "hooks": {
