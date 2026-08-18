@@ -33,7 +33,7 @@
 
 **DB & security**
 
-- **(Code) NON** applicare migration/DDL sul DB: niente MCP Supabase in Code → proponi il **FILE** `supabase/migrations/*`. Il DB lo opera **Cowork** col benestare di Nick (`CLAUDE.md` legge #11).
+- **(Code) NON** applicare migration/DDL sul DB: l'MCP Supabase montato in Code è `--read-only` (`.mcp.json:3-14`) — leggere è consentito e utile, **scrivere no** → proponi il **FILE** `supabase/migrations/*`. Il DB lo scrive **Cowork** col benestare di Nick (`CLAUDE.md` legge #11).
 - **NON** usare l'**hand-patch `types.ts`** storico (droppare/ripristinare `appointments`): con il DB di proprietà è **obsoleto** → rigenera via `supabase gen types typescript --linked` (legge #7).
 - **NON** toccare RLS/`SECURITY DEFINER`/advisor "perché posso": ownership condivisa → **STOP & ASK** (`CLAUDE.md §5`).
 - **NON** proporre un distruttivo (drop, `stash drop`, `rm`) senza averne ispezionato il contenuto prima (`COWORK.md` legge #3).
@@ -48,7 +48,7 @@
 **Segreti & confini**
 
 - **NON** stampare/committare `.env`, secrets, chiavi Stripe/Google: sono di **Nick** (`COWORK.md` legge #4).
-- **NON** committare `console.log`: usa `src/lib/logger.ts` (legge #10).
+- **NON** committare `console.log`: usa `src/lib/logger.ts` (legge #10). **Paletto per convenzione, non per cancello**: `no-console` è a `warn` (`eslint.config.js:47`) e la CI conta solo `errorCount` (`.github/workflows/ci.yml:94`) — nessuno strumento rifiuta il commit; è disciplina, e regge (0 `console.log` in `src/`).
 
 ## Cosa funziona (tenere / standardizzare)
 
