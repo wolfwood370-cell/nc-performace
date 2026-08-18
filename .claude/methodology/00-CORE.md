@@ -33,7 +33,7 @@
 7. **Hook order è legge.** Tutti gli hook PRIMA di qualsiasi return early. Anti-pattern canonico §8.
 8. **Types ownership.** `types.ts` si rigenera con `supabase gen types typescript --linked` (DB di proprietà); l'hand-patch `appointments` è **obsoleto** (§9, `CLAUDE.md` legge #7).
 9. **Worktree-isolated.** Tu (AI) operi in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`** — mai su `main`, mai `--force`, mai cancellazioni di rami; la fetta si chiude con una PR verso `main` e il merge lo fa Nicolò (§6).
-10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log` nuovi — **convenzione, non cancello**: `no-console` è a `warn` (`eslint.config.js:47`) e il ratchet CI conta solo `errorCount` (`.github/workflows/ci.yml:94`), per la scelta scritta a `eslint.config.js:52-53`.
+10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log` nuovi — **convenzione, non cancello**: `no-console` è a `warn` (`eslint.config.js:51`) e il ratchet CI conta solo `errorCount` (`.github/workflows/ci.yml:94`), per la scelta scritta a `eslint.config.js:56-57`.
 
 <a id="2-decision"></a>
 
