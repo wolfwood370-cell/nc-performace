@@ -453,7 +453,7 @@ chore(cleanup): rimuovi 4 file orfani identificati da audit (-245 righe)
 - src/lib/deprecated/parser.ts (export orfano)
 - src/pages/legacy/OldPage.tsx (route rimossa)
 
-Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 ### 10.2 Mai mescolare cleanup con feature/fix
