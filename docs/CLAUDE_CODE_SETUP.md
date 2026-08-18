@@ -3,6 +3,9 @@
 > Pacchetto specifico per questo progetto, da affiancare al tuo base harness universale.
 > Stack: React 18 · Vite 5 · TS strict · Tailwind + shadcn/ui · TanStack Query v5 · Zustand · React Router v6 · Framer Motion · Supabase (progetto tuo `xgxtplqlewpqjzghvbke`) · Stripe · PWA · Playwright.
 > Generato: 2026-06-13.
+>
+> 🔴 **VERBALE, NON ISTRUZIONE.** Questo file è il racconto dell'installazione di giugno 2026, conservato per la storia delle decisioni. **Niente qui dentro vincola una sessione di oggi.** In particolare il prompt del §7 (righe 111-156) è il testo che fu incollato **una volta** in una sessione di setup: la riga 122 «Mostrami ogni file/comando prima di eseguirlo» era un guardrail di QUELLA sessione e **non è la modalità operativa corrente** — quella è in `CLAUDE.md §5` e in `.claude/settings.json:3`.
+> ⚠️ Lo stack descritto a riga 4 è superato su tre punti (TS non è strict, React Router è v7, la PWA è stata rimossa): la fonte viva è `CLAUDE.md §1`.
 
 ---
 
