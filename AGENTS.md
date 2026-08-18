@@ -35,14 +35,14 @@ E vale al contrario: **se il codice basta a dimostrare una cosa, dimostrala col 
 
 Nominati, non ricopiati. Se una di queste fonti contraddice questo file, **vince la fonte** e lo dici.
 
-| Ti serve                                                   | Vai a                                                           |
-| ---------------------------------------------------------- | --------------------------------------------------------------- |
-| Le leggi del codice (build gate, commit, rami, tema, tipi) | `CLAUDE.md §3`                                                  |
-| Gli invarianti clinici e di sicurezza                      | il §0 del file di metodologia indicato da `CLAUDE.md` legge #11 |
-| Il perimetro che stai guardando                            | `.claude/methodology/` — **mai più di due file per compito**    |
-| Come si chiude una fetta                                   | `CLAUDE.md §6`                                                  |
+| Ti serve                                                   | Vai a                                                                                                                                                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Le leggi del codice (build gate, commit, rami, tema, tipi) | `CLAUDE.md §3`                                                                                                                                                                                                             |
+| Gli invarianti clinici e di sicurezza                      | `app/spec-CORE-2026-07-11.md` §0 — **undici**, numerati `§0.1`…`§0.11`. È fuori dal repo: se non ce l'hai, fermati e chiedilo, non dedurli. ⛔ Non è il §0 di `03-BACKEND-SUPABASE.md`, che è la security ownership del DB |
+| Il perimetro che stai guardando                            | `.claude/methodology/` — **mai più di due file per compito**                                                                                                                                                               |
+| Come si chiude una fetta                                   | `CLAUDE.md §6`                                                                                                                                                                                                             |
 
-⛔ **Gli invarianti di sicurezza si citano per numero: non si riassumono, non si ricopiano, non si «sintetizzano in breve».** _(10/08: una riscrittura dichiarata «sorvegliata» ne aveva già potati cinque — 74 parole al posto di 522.)_
+⛔ **Gli invarianti di sicurezza si citano per numero — `CORE §0.3`, non «il semaforo»: non si riassumono, non si ricopiano, non si «sintetizzano in breve».** I numeri sono `§0.1`…`§0.11` e vivono solo in `app/spec-CORE-2026-07-11.md` §0. _(10/08: una riscrittura dichiarata «sorvegliata» ne aveva già potati cinque — 74 parole al posto di 522. 16/08: la potatura di `docs/prompts/` ne ha rimossa la copia più lunga del repo, e il puntatore che doveva sostituirla portava alla sezione sbagliata: dal 15/08 al 18/08 il repo è passato da quattro copie a una.)_
 
 Se ti è chiesto di **scrivere**, prima leggi `CLAUDE.md` §1, §2 e §6 per intero.
 
