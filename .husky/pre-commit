@@ -1,6 +1,10 @@
-# Pre-commit gate — runs lint + prettier on staged files only,
-# then a fast project-wide tsc --noEmit to catch any cross-file
-# type regressions before they land in main.
+# Pre-commit gate — runs prettier on staged files only (lint-staged in
+# package.json: `*.{ts,tsx,css,md,json}` -> `prettier --write`, and nothing
+# else — eslint was deliberately taken out in 9a3923e because it blocked
+# commits on pre-existing issues; it stays a manual gate via `npm run lint`,
+# see AUDIT_PIATTAFORMA_COACH.md:104), then the lockfile/npm pin check below,
+# then a project-wide `tsc --noEmit -p tsconfig.app.json` to catch any
+# cross-file type regressions before they land in main.
 
 npx lint-staged || exit 1
 # A lockfile is only valid under the npm version that wrote it. CI reads

@@ -41,9 +41,13 @@ export default tseslint.config(
       ...jsxA11y.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
-      // Project-wide gates introduced during Phase 0 cleanup. The
-      // `no-console` rule allows warn/error (which the audit will
-      // graduate to a logger) but forbids new console.log/info.
+      // Project-wide conventions introduced during Phase 0 cleanup. The
+      // `no-console` rule allows warn/error (which the audit will graduate
+      // to a logger) and FLAGS new console.log/info — as a warning, not a
+      // gate: the CI ratchet counts `errorCount` only (see the note below),
+      // `npm run lint` has no `--max-warnings`, and `.husky/pre-commit` does
+      // not run eslint at all. Deliberate: see the `error`-vs-`warn` note at
+      // the tailwindcss rule below.
       "no-console": ["warn", { allow: ["warn", "error"] }],
       // A Tailwind class that does not exist is not a type error and not a
       // failing test: it is CSS that is not there. `bg-error-container`

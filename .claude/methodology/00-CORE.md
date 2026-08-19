@@ -33,13 +33,13 @@
 7. **Hook order è legge.** Tutti gli hook PRIMA di qualsiasi return early. Anti-pattern canonico §8.
 8. **Types ownership.** `types.ts` si rigenera con `supabase gen types typescript --linked` (DB di proprietà); l'hand-patch `appointments` è **obsoleto** (§9, `CLAUDE.md` legge #7).
 9. **Worktree-isolated.** Tu (AI) operi in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`** — mai su `main`, mai `--force`, mai cancellazioni di rami; la fetta si chiude con una PR verso `main` e il merge lo fa Nicolò (§6).
-10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log`.
+10. **Codice snello.** No file >300r nuovi · no import inutili · no dead code · no `console.log` nuovi — **convenzione, non cancello**: `no-console` è a `warn` (`eslint.config.js:51`) e il ratchet CI conta solo `errorCount` (`.github/workflows/ci.yml:94`), per la scelta scritta a `eslint.config.js:56-57`.
 
 <a id="2-decision"></a>
 
 ## 2. Decision framework: chiedere vs decidere
 
-**Auto mode**: per default decidi e procedi. Chiedi via `AskUserQuestion` solo se:
+🔴 **La regola vive in `CLAUDE.md §5`, e la modalità di partenza della sessione è configurazione (`.claude/settings.json:3`, plan mode). Qui NON c'è una seconda regola: c'è il repertorio degli esempi.** Se questa tabella e `CLAUDE.md §5` divergono, vince `CLAUDE.md §5` e la divergenza si chiude lì, non qui. Casi in cui si chiede via `AskUserQuestion`:
 
 | Caso                                                        | Esempio                                                                                                                                                              |
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -184,9 +184,10 @@ Se commit ha emesso warning prettier/lint-staged (es. CRLF/LF, reformat), è OK 
 
 1. **Base aggiornata**: il ramo nasce da `origin/main` (`git fetch` prima di crearlo); se `main` è avanzato durante la fetta, riallinea PRIMA della PR — **merge di `origin/main` nel ramo, MAI rebase di un ramo già pushato** (richiederebbe il `--force` vietato).
 2. **Verifica `types.ts`**: se lo schema è cambiato e i tipi sono stale, rigenera con `npm run gen:types` (§9) prima della PR.
-3. `git push -u origin claude/<slug>` — **unica destinazione consentita: un ramo `claude/*`** (hook come cintura; il ruleset server è il cancello).
-4. **Apri la PR verso `main`** (API GitHub col token del credential manager — la CLI `gh` non è installata su questa macchina).
-5. I 2 controlli obbligatori devono essere verdi; **il merge dalla PR lo fa Nicolò**, mai l'agente.
+3. **Passata indipendente** (`.claude/agents/`, contesto proprio, sola lettura, ≤250 parole ciascuno): `supabase-rls-auditor` se la fetta ha toccato `supabase/**` · `aura-theme-auditor` se ha toccato UI Coach/Athlete · `code-reviewer` sul diff · `code-test-verifier` sui gate. Sono già scritti e tarati su questo repo: usare agenti improvvisati al loro posto ha già costato due lezioni (`docs/auto-miglioramento.md:127`, `:474`).
+4. `git push -u origin claude/<slug>` — **unica destinazione consentita: un ramo `claude/*`** (hook come cintura; il ruleset server è il cancello).
+5. **Apri la PR verso `main`** (API GitHub col token del credential manager — la CLI `gh` non è installata su questa macchina).
+6. I 2 controlli obbligatori devono essere verdi; **il merge dalla PR lo fa Nicolò**, mai l'agente.
 
 ### 6.5 Verifica push (subito dopo il TUO push) e stato del merge
 
@@ -323,7 +324,7 @@ npx tsc --noEmit -p tsconfig.app.json
 - [ ] `npx tsc --noEmit -p tsconfig.app.json` verde
 - [ ] Hook order check sui file toccati (§8)
 - [ ] Theme audit sui file toccati (Coach: token Aura · Athlete: `.theme-athlete`)
-- [ ] No `console.log` residui (usa `src/lib/logger.ts`)
+- [ ] No `console.log` residui (usa `src/lib/logger.ts`) — **voce a occhio umano**: nessuno strumento la verifica al commit (`no-console` è `warn`, il ratchet CI conta solo `errorCount`)
 - [ ] No `// TODO` introdotti senza ticket
 - [ ] Import orfani rimossi
 - [ ] Commit message italiano, prefisso `<tipo>:` corretto

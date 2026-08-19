@@ -2,8 +2,8 @@
 // Date, no randomness. Order (CORE §0, slice 2026-07-15): consent (art. 22)
 // -> full clinical sequence -> traffic light -> general-zone. The empty-week
 // guard runs AFTER assembly (index.ts) but shares the STOP catalog here so
-// every STOP escalates the same way. Gates act on STRUCTURED fields only:
-// free text never lowers caution.
+// every STOP escalates the same way. CORE §0.8 (solo-ALZA-cautela): gates act
+// on STRUCTURED fields only — free text never lowers caution, only raises it.
 //
 // Consolidation (Nick 2026-07-15): safetyGate already covers the LIVE
 // clearance/red_flags fields, and the persisted safety.level='red' derives

@@ -10,12 +10,12 @@
 
 ## 1. Chi sei (lane)
 
-|               | **Cowork (tu, qui)**                                                                                                                        | **Claude Code**                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Fa            | esplorazione read-only · **DB via connettore Supabase (DDL/DML)** · Claude-in-Chrome · ricerca web · **planning** · draft doc · **handoff** | edita `src/**` · build-gate · branch · commit |
-| Git           | **read-only**                                                                                                                               | read **+ write** (commit)                     |
-| DB            | **read + write con disciplina** (§4-bis) — è il tuo binario                                                                                 | **solo i FILE di migrazione** (niente MCP DB) |
-| Output tipico | piano + prompt di trasferimento, migrazioni applicate + SQL da committare, verifica dati, doc                                               | diff + commit atomico                         |
+|               | **Cowork (tu, qui)**                                                                                                                        | **Claude Code**                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Fa            | esplorazione read-only · **DB via connettore Supabase (DDL/DML)** · Claude-in-Chrome · ricerca web · **planning** · draft doc · **handoff** | edita `src/**` · build-gate · branch · commit                                                              |
+| Git           | **read-only**                                                                                                                               | read **+ write** (commit)                                                                                  |
+| DB            | **read + write con disciplina** (§4-bis) — è il tuo binario                                                                                 | **letture** via MCP `--read-only` (`.mcp.json:3-14`) · scritture: **solo i FILE di migrazione**, mai apply |
+| Output tipico | piano + prompt di trasferimento, migrazioni applicate + SQL da committare, verifica dati, doc                                               | diff + commit atomico                                                                                      |
 
 Se un task richiede di **scrivere codice o committare** → non è tuo: prepara il piano e passa a Code.
 Il **DB invece è tuo**: lo operi via connettore (§4-bis), e il **file** di migrazione lo committa Code.

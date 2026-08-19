@@ -1,11 +1,1 @@
-[
-  {
-    "ghsa": "GHSA-qwww-vcr4-c8h2",
-    "packages": ["react-router", "react-router-dom"],
-    "reason": "React Router: RSC Mode CSRF Bypass (CWE-352, fascia >=7.12.0 <8.3.0; installata 7.18.2). La superficie richiede i data router (createBrowserRouter/RouterProvider): quest'app monta un solo BrowserRouter classico (src/App.tsx) e ha 0 data-router API su 279 file ts/tsx sotto src/, con 39/39 import da react-router-dom — misurato il 2026-08-03. Il 'fix' proposto da npm audit (react-router-dom@7.11.0) e' un downgrade DENTRO la fascia delle 12 advisory chiuse dalla PR #26 (RCE non autenticata inclusa): non e' una strada. Correzione vera = react-router 8 (>=8.3.0), decisione separata (Dependabot alert #47), da fare in una PR claude/* che rimuove questa voce nello stesso commit del bump.",
-    "addedOn": "2026-08-03",
-    "reviewBy": "2026-11-03",
-    "invalidIfMatches": "createBrowserRouter|createHashRouter|createMemoryRouter|RouterProvider",
-    "invalidIfIn": "src/**/*.{ts,tsx}"
-  }
-]
+[]

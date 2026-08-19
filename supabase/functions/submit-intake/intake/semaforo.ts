@@ -1,7 +1,8 @@
 // Deterministic eligibility gate ("semaforo") for the intake — CORE safety,
 // both coaching modes. Pure module: no I/O, no Date (age is computed at the
 // I/O boundary), no randomness — two runs on the same input give the same
-// output (invariant 8). Hard-stops act on STRUCTURED fields only.
+// output (invariant 8). CORE §0.8: hard-stops act on STRUCTURED fields only;
+// free text (pain-gesture) can only RAISE caution — see :114-122.
 //
 // Signal -> effect mapping (decided with Nicolo 2026-07-13):
 // - RED (hold): any PAR-Q+ yes · current pain · unintentional weight loss ·

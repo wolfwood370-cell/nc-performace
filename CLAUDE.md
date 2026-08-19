@@ -55,8 +55,8 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 7. **Types ownership**: `types.ts` è rigenerato da te via `npm run gen:types` (= `supabase gen types typescript --project-id xgxtplqlewpqjzghvbke`; output da redirigere su `src/integrations/supabase/types.ts`). Il blocco `appointments` non viene più droppato: l'**hand-patch storico è obsoleto**. Rigenera dopo ogni cambio di schema.
 8. **Worktree-isolated**: opera in `.claude/worktrees/<slug>`, branch `claude/<slug>`. **Push consentito SOLO verso rami `claude/*`**: mai push su `main`, mai `--force`/`-f`/`--force-with-lease`, mai cancellazioni di rami. **Il cancello vero è il ruleset sul server** (PR obbligatoria su `main`, bypass list vuota — fuori dalla portata di qualunque agente); l'hook `.claude/hooks/hooks.mjs` è la cintura di sicurezza locale, non il cancello. Il merge in `main` passa da una PR con i check obbligatori verdi; merge e push su `main` restano di Nicolò.
 9. **Lingua**: risposte italiano · commit message italiano · code comments inglese · `Co-Authored-By: Claude <noreply@anthropic.com>` sempre.
-10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` (usa `src/lib/logger.ts`).
-11. **Security = ownership condivisa (DB di proprietà)**: non esiste più il Lovable Security Agent. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping e advisor Supabase sono responsabilità **condivisa**: tu (Claude Code) = **codice sicuro + `/security-review` ai milestone**; **Cowork** = advisors/RLS/review del DB via connettore. Tu puoi proporre migration/policy come **FILE** in `supabase/migrations/`, ma **non applichi sul DB** (niente MCP Supabase in Code): l'applicazione la esegue **Cowork col benestare di Nicolò**. Operazioni potenzialmente distruttive → **STOP & ASK** (§5). Vedi `methodology/03-BACKEND-SUPABASE.md §0`.
+10. **Codice snello**: niente file >300r monolitici nuovi · niente import non usati · niente dead code · niente `console.log` nuovi (usa `src/lib/logger.ts`) — **è una convenzione, non un cancello**: eslint la segnala e la CI non la boccia, per la scelta scritta a `eslint.config.js:56-57`.
+11. **Security = ownership condivisa (DB di proprietà)**: non esiste più il Lovable Security Agent. RLS, edge auth, `SECURITY DEFINER`, Realtime scoping e advisor Supabase sono responsabilità **condivisa**: tu (Claude Code) = **codice sicuro + `/security-review` ai milestone**; **Cowork** = advisors/RLS/review del DB via connettore. Tu puoi proporre migration/policy come **FILE** in `supabase/migrations/`, ma **non applichi sul DB**: l'MCP Supabase montato in Code è `--read-only` (`.mcp.json:3-14`) — **leggi** schema, advisor e SELECT, **non scrivi**; l'applicazione la esegue **Cowork col benestare di Nicolò**. Operazioni potenzialmente distruttive → **STOP & ASK** (§5). Vedi `methodology/03-BACKEND-SUPABASE.md §0`.
 
 ---
 
@@ -68,7 +68,8 @@ Eccezione: `src/components/ui/**` (shadcn primitives) usa token shadcn neutrali 
 - **Tier + entitlement config-driven:** `profiles.tier` {premium, monthly}; le feature abilitate vivono in `tier_entitlements` (tabella-config). NB: oggi `src/hooks/useFeatureAccess.ts` gestisce ancora code-side limiti di consumo + gate booleani (tier legacy free/basic/pro) — il rewiring sugli entitlement DB è una fetta successiva.
 - **Metodo = dato:** parametri-metodo (Tabella RPE, split, zoneMap…) in `method_config` (metodo di Nicolò = profilo n.1), mai costanti sparse nel codice.
 - **Storia immutabile:** ciclo bozza mutabile → rilascio immutabile (mai sovrascritto) → esecuzione (log) → analisi (solo da log+rilasci). `consents` e `audit_log` sono **append-only**: MAI UPDATE/DELETE, nemmeno da migrazione futura.
-- **Consenso-salute = cancello:** `consents` registra il consenso art. 9 GDPR; è il prerequisito che il gate §0 del CORE (fette cliniche) verifica prima di agire.
+- **Consenso-salute = cancello:** `consents` registra il consenso art. 9 GDPR; è il prerequisito che il gate §0 del CORE (fette cliniche) verifica prima di agire — `CORE §0.1` (il gate ha sempre la precedenza) e `CORE §0.9` (scope: il `non_medical_disclaimer` è un cancello vero, la RPC rifiuta la transazione senza — `supabase/migrations/20260713150002_intake_submit_rpc.sql:68-72`).
+- **Invarianti clinici = fuori dal codice, citati per numero:** sono **undici** (`§0.1`…`§0.11`) e vivono in **`app/spec-CORE-2026-07-11.md` §0**, unica casa. Nel repo **non se ne ricopia nessuno**: si cita il numero (`Eredita: CORE §0.2, §0.4`). Se una fetta tocca un gate clinico e non hai la spec, **fermati e chiedila**. ⚠️ Il §0 di `methodology/03-BACKEND-SUPABASE.md` è un'**altra** cosa (security ownership del DB).
 - **Anello atleta = 3 scritture:** `daily_readiness` (check-in prontezza, porta `has_pain`+`soreness_map`) + `workout_logs` + `exercise_logs`.
 - **Sicurezza:** ogni tabella nuova deny-by-default (RLS on, zero policy = zero accesso); accesso-coach via helper `is_coach_of_athlete(athlete_id)`.
 
@@ -105,13 +106,18 @@ Massimo 2 file di metodologia aperti per task = context window snello.
 
 ## 5. Decision framework — chiedere vs decidere
 
-Auto mode: per default decidi. Chiedi solo se:
+**Questa sezione è la casa unica del "quando mi fermo". Ogni altro punto del repo rimanda qui.**
+
+La sessione parte in **plan mode** — non è una convenzione, è configurazione: `.claude/settings.json:3` (`"defaultMode": "plan"`, dal commit `41efc46`, 2026-08-15). In plan mode leggi ed esplori, **non scrivi**: le Edit restano bloccate finché Nicolò non approva il piano. I comandi shell fuori dal read-only set passano dal classificatore (se auto mode è disponibile) o aprono un prompt. Il flusso di §6 — build gate, commit, push — comincia **dopo** l'approvazione del piano, mai prima. ⚠️ La config vale per le sessioni da terminale in questo progetto: le sessioni avviate dall'estensione VS Code NON leggono le settings di progetto (lì serve `claudeCode.initialPermissionMode`).
+
+**Dopo l'approvazione del piano** vale l'autonomia: per default decidi e procedi. Chiedi solo se:
 
 - **Direzione architetturale ambigua** (es. Zustand vs Context per nuovo store)
 - **Breaking change su API pubblica** (componente usato in 10+ posti)
 - **Decisione commerciale/business** (pricing, copy marketing, feature flag)
 - **Conflitto fra istruzioni** (es. user dice X, `docs/DESIGN.md` dice Y)
 - **Possibile data loss / RLS bypass / Stripe webhook destructive**
+- **Qualunque security issue o Advisor warning, anche non distruttivo** — SEMPRE: il DB lo opera Cowork col benestare di Nicolò, tu proponi il FILE di migration (`03-BACKEND-SUPABASE.md §0`)
 - **Color/spacing non mappabile** dal handoff Design a token Aura
 
 Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + dirty in un solo selector — minor coupling vs 2 hook separati").
@@ -128,6 +134,9 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 3. Read del file metodologia
 4. Esegui task seguendo il workflow del file
 5. Build gate (tsc --noEmit)
+5b. PASSATA INDIPENDENTE prima del commit (.claude/agents/, contesto proprio, sola lettura):
+      backend/RLS/edge toccati → supabase-rls-auditor · UI Coach/Athlete → aura-theme-auditor
+      diff pronto → code-reviewer · build/test → code-test-verifier
 6. Commit (italiano + Co-Authored-By)
 7. VERIFICA COMMIT (auto, immediato):
      git log --oneline -1  +  git status         → conferma hash + working tree clean
@@ -167,7 +176,7 @@ Se decidi: **dichiara** in 1 riga ("Decisione: useShallow per leggere block + di
 
 Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgres/Edge/RLS).
 
-**Modalità default**: safest-path autonoma. Stop & ask solo per i casi in §5.
+**Modalità**: la sessione parte in plan mode per configurazione (`.claude/settings.json:3`) — pianifichi, non scrivi, finché Nicolò non approva. Approvato il piano: safest-path autonoma. **La regola completa, e la sua precedenza, stanno in §5: quella è l'unica casa. Qui non è ripetuta di proposito.**
 
 **Output style**: tabelle > paragrafi. `file:line` > frasi vaghe. Conciso, no filler.
 
