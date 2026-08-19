@@ -1,6 +1,25 @@
 {
   "permissions": {
     "defaultMode": "plan",
+    "ask": [
+      "Bash(git reset --hard)",
+      "Bash(git reset --hard *)",
+      "Bash(git rebase)",
+      "Bash(git rebase *)",
+      "Bash(git clean)",
+      "Bash(git clean *)",
+      "Bash(git stash drop)",
+      "Bash(git stash drop *)",
+      "Bash(git stash clear)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)",
+      "Edit(/.claude/hooks/**)",
+      "Edit(/.husky/**)",
+      "Edit(/.mcp.json)",
+      "Edit(/supabase/functions/release-autonomous-program/release/decide.ts)",
+      "Edit(/supabase/functions/submit-intake/intake/semaforo.ts)",
+      "mcp__github__*"
+    ],
     "deny": [
       "Bash(gh pr merge)",
       "Bash(gh pr merge *)",
