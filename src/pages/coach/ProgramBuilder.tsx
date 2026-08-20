@@ -68,6 +68,14 @@ import { ProgrammedExerciseCard } from "@/components/coach/program/ProgrammedExe
 import { ProgressionInspector } from "@/components/coach/program/ProgressionInspector";
 import { FeatureGate } from "@/components/common/FeatureGate";
 import { useSaveProgramBlock, SaveProgramBlockError } from "@/hooks/useSaveProgramBlock";
+import { usePublishProgramBlock } from "@/hooks/coach/usePublishProgramBlock";
+import { PublishProgramDialog } from "@/components/coach/program/PublishProgramDialog";
+import type { PublishDialogSession } from "@/components/coach/program/PublishProgramDialog";
+import {
+  defaultSessionDates,
+  sessionIdFor,
+} from "../../../supabase/functions/_shared/program/coachRelease.ts";
+import type { SessionDateInput } from "../../../supabase/functions/_shared/program/coachRelease.ts";
 import { useAuth } from "@/hooks/useAuth";
 import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 import { useAthleteRiskAnalysis } from "@/hooks/useAthleteRiskAnalysis";
@@ -387,36 +395,104 @@ export default function ProgramBuilder() {
   // -------------------------------------------------------------------------
 
   const { saveBlock, isPending: isSaving } = useSaveProgramBlock();
+  const publishMutation = usePublishProgramBlock();
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
-  const runSave = useCallback(
-    async (status: "draft" | "published") => {
+  const handleSave = useCallback(async () => {
+    if (!block) return;
+    try {
+      await saveBlock({ block, status: "draft" });
+      toast.success("Program saved", {
+        description: `"${block.name}" is up to date.`,
+      });
+    } catch (e) {
+      const message =
+        e instanceof SaveProgramBlockError
+          ? e.message
+          : "Unexpected error while saving the program.";
+      toast.error("Save failed", { description: message });
+    }
+  }, [block, saveBlock]);
+
+  /** Publish opens the delivery dialog: the session DATES are the datum the
+   *  block does not carry (Session has only name+order), so they are asked,
+   *  never derived silently. */
+  const handlePublish = useCallback(() => setPublishDialogOpen(true), []);
+
+  // Dialog rows: stable ids from the shared convention, labels from the
+  // coach's own week/session names.
+  const publishSessions = useMemo<PublishDialogSession[]>(() => {
+    if (!block) return [];
+    const labels = new Map<string, string>();
+    for (const week of block.weeks) {
+      [...week.sessions]
+        .sort((a, b) => a.order - b.order)
+        .forEach((s, idx) => {
+          labels.set(sessionIdFor(week.order, idx + 1), `Settimana ${week.order} · ${s.name}`);
+        });
+    }
+    return defaultSessionDates(block.start_date, block.weeks).map((d) => ({
+      session_id: d.session_id,
+      label: labels.get(d.session_id) ?? d.session_id,
+      defaultDate: d.date,
+    }));
+  }, [block]);
+
+  /**
+   * Confirmed dates -> save the draft (the server builds the document from
+   * program_blocks: what is delivered is what is saved) -> invoke the edge
+   * function. The delivery message appears ONLY on ok:true; on gate:true the
+   * coach reads the reason and no delivery message appears.
+   */
+  const handleConfirmPublish = useCallback(
+    async (dates: SessionDateInput[]) => {
       if (!block) return;
       try {
-        await saveBlock({ block, status });
-        if (status === "published") {
-          toast.success("Program published", {
-            description: `"${block.name}" is now live for the assigned athlete.`,
-          });
-        } else {
-          toast.success("Program saved", {
-            description: `"${block.name}" is up to date.`,
-          });
-        }
+        await saveBlock({ block, status: "published" });
       } catch (e) {
         const message =
           e instanceof SaveProgramBlockError
             ? e.message
-            : "Unexpected error while saving the program.";
-        toast.error(status === "published" ? "Publish failed" : "Save failed", {
-          description: message,
-        });
+            : "Errore inatteso durante il salvataggio.";
+        toast.error("Salvataggio non riuscito", { description: message });
+        return;
       }
+      publishMutation.mutate(
+        { blockId: block.id, dates },
+        {
+          onSuccess: (res) => {
+            if (res.ok) {
+              setPublishDialogOpen(false);
+              toast.success("Scheda consegnata", {
+                description: `"${block.name}" è stata consegnata: l'atleta la trova nei giorni confermati.`,
+              });
+            } else if (res.gate && res.reason === "athlete_is_autonomous") {
+              setPublishDialogOpen(false);
+              toast.error("Consegna bloccata", {
+                description:
+                  "L'atleta è in modalità autonoma: il suo programma lo rilascia il motore, non la consegna manuale.",
+              });
+            } else if (res.gate) {
+              setPublishDialogOpen(false);
+              toast.error("Consegna bloccata dal gate di sicurezza", {
+                description:
+                  "Serve una valutazione prima di rilasciare un programma a questo atleta: trovi l'avviso in dashboard.",
+              });
+            } else if (res.error === "publish_conflict") {
+              toast.error("Consegna in conflitto", {
+                description: "Qualcuno ha appena consegnato: ricarica e riprova.",
+              });
+            } else {
+              toast.error("Consegna non riuscita", { description: "Riprova più tardi." });
+            }
+          },
+          onError: () =>
+            toast.error("Consegna non riuscita", { description: "Riprova più tardi." }),
+        },
+      );
     },
-    [block, saveBlock],
+    [block, saveBlock, publishMutation],
   );
-
-  const handleSave = useCallback(() => runSave("draft"), [runSave]);
-  const handlePublish = useCallback(() => runSave("published"), [runSave]);
 
   // -------------------------------------------------------------------------
   // Athlete assignment — patches `athlete_id` directly on the active block.
@@ -741,6 +817,17 @@ export default function ProgramBuilder() {
             exercise card in the day grid). The component handles its own
             surface, scroll, and CTA — we just place it. */}
         <ProgressionInspector />
+
+        {/* Delivery dialog — the coach confirms one date per session before
+            the block is frozen into the immutable release. */}
+        <PublishProgramDialog
+          open={publishDialogOpen}
+          onOpenChange={setPublishDialogOpen}
+          sessions={publishSessions}
+          startDate={block.start_date}
+          isPending={isSaving || publishMutation.isPending}
+          onConfirm={handleConfirmPublish}
+        />
       </div>
     </CoachLayout>
   );

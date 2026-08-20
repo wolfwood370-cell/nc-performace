@@ -277,14 +277,14 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
       </div>
 
       {/* Set grid — desktop-dense, tabular layout
-         Columns: # | Reps | RPE/RIR | %1RM
+         Columns: # | Reps | RPE/RIR | %1RM | Rec (s)
          Using a CSS grid keeps headers and rows perfectly aligned without
          <table>'s padding overhead.                                          */}
       <div className="px-2 py-2 space-y-1">
         {/* Header row */}
         <div
           className={cn(
-            "grid grid-cols-[1.5rem_1fr_1fr_1fr] items-center gap-1.5",
+            "grid grid-cols-[1.5rem_1fr_1fr_1fr_1fr] items-center gap-1.5",
             "px-1 pb-1 mb-0.5 border-b border-outline-variant/20",
             "text-3xs font-bold text-on-surface-variant uppercase tracking-wider",
           )}
@@ -293,6 +293,7 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
           <span className="text-center">Reps</span>
           <span className="text-center">{autoRegMode === "rir" ? "RIR" : "RPE"}</span>
           <span className="text-center">%1RM</span>
+          <span className="text-center">Rec (s)</span>
         </div>
 
         {/* Set rows */}
@@ -303,7 +304,7 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
           <div
             key={set.id}
             className={cn(
-              "grid grid-cols-[1.5rem_1fr_1fr_1fr] items-center gap-1.5",
+              "grid grid-cols-[1.5rem_1fr_1fr_1fr_1fr] items-center gap-1.5",
               "px-1 py-1 rounded-xl hover:bg-surface-container-low/50 transition-colors",
             )}
           >
@@ -362,6 +363,25 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
                 const n = parseNum(raw, 0, 100);
                 if (n === null) return;
                 patch(set, { percent_1rm_target: n });
+              }}
+            />
+
+            {/* Rest seconds — a prescription the coach SEES and can change
+               (the 90s scaffold default used to be invisible: showing it here
+               is what turns an internal constant into a coach's choice).
+               Emptying the cell keeps the previous value: rest is always
+               prescribed on a set, there is no "absent" state to write. */}
+            <CompactCell
+              type="number"
+              value={set.rest_seconds}
+              min={0}
+              max={600}
+              step={5}
+              placeholder="—"
+              onCommit={(raw) => {
+                const n = parseNum(raw, 0, 600);
+                if (n === null || n === undefined) return;
+                patch(set, { rest_seconds: n });
               }}
             />
           </div>
