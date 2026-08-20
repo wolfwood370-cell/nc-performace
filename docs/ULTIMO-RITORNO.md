@@ -1,21 +1,33 @@
-# ULTIMO RITORNO — fetta regole-ask
+# ULTIMO RITORNO — fetta deny-non-ask
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/regole-ask` · 2026-08-19 · base `main` = `9a53f0a` · PR [#51](https://github.com/wolfwood370-cell/nc-performace/pull/51).
+> Fetta: `claude/deny-non-ask` · 2026-08-20 · base `main` = `d0af538` · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/deny-non-ask) — il perché in §6).
 
-## 1. Ramo e commit
+## 1. Le tre sonde — la prova che il ritorno di regole-ask chiedeva (§4 di quel ritorno)
 
-**Ramo**: `claude/regole-ask` (worktree isolato) · **PR #51** aperta verso `main` (il merge resta a Nicolò) · 2 commit:
+Eseguite PRIMA di toccare qualunque file, con le regole `ask` della PR #51 attive nella sessione
+(checkout principale a `d0af538`). La domanda, per ciascuna: **è comparsa una richiesta di conferma?**
 
-| Commit    | File                   | Contenuto                                     |
-| --------- | ---------------------- | --------------------------------------------- |
-| `e1214c7` | .claude/settings.json  | blocco `ask` (17 regole) dentro `permissions` |
-| —         | docs/ULTIMO-RITORNO.md | questo file                                   |
+| #   | Sonda                                          | Regola `ask` sotto misura      | È comparsa una conferma?                         |
+| --- | ---------------------------------------------- | ------------------------------ | ------------------------------------------------ |
+| 1   | `git rebase HEAD` (albero pulito)              | `Bash(git rebase *)`           | **NO** — eseguita subito, non negata             |
+| 2   | `git reset --hard HEAD` (albero pulito)        | `Bash(git reset --hard *)`     | **NO** — eseguita subito, non negata             |
+| 3   | `Edit` su `.claude/settings.json` (il passo 1) | `Edit(/.claude/settings.json)` | **NO** — eseguita subito, non negata (riserva ↓) |
 
-Le 17 regole: 9 `Bash(...)` sui git che la storia non riporta indietro (`reset --hard`, `rebase`, `clean`, `stash drop`, `stash clear` — completano i checkout/restore già in deny dal 16/08) · 7 `Edit(...)` sui file-guardia (`.claude/settings.json`, `.claude/settings.local.json`, `.claude/hooks/**`, `.husky/**`, `.mcp.json`) e sui 2 file del gate clinico (`release/decide.ts`, `intake/semaforo.ts`) · `mcp__github__*` che chiude sul canale MCP il buco del merge (ask, non deny: per scelta del mandato).
+**Riserva sulla sonda 3, dichiarata**: l'edit è avvenuto sulla **copia del worktree**
+(`.claude/worktrees/deny-non-ask/.claude/settings.json`) e il pattern `/.claude/settings.json` si
+risolve sulla radice-progetto della sessione (il checkout principale) — il «non morde» qui può
+dipendere anche dal mancato match del percorso, non solo dalla debolezza delle `ask`. È comunque la
+misura che conta _in condizioni reali_: è così che l'agente edita davvero questi file (nota già in
+§6.5 del ritorno precedente). La cintura sui file-guardia, per come lavora l'agente, **oggi non ha
+mai morso**: non chiamarla cancello.
 
-## 2. Le tre uscite (verifiche di sintassi — NON è «provato», v. §4)
+**Conclusione delle sonde**: le `ask` non mordono, le `deny` sì (misura 2026-08-16, fetta
+cancelli-che-mordono) → i distruttivi vanno in `deny`. È l'esito atteso ed è il motivo della fetta.
+
+## 2. Le quattro uscite del passo di verifica
 
 **a) JSON valido** — `node -e "JSON.parse(require('fs').readFileSync('.claude/settings.json','utf8'))"`:
 
@@ -24,81 +36,124 @@ Le 17 regole: 9 `Bash(...)` sui git che la storia non riporta indietro (`reset -
 exit=0
 ```
 
-**b) Nessuna regola su Write** (le regole di percorso su `Write(...)` verrebbero accettate e mai consultate) — `grep -c '"Write(' .claude/settings.json`:
+**b) Nessuna regola su `Write(`** — `grep -c '"Write(' .claude/settings.json`:
 
 ```
 0
-exit=1   (= zero occorrenze: è l'esito atteso di grep -c a conteggio 0)
+exit=1   (= zero occorrenze: esito atteso di grep -c a conteggio 0)
 ```
 
-**c) Il diff è SOLO l'aggiunta del blocco ask** — `git diff main...HEAD -- .claude/settings.json` (19+/0−; `deny`, `defaultMode` e `hooks` invariati):
+**c) Conteggi** — `node -e "const p=require('./.claude/settings.json').permissions;console.log('deny',p.deny.length,'ask',p.ask.length,'mode',p.defaultMode)"`:
+
+```
+deny 16 ask 7 mode plan
+```
+
+**d) Il diff è SOLO il blocco `permissions`** — `git diff main...HEAD -- .claude/settings.json`
+(11+/11−; `defaultMode` e `hooks` invariati — hooks verificato anche byte-per-byte via JSON):
 
 ```diff
 --- a/.claude/settings.json
 +++ b/.claude/settings.json
-@@ -1,6 +1,25 @@
+@@ -1,7 +1,13 @@
  {
    "permissions": {
      "defaultMode": "plan",
-+    "ask": [
-+      "Bash(git reset --hard)",
-+      "Bash(git reset --hard *)",
-+      "Bash(git rebase)",
-+      "Bash(git rebase *)",
-+      "Bash(git clean)",
-+      "Bash(git clean *)",
-+      "Bash(git stash drop)",
-+      "Bash(git stash drop *)",
-+      "Bash(git stash clear)",
-+      "Edit(/.claude/settings.json)",
-+      "Edit(/.claude/settings.local.json)",
-+      "Edit(/.claude/hooks/**)",
-+      "Edit(/.husky/**)",
-+      "Edit(/.mcp.json)",
-+      "Edit(/supabase/functions/release-autonomous-program/release/decide.ts)",
-+      "Edit(/supabase/functions/submit-intake/intake/semaforo.ts)",
+-    "ask": [
++    "deny": [
++      "Bash(gh pr merge)",
++      "Bash(gh pr merge *)",
++      "Bash(git checkout -- *)",
++      "Bash(git checkout .)",
++      "Bash(git restore)",
++      "Bash(git restore *)",
+       "Bash(git reset --hard)",
+       "Bash(git reset --hard *)",
+       "Bash(git rebase)",
+@@ -11,22 +17,16 @@
+       "Bash(git stash drop)",
+       "Bash(git stash drop *)",
+       "Bash(git stash clear)",
 +      "mcp__github__*"
 +    ],
-     "deny": [
-       "Bash(gh pr merge)",
-       "Bash(gh pr merge *)",
++    "ask": [
+       "Edit(/.claude/settings.json)",
+       "Edit(/.claude/settings.local.json)",
+       "Edit(/.claude/hooks/**)",
+       "Edit(/.husky/**)",
+       "Edit(/.mcp.json)",
+       "Edit(/supabase/functions/release-autonomous-program/release/decide.ts)",
+-      "Edit(/supabase/functions/submit-intake/intake/semaforo.ts)",
+-      "mcp__github__*"
+-    ],
+-    "deny": [
+-      "Bash(gh pr merge)",
+-      "Bash(gh pr merge *)",
+-      "Bash(git checkout -- *)",
+-      "Bash(git checkout .)",
+-      "Bash(git restore)",
+-      "Bash(git restore *)"
++      "Edit(/supabase/functions/submit-intake/intake/semaforo.ts)"
+     ]
+   },
+   "hooks": {
 ```
 
-In più, fuori mandato ma di rito: `prettier --check` verde sul file.
+In più, di rito: `prettier --check` verde sul file; confronto programmatico `deny`/`ask`
+carattere-per-carattere e nell'ordine esatto del mandato (`deny match: true`, `ask match: true`);
+passata `code-reviewer` indipendente: **committabile sì** — nessun pattern del nuovo `deny` blocca
+il flusso standard (commit, push su `claude/*`, tsc, test, prettier, curl); `lint-staged` usa
+`git stash drop` internamente al processo husky, fuori dal layer permessi. Suo finding onesto: con
+i distruttivi in `deny` sparisce l'uscita «chiedi»: `git rebase --continue` o `git clean -fd` non
+sono eseguibili nemmeno con l'OK di Nicolò in sessione — se servono, li esegue lui dalla sua shell,
+dove queste regole non valgono. È il design, non un difetto.
 
-## 3. Passata indipendente (pre-commit, 3 lenti, tutte PASS)
+## 3. Perimetro
 
-- **Conformità al mandato**: le 17 voci di `ask` corrispondono carattere-per-carattere e nell'ordine esatto all'elenco del mandato (confronto programmatico); `deny` ancora le 6 voci storiche; `defaultMode` e `hooks` identici a HEAD.
-- **code-reviewer**: «committabile sì» — diff puramente additivo e chirurgico, nessun pattern in grado di bloccare il flusso standard (commit, push su `claude/*`, tsc, test). I 4 finding non bloccanti sono in §6.
-- **Doc ufficiali (le 4 affermazioni di sintassi del mandato)**: (1) CONFERMATA — le regole di percorso valgono solo per `Edit(path)`/`Read(path)`, una regola su `Write(...)` è accettata e mai consultata; (2) CONFERMATA — in un settings di progetto `/percorso` = radice del progetto (`//` = assoluto); (3) CONFERMATA — una regola `ask` fa il prompt anche in auto mode e anche dopo l'allow di un hook PreToolUse; (4) **correzione di realtà**: le doc dicono che `permissions` e `hooks` si ricaricano **a caldo** quando il file cambia — la premessa «le regole si leggono all'avvio» del mandato è superata (coerente con la misura del 15/08, fetta cancelli-che-mordono). Non cambia il debito di §4: cambia solo il _perché_ questa sessione non le ha attive.
+`git diff --stat main...HEAD` → **2 file, nessun altro**: `.claude/settings.json` (11+/11−, commit
+`605fde3`) e `docs/ULTIMO-RITORNO.md` (riscritto, questo file). Nessun file di codice, nessuna
+migration, nessun gate clinico toccato (`decide.ts` e `semaforo.ts` compaiono solo come _stringhe_
+dentro le regole `ask`). La RETRO nel Log di auto-miglioramento NON fa parte del perimetro.
 
-## 4. Il debito della prova — dichiarato il 2026-08-19
+## 4. Il debito della prova — e la REGOLA NUOVA che lo estingue
 
-**Questa sessione NON ha provato le regole, per costruzione**: l'edit è avvenuto nella copia del worktree (`.claude/worktrees/regole-ask/`), mentre il settings del checkout principale — quello della sessione — resta `277465a` fino a merge+pull. Qualunque tentativo adesso passerebbe per la ragione sbagliata; per lo stesso motivo qui non compare la parola «provato».
+**Le nuove `deny` NON SONO PROVATE IN QUESTA SESSIONE**, per lo stesso motivo di prima: l'edit vive
+nel worktree, il settings della sessione resta quello della PR #51 fino a merge+pull. Qualunque
+tentativo adesso passerebbe (o fallirebbe) per la ragione sbagliata.
 
-**LA PROVA VERA È NELLA SESSIONE SEGUENTE**: in una sessione nuova aperta dopo il merge, tentare `git reset --hard HEAD` su albero pulito (non fa nulla) e riferire se è comparsa la richiesta di conferma. Se NON compare, la regola non è attiva e va capito perché prima di fidarsene.
+⛔ **REGOLA NUOVA — vale da adesso: OGNI FETTA COMINCIA PROVANDO LE REGOLE DELLA FETTA
+PRECEDENTE.** Prima riga di lavoro, prima di qualunque modifica. Costa dieci secondi e toglie
+Nicolò dal giro delle prove manuali. Per la prossima fetta significa: a sessione nuova dopo il
+merge, tentare `git reset --hard HEAD` e `git rebase HEAD` su albero pulito e riferire l'esito
+atteso **NEGATO** (deny che morde); se invece eseguono, fermarsi e capire perché prima di
+proseguire. Questa fetta è la prima applicazione della regola: le sue sonde (§1) erano esattamente
+la prova delle regole della fetta precedente.
 
-## 5. Perimetro
+## 5. Il quadro CI
 
-`git diff --stat main...HEAD` → **2 file, nessun altro**: `.claude/settings.json` (+19) e `docs/ULTIMO-RITORNO.md` (riscritto). Nessun file di codice, nessuna migration, nessun gate clinico toccato (decide.ts e semaforo.ts compaiono solo come _stringhe_ dentro le regole). **La RETRO nel Log di auto-miglioramento NON fa parte di questa fetta** (perimetro di mandato = 2 file): resta da scrivere in una sessione successiva.
+La fetta tocca solo un file di config e un doc: nessun codice, nessuna dipendenza. I check girano
+sulla PR quando viene aperta (v. §6). Quadro atteso (obbligatori: i primi 2):
 
-## 6. Proposte (nessuna aggiunta di testa mia alle regole — come da mandato)
+| Check                     | Obbligatorio | Atteso                                |
+| ------------------------- | ------------ | ------------------------------------- |
+| Tipi · lint · unit (web)  | ✅ sì        | verde (nessun file TS toccato)        |
+| Unit edge function (Deno) | ✅ sì        | verde (nessuna edge function toccata) |
+| End-to-end (Playwright)   | no           | verde                                 |
+| Catena di fornitura       | no           | verde (allowlist pulita da `56f22bb`) |
 
-1. **Asimmetria sul merge**: `gh pr merge` è in deny, `mcp__github__*` (che include `merge_pull_request`) è in ask — la stessa operazione vietata da CLI diventa approvabile con una conferma via MCP. Coerente con l'intento del mandato (spegnere il server sarebbe più largo del problema); per parità di severità servirebbe un deny mirato su `mcp__github__merge_pull_request`. Decisione di Nicolò.
-2. **Le regole `Edit` valgono per il tool, non per l'effetto**: una scrittura via Bash (`sed -i`, redirect `>`, `node -e fs.writeFileSync`) sui file-guardia non incontra l'ask — stessa lacuna della cintura `hooks.mjs` (matcher `Write|Edit|MultiEdit`). La protezione sui 5 file-guardia e sui 2 file del gate è una cintura in più, non un cancello.
-3. **Copertura prefissale dei pattern Bash**: `git -C <path> reset --hard` e le forme riordinate (`git reset HEAD~1 --hard`) sfuggono a `Bash(git reset --hard *)` — stessa forma prefissale del deny esistente, quindi coerente col repo, ma dichiarata.
-4. **Ask in contesti non interattivi = rifiuto** (`claude -p`): oggi nessun uso nel repo, da ricordare se mai si automatizza.
-5. **Nota worktree**: le regole di percorso valgono per la radice-progetto della sessione — da una sessione dentro un worktree coprono `<worktree>/.husky/**`, non la copia del principale che è quella realmente eseguita (hooksPath assoluto).
+L'esito vero si legge sul run CI della PR — è lì che si accetta il verde, non sul run locale.
+**Il merge resta a Nicolò** — l'agente non unisce, non forza, non cancella rami.
 
-## 7. I check sulla PR
+## 6. Fuori mandato, misurato: la PR non l'ha potuta aprire l'agente
 
-La fetta tocca solo un file di config e un doc: nessun codice, nessuna dipendenza. Quadro atteso su PR #51 (obbligatori: i primi 2):
-
-| Check                     | Obbligatorio | Atteso                                           |
-| ------------------------- | ------------ | ------------------------------------------------ |
-| Tipi · lint · unit (web)  | ✅ sì        | verde (nessun file TS toccato)                   |
-| Unit edge function (Deno) | ✅ sì        | verde (nessuna edge function toccata)            |
-| End-to-end (Playwright)   | no           | verde                                            |
-| Catena di fornitura       | no           | verde (allowlist pulita da `56f22bb`, su `main`) |
-
-L'esito vero si legge sul run CI della PR — è lì che si accetta il verde, non sul run locale. Push verificato in pari. **Il merge della PR #51 resta a Nicolò** — l'agente non unisce, non forza, non cancella rami.
+Il ramo è pushato e verificato in pari (`## claude/deny-non-ask...origin/claude/deny-non-ask`), ma
+il pattern PR-via-API che funzionava il 18/08 (3 comandi piatti: `git credential fill` su file →
+header → `curl`) oggi è **bloccato dal classificatore auto-mode al primo passo** (accesso
+credenziali), e con lui ogni alternativa (la CLI `gh` non è installata; anche l'ispezione dei nomi
+delle variabili d'ambiente è negata). Nessun aggiramento tentato: l'intento del blocco è chiaro e
+un aggiramento sarebbe peggio del ritardo. **Azione per Nicolò**: aprire la PR dal
+[link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/deny-non-ask)
+(un click; titolo suggerito: `chore(permessi): fetta deny-non-ask — git distruttivi e canale MCP
+GitHub da ask a deny`). Per una fetta che misura i permessi, anche questo è un dato: il perimetro
+di ciò che l'agente può fare si sta stringendo, e la chiusura-fetta «push + PR» di 00-CORE §6.4
+oggi si ferma al push.
