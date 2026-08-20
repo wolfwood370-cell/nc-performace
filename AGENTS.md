@@ -1,3 +1,5 @@
+> ⚠️ **DORMIENTE — misurato il 2026-08-20 su `main` = `fc62090`.** Nessun hook, workflow, script, `package.json` o `.husky` invoca Codex: **zero occorrenze** in tutti e cinque. Questo file non è un cablaggio, è il **mandato** che Codex leggerebbe se qualcuno lo avviasse a mano. Finché questa riga è qui, **Codex non è in uso**. Chi lo riattiva la toglie, e prima verifica che l'hook `.claude/hooks/hooks.mjs` continui a non vincolarlo (ramo `codex/<slug>`, mai `claude/*`).
+
 # AGENTS.md — Codex su nc-performance-hub
 
 > Codex legge questo file prima di qualunque lavoro. **Non è una copia di `CLAUDE.md`**: quello è il manuale di chi _scrive_ nel repo, questo è il mandato di chi _legge e critica_. Se ti serve una legge del codice la trovi lì e la citi — qui non la trovi ricopiata, per scelta: due copie della stessa regola sono il difetto che questo progetto ha pagato dodici volte in un giorno solo (11/08).
