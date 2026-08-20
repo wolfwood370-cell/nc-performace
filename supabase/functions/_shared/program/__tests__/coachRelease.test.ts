@@ -132,9 +132,10 @@ Deno.test("isIsoDate: accetta solo date di calendario reali", () => {
 // --- pre-fill convention ------------------------------------------------------
 
 Deno.test("defaultSessionDates: start + 7*(settimana-1) + indice, id stabili", () => {
+  // "Upper" (w1-s2) has no exercises: nothing prescribed, no date row —
+  // review 2026-08-20. Ids stay positional over the FULL session list.
   assertEquals(dates, [
     { session_id: "w1-s1", date: "2026-09-07" },
-    { session_id: "w1-s2", date: "2026-09-08" },
     { session_id: "w2-s1", date: "2026-09-14" },
   ]);
   // Deterministic: same input, same output.
@@ -152,7 +153,7 @@ Deno.test("builder: una voce per serie, valori identici alla prescrizione", () =
   const doc = build();
   assertEquals(doc.version, COACH_PROGRAM_SCHEMA_VERSION);
   assertEquals(doc.source.block_id, source.block_id);
-  assertEquals(doc.days.length, 3);
+  assertEquals(doc.days.length, 2); // the empty "Upper" session is NOT delivered
   const squat = doc.days[0].exercises[0];
   assertEquals(squat.item_id, "w1-s1-e1");
   assertEquals(squat.sets.length, 3);
@@ -187,32 +188,71 @@ Deno.test("builder: assente resta null — mai 0, mai default (B-09)", () => {
   assertEquals(bench.sets[0].rir, null);
   assertEquals(bench.sets[0].percent_1rm, 72);
   assertEquals(bench.sets[0].tempo, "3-1-1-0");
-  const row = doc.days[2].exercises[0];
+  const row = doc.days[1].exercises[0];
   assertEquals(row.sets[0].rir, 0); // RIR 0 is a REAL prescription, preserved
   assertEquals(row.sets[0].is_warmup, true);
   assertEquals(row.superset_id, "ss-1");
   assertEquals(doc.rationale, ""); // no description: empty, never invented
 });
 
+Deno.test("builder: il sentinel 0 dei produttori legacy diventa null (RIR 0 resta)", () => {
+  // v1 and aiProgramMapper write 0 for "absent" on RPE/%1RM — scales where 0
+  // is not a value. The build boundary refuses to inherit the ambiguity.
+  const sentinel: CoachBlockSource = {
+    ...source,
+    weeks: [
+      {
+        order: 1,
+        sessions: [
+          {
+            name: "S",
+            order: 0,
+            exercises: [
+              {
+                exercise_id: "ex-x",
+                exercise_name: "X",
+                order: 0,
+                sets: [
+                  {
+                    set_number: 1,
+                    reps_target: "8",
+                    rpe_target: 0,
+                    percent_1rm_target: 0,
+                    rir_target: 0,
+                    rest_seconds: 90,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const doc = buildCoachProgramDocument(sentinel, [{ session_id: "w1-s1", date: "2026-09-07" }]);
+  assertEquals(doc.days[0].exercises[0].sets[0].rpe, null);
+  assertEquals(doc.days[0].exercises[0].sets[0].percent_1rm, null);
+  assertEquals(doc.days[0].exercises[0].sets[0].rir, 0);
+  assertEquals(validateCoachProgramDocument(doc), { ok: true });
+});
+
 Deno.test("builder: giorni ordinati per data, metadati di seduta fedeli", () => {
   const doc = build();
   assertEquals(
     doc.days.map((d) => d.date),
-    ["2026-09-07", "2026-09-08", "2026-09-14"],
+    ["2026-09-07", "2026-09-14"],
   );
   assertEquals(doc.days[0].week_order, 1);
   assertEquals(doc.days[0].day_index, 0);
-  assertEquals(doc.days[1].day_name, "Upper");
-  assertEquals(doc.days[1].exercises, []);
-  assertEquals(doc.days[2].session_id, "w2-s1");
+  assertEquals(doc.days[1].session_id, "w2-s1");
+  assertEquals(doc.days[1].day_name, "Full Body");
 });
 
 Deno.test("builder: data mancante o duplicata = throw, non un documento storto", () => {
-  assertThrows(() => buildCoachProgramDocument(source, dates.slice(0, 2)));
+  assertThrows(() => buildCoachProgramDocument(source, dates.slice(0, 1)));
   const clash = [
     { session_id: "w1-s1", date: "2026-09-07" },
-    { session_id: "w1-s2", date: "2026-09-07" },
-    { session_id: "w2-s1", date: "2026-09-14" },
+    { session_id: "w2-s1", date: "2026-09-07" },
   ];
   assertThrows(() => buildCoachProgramDocument(source, clash));
 });
@@ -238,7 +278,7 @@ Deno.test("validatore: percent_1rm 0 bocciato, rir 0 accettato", () => {
   zeroPercent.days[0].exercises[1].sets[0].percent_1rm = 0;
   assert(!validateCoachProgramDocument(zeroPercent).ok);
   const negativeRir = build();
-  negativeRir.days[2].exercises[0].sets[0].rir = -1;
+  negativeRir.days[1].exercises[0].sets[0].rir = -1;
   assert(!validateCoachProgramDocument(negativeRir).ok);
   assertEquals(validateCoachProgramDocument(build()), { ok: true }); // rir 0 in fixture
 });
@@ -254,4 +294,16 @@ Deno.test("validatore: version, giorni fuori ordine e forme rotte", () => {
   const badDate = build();
   badDate.days[0].date = "2026-02-31";
   assert(!validateCoachProgramDocument(badDate).ok);
+});
+
+Deno.test("validatore: un giorno senza esercizi non è una consegna", () => {
+  // Symmetric with the non-empty sets rule: "0 esercizi" must never reach
+  // the athlete as a training day (review 2026-08-20).
+  const empty = build();
+  empty.days[0].exercises = [];
+  const res = validateCoachProgramDocument(empty);
+  assert(!res.ok);
+  if (res.ok === false) {
+    assert(res.errors.some((e) => e.includes("days[0].exercises")));
+  }
 });

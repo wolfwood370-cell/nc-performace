@@ -210,7 +210,11 @@ function parseReleaseDocumentV2(doc: Record<string, unknown>): ReleaseProgramVie
   if (!Array.isArray(doc.days) || doc.days.length === 0) return null;
   const days: ReleaseDayView[] = [];
   for (const rawDay of doc.days) {
-    if (!isObj(rawDay) || !Array.isArray(rawDay.exercises)) return null;
+    // The v2 writer never emits a day without exercises (an empty session is
+    // not a delivery): a day with none is a malformed document, not a rest day.
+    if (!isObj(rawDay) || !Array.isArray(rawDay.exercises) || rawDay.exercises.length === 0) {
+      return null;
+    }
     if (typeof rawDay.date !== "string" || !ISO_DATE_RE.test(rawDay.date)) return null;
     const exercises: ReleaseExerciseView[] = [];
     for (let i = 0; i < rawDay.exercises.length; i++) {

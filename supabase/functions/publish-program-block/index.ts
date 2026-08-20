@@ -69,8 +69,9 @@ function parseBody(body: unknown): { blockId: string; dates: SessionDateInput[] 
 
 /**
  * Mirrors the publish dialog's rules on the server (defense in depth): every
- * session covered exactly once, calendar-valid unique dates, none before
- * start_date. Returns null when valid, else the machine reason for the log.
+ * NON-EMPTY session covered exactly once (an empty session is not a delivery
+ * and gets no date), calendar-valid unique dates, none before start_date.
+ * Returns null when valid, else the machine reason for the log.
  */
 function datesProblem(
   dates: SessionDateInput[],
@@ -80,7 +81,10 @@ function datesProblem(
   const expected = new Set<string>();
   for (const week of weeks) {
     const sessions = [...week.sessions].sort((a, b) => a.order - b.order);
-    sessions.forEach((_, idx) => expected.add(sessionIdFor(week.order, idx + 1)));
+    sessions.forEach((session, idx) => {
+      if (!Array.isArray(session.exercises) || session.exercises.length === 0) return;
+      expected.add(sessionIdFor(week.order, idx + 1));
+    });
   }
   if (dates.length !== expected.size) return "session_count_mismatch";
   const seenSessions = new Set<string>();
@@ -136,12 +140,20 @@ serve(async (req) => {
     });
 
     // --- 1. Identity: coaches only ---------------------------------------
+    // A transient lookup failure is a 500, not a role refusal: a legitimate
+    // coach must never read "coaches_only" for an infrastructure hiccup.
     const { data: coachProfile, error: coachError } = await admin
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .single();
-    if (coachError || coachProfile?.role !== "coach") {
+      .maybeSingle();
+    if (coachError) {
+      console.error("[publish-program-block] coach profile lookup failed", {
+        code: coachError.code,
+      });
+      return json({ ok: false, error: "internal" }, 500);
+    }
+    if (!coachProfile || coachProfile.role !== "coach") {
       return json({ ok: false, error: "coaches_only" }, 403);
     }
 

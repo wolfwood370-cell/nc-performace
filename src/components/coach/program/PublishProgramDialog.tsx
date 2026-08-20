@@ -104,6 +104,12 @@ export function PublishProgramDialog({
         </DialogHeader>
 
         <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+          {sessions.length === 0 && (
+            <p className="text-xs text-on-surface-variant">
+              Nessuna seduta con esercizi da consegnare: aggiungi gli esercizi alle sedute prima di
+              pubblicare.
+            </p>
+          )}
           {sessions.map((s) => (
             <div key={s.session_id} className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-xs font-medium text-on-surface">

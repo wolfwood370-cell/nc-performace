@@ -178,6 +178,11 @@ export function sessionIdFor(weekOrder: number, sessionPosition: number): string
  * never made. This convention — start_date + 7*(week-1) + session index —
  * exists solely to pre-populate the publish dialog, where every date is shown
  * and editable; only what the coach confirms enters the document.
+ *
+ * Sessions with NO exercises are not part of any delivery (nothing prescribed,
+ * nothing arrives — review 2026-08-20): they get no date row here, no expected
+ * date server-side, and no day in the document. Ids stay positional over the
+ * FULL session list, so they are stable whether or not neighbours are empty.
  */
 export function defaultSessionDates(
   startDate: string,
@@ -187,7 +192,8 @@ export function defaultSessionDates(
   const orderedWeeks = [...weeks].sort((a, b) => a.order - b.order);
   for (const week of orderedWeeks) {
     const sessions = [...week.sessions].sort((a, b) => a.order - b.order);
-    sessions.forEach((_, idx) => {
+    sessions.forEach((session, idx) => {
+      if (session.exercises.length === 0) return;
       out.push({
         session_id: sessionIdFor(week.order, idx + 1),
         date: addDaysIso(startDate, 7 * (week.order - 1) + idx),
@@ -200,6 +206,16 @@ export function defaultSessionDates(
 // ---- builder ----------------------------------------------------------------
 
 const numOrNull = (v: number | undefined): number | null => (typeof v === "number" ? v : null);
+
+/**
+ * 0 is not a value on the RPE (1..10) or %1RM (>0) scales: legacy producers
+ * use it as an "absent" sentinel (v1 documents; aiProgramMapper's `|| 0`).
+ * The v2 contract refuses to inherit that ambiguity, so a sentinel 0 becomes
+ * null at the build boundary. RIR is different: RIR 0 IS a real prescription
+ * (0 reps in reserve) and is preserved via numOrNull.
+ */
+const scaleOrNull = (v: number | undefined): number | null =>
+  typeof v === "number" && v !== 0 ? v : null;
 
 /**
  * Freezes the coach's draft into the v2 document. Throws on impossible input
@@ -218,6 +234,9 @@ export function buildCoachProgramDocument(
   for (const week of orderedWeeks) {
     const sessions = [...week.sessions].sort((a, b) => a.order - b.order);
     sessions.forEach((session, idx) => {
+      // An empty session is not a prescription: skipped, never delivered as
+      // a "0 exercises" training day (see defaultSessionDates).
+      if (session.exercises.length === 0) return;
       const sessionId = sessionIdFor(week.order, idx + 1);
       const date = dateBySession.get(sessionId);
       if (!date) throw new Error(`missing date for session ${sessionId}`);
@@ -235,9 +254,9 @@ export function buildCoachProgramDocument(
             .map((s) => ({
               set_number: s.set_number,
               reps: s.reps_target,
-              rpe: numOrNull(s.rpe_target),
+              rpe: scaleOrNull(s.rpe_target),
               rir: numOrNull(s.rir_target),
-              percent_1rm: numOrNull(s.percent_1rm_target),
+              percent_1rm: scaleOrNull(s.percent_1rm_target),
               rest_seconds: s.rest_seconds,
               tempo: s.tempo ?? null,
               is_warmup: s.is_warmup === true,
@@ -329,8 +348,10 @@ export function validateCoachProgramDocument(
     }
     if (typeof day.day_name !== "string") bad(`${p}.day_name`, "must be a string");
     if (typeof day.focus !== "string") bad(`${p}.focus`, "must be a string");
-    if (!Array.isArray(day.exercises)) {
-      bad(`${p}.exercises`, "must be an array");
+    // Symmetric with sets below: a day with no exercises is not a delivery
+    // (the builder never emits one — an athlete must never read "0 esercizi").
+    if (!Array.isArray(day.exercises) || day.exercises.length === 0) {
+      bad(`${p}.exercises`, "must be a non-empty array");
       return;
     }
     day.exercises.forEach((ex, j) => {

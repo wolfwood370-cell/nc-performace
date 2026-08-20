@@ -296,12 +296,20 @@ describe("l'assenza resta assenza nella vista", () => {
 });
 
 describe("le forme rotte degradano a null (v2)", () => {
-  it("giorno senza data o serie malformata -> null, senza lanciare", () => {
+  it("giorno senza data, senza esercizi o con serie malformata -> null, senza lanciare", () => {
     expect(parseReleaseDocument({ version: 2, days: [] })).toBeNull();
     expect(
       parseReleaseDocument({
         version: 2,
         days: [{ session_id: "w1-s1", exercises: [] }],
+      }),
+    ).toBeNull();
+    // A day with zero exercises is malformed, not a rest day: the writer
+    // skips empty sessions, so the athlete must never read "0 esercizi".
+    expect(
+      parseReleaseDocument({
+        version: 2,
+        days: [{ session_id: "w1-s1", date: "2026-09-07", exercises: [] }],
       }),
     ).toBeNull();
     expect(

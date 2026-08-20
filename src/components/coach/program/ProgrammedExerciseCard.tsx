@@ -41,6 +41,12 @@ interface CompactCellProps {
   min?: number;
   max?: number;
   step?: number;
+  /**
+   * For fields with no "absent" state (rest_seconds): emptying the cell
+   * re-syncs it to the committed value instead of committing — otherwise the
+   * input would LOOK cleared while the store still holds the old number.
+   */
+  keepValueOnEmpty?: boolean;
 }
 
 const CompactCell = memo(function CompactCell({
@@ -53,13 +59,18 @@ const CompactCell = memo(function CompactCell({
   min,
   max,
   step,
+  keepValueOnEmpty = false,
 }: CompactCellProps) {
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {
       const raw = e.currentTarget.value.trim();
+      if (keepValueOnEmpty && raw === "") {
+        e.currentTarget.value = value == null ? "" : String(value);
+        return;
+      }
       onCommit(raw);
     },
-    [onCommit],
+    [onCommit, keepValueOnEmpty, value],
   );
 
   const handleKeyDown = useCallback(
@@ -350,17 +361,19 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
               />
             )}
 
-            {/* %1RM */}
+            {/* %1RM — min 1 like the RPE cell: 0 is not a value on the scale
+               (legacy documents use it as an "absent" sentinel, and the v2
+               release validator refuses it), so typing 0 is discarded. */}
             <CompactCell
               type="number"
               value={set.percent_1rm_target}
-              min={0}
+              min={1}
               max={100}
               step={1}
               placeholder="—"
               suffix="%"
               onCommit={(raw) => {
-                const n = parseNum(raw, 0, 100);
+                const n = parseNum(raw, 1, 100);
                 if (n === null) return;
                 patch(set, { percent_1rm_target: n });
               }}
@@ -369,8 +382,8 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
             {/* Rest seconds — a prescription the coach SEES and can change
                (the 90s scaffold default used to be invisible: showing it here
                is what turns an internal constant into a coach's choice).
-               Emptying the cell keeps the previous value: rest is always
-               prescribed on a set, there is no "absent" state to write. */}
+               rest_seconds has no "absent" state: emptying the cell re-syncs
+               it to the committed value (keepValueOnEmpty). */}
             <CompactCell
               type="number"
               value={set.rest_seconds}
@@ -378,6 +391,7 @@ export const ProgrammedExerciseCard = memo(function ProgrammedExerciseCard({
               max={600}
               step={5}
               placeholder="—"
+              keepValueOnEmpty
               onCommit={(raw) => {
                 const n = parseNum(raw, 0, 600);
                 if (n === null || n === undefined) return;

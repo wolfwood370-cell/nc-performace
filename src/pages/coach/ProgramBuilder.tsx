@@ -442,13 +442,15 @@ export default function ProgramBuilder() {
    * Confirmed dates -> save the draft (the server builds the document from
    * program_blocks: what is delivered is what is saved) -> invoke the edge
    * function. The delivery message appears ONLY on ok:true; on gate:true the
-   * coach reads the reason and no delivery message appears.
+   * coach reads the reason and no delivery message appears. status stays
+   * 'draft' until the delivery succeeds: 'published' is bookkeeping of a
+   * COMPLETED delivery (it feeds max_active_programs), never a promise.
    */
   const handleConfirmPublish = useCallback(
     async (dates: SessionDateInput[]) => {
       if (!block) return;
       try {
-        await saveBlock({ block, status: "published" });
+        await saveBlock({ block, status: "draft" });
       } catch (e) {
         const message =
           e instanceof SaveProgramBlockError
@@ -465,6 +467,14 @@ export default function ProgramBuilder() {
               setPublishDialogOpen(false);
               toast.success("Scheda consegnata", {
                 description: `"${block.name}" è stata consegnata: l'atleta la trova nei giorni confermati.`,
+              });
+              // Best-effort bookkeeping: the delivery lives in program_releases,
+              // a failure here never contradicts it.
+              void saveBlock({ block, status: "published" }).catch(() => {
+                toast.warning("Stato del blocco non aggiornato", {
+                  description:
+                    "La consegna è avvenuta, ma il blocco risulta ancora bozza: risalva quando puoi.",
+                });
               });
             } else if (res.gate && res.reason === "athlete_is_autonomous") {
               setPublishDialogOpen(false);
