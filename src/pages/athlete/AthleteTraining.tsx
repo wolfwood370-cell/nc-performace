@@ -66,7 +66,12 @@ import {
   useRecordConsentMutation,
   useRequestReleaseMutation,
 } from "@/hooks/athlete/useProgramRelease";
-import { dayForWeekday, sessionRpeTarget } from "@/lib/program/releaseView";
+import {
+  dayForDate,
+  dayForWeekday,
+  formatReleaseSetLine,
+  sessionRpeTarget,
+} from "@/lib/program/releaseView";
 import type { ReleaseDayView, ReleaseExerciseView } from "@/lib/program/releaseView";
 
 // =============================================================================
@@ -93,6 +98,16 @@ function startOfDay(d: Date): Date {
  */
 function compareDays(a: Date, b: Date): number {
   return startOfDay(a).getTime() - startOfDay(b).getTime();
+}
+
+/**
+ * LOCAL-calendar YYYY-MM-DD for matching the coach-confirmed session dates
+ * (v2). Not toISOString(): that is UTC, and at 00:30 in Rome it would still
+ * say yesterday — the athlete would read the wrong day's session.
+ */
+function localIsoDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // =============================================================================
@@ -525,6 +540,21 @@ function ExerciseCard({
             {exercise.name}
           </p>
           <p className="mt-1 font-sans text-xs text-on-surface-variant">{exercise.scheme}</p>
+          {/* v2 non-uniform sets: the compact line says only "N serie" — the
+              per-set list carries the real prescription, one labelled entry
+              per set. Null values render nothing (never a 0). */}
+          {exercise.sets_detail && exercise.uniform === false && (
+            <ul className="mt-1.5 flex flex-col gap-0.5">
+              {exercise.sets_detail.map((s) => (
+                <li
+                  key={s.set_number}
+                  className="font-sans text-xs text-on-surface-variant tabular-nums"
+                >
+                  {formatReleaseSetLine(s)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <span
           aria-hidden="true"
@@ -781,9 +811,13 @@ function DiarioView({
   const program = releaseQuery.data?.program ?? null;
 
   if (releaseQuery.data && program) {
-    // Weekday i (Mon-based) -> program day i; beyond the plan -> rest day.
+    // v2 (coach release): EXACT match on the coach-confirmed date.
+    // v1 (engine): weekday i (Mon-based) -> program day i; beyond -> rest.
     const mondayIdx = (selectedDate.getDay() + 6) % 7;
-    const sessionForDay = dayForWeekday(program, mondayIdx);
+    const sessionForDay =
+      program.version === 2
+        ? dayForDate(program, localIsoDate(selectedDate))
+        : dayForWeekday(program, mondayIdx);
     if (!sessionForDay) {
       return withPrompt(
         <>
@@ -914,6 +948,12 @@ export default function AthleteTraining() {
    *  re-fetching. The preview component will read it from
    *  `useLocation().state` once it is updated to consume real data. */
   const handleSelectExercise = (exercise: ReleaseExerciseView) => {
+    // v2 additions are additive: sets_detail carries the per-set prescription;
+    // restSeconds/tut are filled ONLY when uniform across sets (a single value
+    // that is true for every set) — otherwise they stay absent, and the
+    // preview renders its honest "—".
+    const uniformFirst =
+      exercise.uniform && exercise.sets_detail?.length ? exercise.sets_detail[0] : null;
     navigate("/athlete/exercise-preview", {
       state: {
         exercise: {
@@ -925,6 +965,9 @@ export default function AthleteTraining() {
           sets: exercise.sets,
           reps: exercise.reps,
           rpe: exercise.rpe,
+          sets_detail: exercise.sets_detail,
+          restSeconds: uniformFirst ? uniformFirst.rest_seconds : undefined,
+          tut: uniformFirst?.tempo ?? undefined,
         },
       },
     });
