@@ -1,8 +1,6 @@
 // Readiness Math — Statistical normalization utilities v2
 // Pure TypeScript, zero dependencies.
 
-import { READINESS_BASELINE_DAYS } from "./constants";
-
 /**
  * Calculate the arithmetic mean of a numeric array.
  */
@@ -29,11 +27,7 @@ export function standardDeviation(values: number[]): number {
  *
  * Returns 0 when sd is 0 (no variance → on baseline).
  */
-export function calculateZScore(
-  current: number,
-  avg: number,
-  sd: number,
-): number {
+export function calculateZScore(current: number, avg: number, sd: number): number {
   if (sd === 0) return 0;
   return (current - avg) / sd;
 }
@@ -42,11 +36,7 @@ export function calculateZScore(
  * Linear normalisation of `value` into [0, 100].
  * Clamps the output so it never leaves the 0-100 range.
  */
-export function normalizeMetric(
-  value: number,
-  min: number,
-  max: number,
-): number {
+export function normalizeMetric(value: number, min: number, max: number): number {
   if (max === min) return 50; // degenerate range → midpoint
   const scaled = ((value - min) / (max - min)) * 100;
   return Math.round(Math.max(0, Math.min(100, scaled)));
@@ -214,81 +204,116 @@ export function computeReadiness(params: {
   };
 }
 
-// ── Dynamic Readiness Score (standalone) ──────────────────────────────
-
-export interface ReadinessInputs {
-  sleepHours: number;   // 0-24
-  stress: number;       // 1-10 (10 = highest stress)
-  soreness: number;     // 1-10 (10 = highest soreness)
-  mood: number;         // 1-10 (10 = best mood)
-  hrv?: number | null;
-  rhr?: number | null;
-  hrvBaseline?: number | null;
-  rhrBaseline?: number | null;
-  hrvSd?: number | null;
-  rhrSd?: number | null;
-}
+// ── Daily check-in composite score ───────────────────────────────────
 
 /**
- * Standalone readiness score with graceful fallback.
+ * Answers of the athlete's daily check-in, each on the DECLARED 1-10
+ * domain (the DB CHECK constraint) — not on the observed slider steps,
+ * so a finer slider never changes this formula. `fatigue` and `stress`
+ * are inverted axes: 10 = worst.
  *
- * Subjective-only when no wearable data is present.
- * Blends 50/50 with an objective Z-Score component when HRV/RHR exist.
- *
- * Weights (subjective mode):
- *   40 %  Sleep
- *   20 %  Stress (inverted)
- *   20 %  Soreness (inverted)
- *   20 %  Mood
+ * Pain (`has_pain`) and soreness zones are deliberately NOT inputs: a
+ * real pain averaged with four good answers would output a reassuring
+ * score on the very day it matters (CORE §0.7). They stay beside the
+ * score, never inside it.
  */
-export function calculateReadinessScore(inputs: ReadinessInputs): number {
-  // Sleep (40 %): target 8 h
-  const sleepScore = Math.min(100, (inputs.sleepHours / 8) * 100) * 0.40;
-  // Stress (20 %): 1 = best, 10 = worst → invert
-  const stressScore = ((11 - inputs.stress) * 10) * 0.20;
-  // Soreness (20 %): 1 = best, 10 = worst → invert
-  const sorenessScore = ((11 - inputs.soreness) * 10) * 0.20;
-  // Mood (20 %): 10 = best
-  const moodScore = (inputs.mood * 10) * 0.20;
+export interface CheckinAnswers {
+  /** Sleep quality, 1-10, higher is better. */
+  sleep?: number | null;
+  /** Fatigue, 1-10, higher is WORSE. */
+  fatigue?: number | null;
+  /** Stress, 1-10, higher is WORSE. */
+  stress?: number | null;
+  /** Mood, 1-10, higher is better. */
+  mood?: number | null;
+  /** Digestion, 1-10, higher is better. */
+  digestion?: number | null;
+}
 
-  const subjectiveScore = sleepScore + stressScore + sorenessScore + moodScore;
+/** Weights decided by Nicolò on 2026-08-22. A missing answer
+ *  redistributes its weight over the present ones. */
+const CHECKIN_WEIGHTS = {
+  sleep: 30,
+  fatigue: 25,
+  stress: 20,
+  mood: 15,
+  digestion: 10,
+} as const;
 
-  // Fallback: subjective-only
-  const hasObjective =
-    (inputs.hrv != null && inputs.hrvBaseline != null && inputs.hrvSd != null && inputs.hrvSd > 0) ||
-    (inputs.rhr != null && inputs.rhrBaseline != null && inputs.rhrSd != null && inputs.rhrSd > 0);
+type CheckinKey = keyof typeof CHECKIN_WEIGHTS;
 
-  if (!hasObjective) {
-    return Math.round(Math.max(0, Math.min(100, subjectiveScore)));
+const INVERTED_CHECKIN_KEYS: ReadonlySet<CheckinKey> = new Set(["fatigue", "stress"]);
+
+/**
+ * Pure composite readiness score from the daily check-in answers.
+ *
+ * Each present answer is normalised linearly over the declared 1-10
+ * domain ((v-1)/9; inverted axes (10-v)/9), weighted, and the weighted
+ * mean maps to 0-100. Deterministic: same input → same output.
+ *
+ * Returns `null` when NO answer is present — absence is never a number,
+ * and never 0: zero is a legitimate value of the scale, not a "don't
+ * know" (an unanswered check-in must stay distinguishable from a
+ * terrible one).
+ */
+export function computeCheckinScore(answers: CheckinAnswers): number | null {
+  let weightSum = 0;
+  let weighted = 0;
+  for (const key of Object.keys(CHECKIN_WEIGHTS) as CheckinKey[]) {
+    const raw = answers[key];
+    if (raw == null) continue;
+    const v = Math.max(1, Math.min(10, raw));
+    const norm = INVERTED_CHECKIN_KEYS.has(key) ? (10 - v) / 9 : (v - 1) / 9;
+    weighted += norm * CHECKIN_WEIGHTS[key];
+    weightSum += CHECKIN_WEIGHTS[key];
   }
+  if (weightSum === 0) return null;
+  return Math.round((weighted / weightSum) * 100);
+}
 
-  // Objective component via Z-Score mapping (reuse existing helpers)
-  let objectiveScore = 50; // neutral default
-  let objectiveComponents = 0;
+// ── Coach-side scale conversion ──────────────────────────────────────
 
-  if (inputs.hrv != null && inputs.hrvBaseline != null && inputs.hrvSd != null && inputs.hrvSd > 0) {
-    const z = calculateZScore(inputs.hrv, inputs.hrvBaseline, inputs.hrvSd);
-    // Map z ∈ [-2, +2] → [0, 100]
-    const clamped = Math.max(-2, Math.min(2, z));
-    objectiveScore = ((clamped + 2) / 4) * 100;
-    objectiveComponents++;
-  }
+/**
+ * THE single conversion point from `daily_metrics.subjective_readiness`
+ * (1-10, DB CHECK) to the 0-100 readiness scale. Every coach surface
+ * (risk overview, athlete detail) converts through here — two screens
+ * reading the same quantity on two different scales is the defect this
+ * function exists to remove.
+ */
+export function subjectiveReadinessToScore(subjective: number): number {
+  const v = Math.max(1, Math.min(10, subjective));
+  return Math.round(v * 10);
+}
 
-  if (inputs.rhr != null && inputs.rhrBaseline != null && inputs.rhrSd != null && inputs.rhrSd > 0) {
-    const z = calculateZScore(inputs.rhr, inputs.rhrBaseline, inputs.rhrSd);
-    // For RHR, lower is better → invert
-    const inverted = -z;
-    const clamped = Math.max(-2, Math.min(2, inverted));
-    const rhrScore = ((clamped + 2) / 4) * 100;
-    objectiveScore = objectiveComponents > 0
-      ? (objectiveScore + rhrScore) / 2
-      : rhrScore;
-    objectiveComponents++;
-  }
+// ── Soreness aggregate (display-only) ────────────────────────────────
 
-  // Blend 50 / 50
-  const blended = subjectiveScore * 0.5 + objectiveScore * 0.5;
-  return Math.round(Math.max(0, Math.min(100, blended)));
+export type SorenessIntensity = "mild" | "moderate" | "severe";
+
+const SORENESS_INTENSITY_COST: Record<SorenessIntensity, number> = {
+  mild: 2,
+  moderate: 5,
+  severe: 8,
+};
+
+/**
+ * Aggregate a stored soreness map ({muscle: intensity}) into the 0-10
+ * display value the check-in used to derive locally: 10 − average
+ * intensity cost. An EMPTY map is an answered "nothing sore" → 10. A
+ * null or unreadable map is NOT an answer → null (absent ≠ invented).
+ * Display-only: this value never enters `computeCheckinScore`
+ * (CORE §0.7).
+ */
+export function sorenessScoreFromMap(map: unknown): number | null {
+  if (map === null || map === undefined) return null;
+  if (typeof map !== "object" || Array.isArray(map)) return null;
+  const values = Object.values(map);
+  if (values.length === 0) return 10;
+  const known = values.filter(
+    (v): v is SorenessIntensity => v === "mild" || v === "moderate" || v === "severe",
+  );
+  if (known.length === 0) return null;
+  const avg = known.reduce((acc, v) => acc + SORENESS_INTENSITY_COST[v], 0) / known.length;
+  return Math.max(0, Math.min(10, 10 - avg));
 }
 
 // ── Smart Readiness Insights ─────────────────────────────────────────
