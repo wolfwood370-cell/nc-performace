@@ -34,7 +34,7 @@
  *
  * AthleteCard mapping:
  *   - acwrValue: trigger State Critical quando ACWR > 1.5
- *   - readinessScore: scale 1-10 → 0-100 per la chip
+ *   - readinessScore: già 0-100 dal hook rischio (conversione unica in readinessMath) — passthrough
  *   - painMarkers: derivati dai riskFlags con label fisiologico
  *   - missingOnboardingSteps: array vuoto per "onboarding" filter → AthleteCard renderizza Pending
  */
@@ -353,12 +353,11 @@ export default function CoachAthletes() {
                 const isLive = liveAthleteIds.includes(athlete.athleteId);
                 // Derive AthleteCard props from the risk-overview row.
                 const acwrValue = typeof athlete.acwr === "number" ? athlete.acwr : undefined;
-                // latestReadiness uses the 1–10 subjective scale internally;
-                // AthleteCard expects 0–100, so scale by 10.
+                // latestReadiness is ALREADY 0-100: the risk hook converts
+                // 1-10 subjective values through subjectiveReadinessToScore
+                // (the single conversion point). Pass through, never rescale.
                 const readinessScore =
-                  typeof athlete.latestReadiness === "number"
-                    ? Math.round(athlete.latestReadiness * 10)
-                    : undefined;
+                  typeof athlete.latestReadiness === "number" ? athlete.latestReadiness : undefined;
                 // Pain markers — pull from riskFlags labelled with bodyparts.
                 const painMarkers = athlete.riskFlags
                   .filter((f) =>

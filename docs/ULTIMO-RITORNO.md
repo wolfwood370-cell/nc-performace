@@ -1,131 +1,113 @@
-# ULTIMO RITORNO — fetta home-atleta
+# ULTIMO RITORNO — fetta prontezza
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/home-atleta` · 2026-08-22 · base `main` = `464a90e` · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/home-atleta) — dal 20/08 il classificatore nega le credenziali all'agente).
+> Fetta: `claude/prontezza` · 2026-08-22 · base `origin/main` = `783378a` · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/prontezza) — dal 20/08 il classificatore nega le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/home-atleta`, 5 commit da `464a90e`: `77e8c85` (selettore unico `sessionForDate` +
-intervallo `sessionRpeRange`, media RIMOSSA, Training Hub ricablato) · `9ae412a` (home dai dati
-veri: saluto dal profilo + `TodaySessionCard` a stati) · `ae3cd9c` (debrief sulla seduta vera,
-`WORKOUT_SUMMARY` sparito) · `1abb670` (chiusi i 2 rilievi confermati della review: ancora
-`startedAt` nel debrief + warm-up fuori dall'intervallo) · il commit dei documenti (questo file,
-HANDOFF, RETRO) è il tip del ramo — un file non può contenere l'hash del commit che lo introduce.
+`claude/prontezza`, 6 commit da `783378a`: `a6c3591` (funzioni pure: `computeCheckinScore` +
+`subjectiveReadinessToScore` + `sorenessScoreFromMap`; morta `calculateReadinessScore` rimossa) ·
+`cc4ecd9` (il check-in scrive il punteggio calcolato, la costante 85 sparisce) · `8346a3d` (home:
+un solo «oggi», assente ≠ zero, store ridotto a preferenze con migrate v1) · `ca0ba5b` (coach: una
+conversione sola, 0-100 ovunque) · `d51e355` (chiusi i rilievi confermati della passata
+indipendente: worst-3 polarity-aware + dedup migrate + docblock + trattino nel test) · il commit
+dei documenti (questo file, HANDOFF, RETRO) è il tip del ramo — un file non può contenere l'hash
+del commit che lo introduce.
 
 ## 2. Manifesto
 
-**NUOVI:** `src/lib/program/__tests__/releaseSelection.test.ts` (23 test del modulo puro) ·
-`src/pages/athlete/__tests__/AthleteDashboard.render.test.ts` (12, montaggio reale via
-`renderToString`) · `src/pages/athlete/__tests__/PostWorkoutDebrief.render.test.ts` (5).
+**NUOVI:** `src/lib/math/__tests__/checkinScore.test.ts` (12 test: meccanismo, monotonia, casi a
+mano 68/41, null, minimo, conversione coach, soreness) · `src/pages/athlete/__tests__/AthleteDashboard.readiness.render.test.ts`
+(5 render test: assente ≠ zero con controllo positivo, riga-unica, blob legacy).
 
-**MODIFICATI:** `src/lib/program/releaseView.ts` (+`sessionForDate`/`sessionRpeRange`/
-`formatSessionRpeRange`/`sessionTitle`/`localIsoDate`; −`sessionRpeTarget`) ·
-`src/pages/athlete/AthleteTraining.tsx` (passa dal selettore; etichetta `RPE serie min–max`) ·
-`src/pages/athlete/AthleteDashboard.tsx` (MOCK rimosso; saluto da `profiles.full_name`;
-`TodaySessionCard`) · `src/pages/athlete/PostWorkoutDebrief.tsx` (titolo dalla seduta del giorno
-d'INIZIO, chip muscolari rimossi) · `src/lib/program/__tests__/releaseView.test.ts` (**⚠ era
-VIETATO — divergenza obbligata, v. §7.1**: −import e −1 `it` della media, 11 righe) · `docs/HANDOFF.md` ·
-`docs/auto-miglioramento.md` · `docs/ULTIMO-RITORNO.md`.
+**MODIFICATI:** `src/lib/math/readinessMath.ts` (+3 funzioni pure; −`calculateReadinessScore`,
+−`ReadinessInputs`, −1 import inutilizzato preesistente; `computeReadiness` INTATTA) ·
+`src/pages/athlete/DailyCheckin.tsx` (score calcolato; via la scrittura parallela nello store) ·
+`src/pages/athlete/AthleteDashboard.tsx` (card dalla riga di oggi; anello con trattino, mai 0;
+«Da registrare»; worst-3 polarity-aware; trend-mock rimossi) · `src/stores/useAthleteReadinessStore.ts`
+(sole preferenze; persist v1 + migrate con dedup/troncamento) · `src/hooks/useAthletesRiskOverview.ts`
+(canonicalizzazione 0-100 PRIMA di assessRisks) · `src/pages/coach/AthleteDetail.tsx` (la locale
+`calculateReadinessScore` passa dall'helper; +1 import) · **⚠ divergenze, file NON elencati dal
+mandato (v. §8):** `src/pages/coach/CoachAthletes.tsx` (righe 356-361 + docblock: passthrough, era
+la terza conversione) · `src/pages/coach/athlete-detail/OverviewTab.tsx` (1 riga: «Readiness / 100») ·
+`docs/HANDOFF.md` · `docs/auto-miglioramento.md` · `docs/ULTIMO-RITORNO.md`.
 
 **NEL PERIMETRO MA NON TOCCATI:** tutto `supabase/**` (zero file) · `src/integrations/supabase/types.ts` ·
-card Prontezza e sue costanti (`MOCK_YESTERDAY`, polarità, freccia) · contratto di
-`useLatestReleaseQuery` (nessuna riga nel diff su `useProgramRelease.ts`).
+la card della seduta e `sessionForDate` (i 12 render test preesistenti della home restano verdi) ·
+`computeReadiness` · il contratto di `useSubmitReadinessMutation` (unica differenza: il valore di `score`).
 
 ## 3. Le due prove dei permessi (repo di scarto, PRIMA di ogni modifica)
 
-- `git checkout -- f.txt` → **rifiutato dal permesso** («Permission to use Bash … has been denied»).
-- `git clean -fd` → **rifiutato dal permesso** (stesso esito).
-- Vicini consentiti: `git status --short` → ` M f.txt` · `git checkout -b probe` → `Switched to a new branch 'probe'`. Entrambi passano.
+- `git reset --hard` → **rifiutato dal permesso** («Permission to use Bash … has been denied»).
+- `git stash drop` → **rifiutato dal permesso** (stesso esito).
+- Vicini consentiti: `git status` → passa (stato del repo di scarto stampato) · `git stash list` → passa (vuoto). Entrambi senza prompt.
 
 ## 4. Acceptance — comando ed esito
 
-1. **Prova rossa** → v. §5. Meccanismo: due documenti → due schermate e due profili → due saluti
-   (`AthleteDashboard.render.test.ts`, describe «due profili» e «due documenti»).
-2. **Nessuna seduta → nessun bottone** — test «seduta oggi → CTA presente; nessuna seduta oggi →
-   riposo SENZA CTA»: controllo positivo (`Inizia Sessione` presente con la seduta) e negativo
-   (`Giorno di riposo` senza `Inizia Sessione`) nello stesso test; più i 4 stati
-   niente-programma/errore/caricamento/illeggibile, tutti senza CTA. Verde in suite.
-3. **Intervallo prescritto** — `releaseSelection.test.ts`: 7.5/8/9 → `{min:7.5,max:9}` →
-   «RPE serie 7.5–9»; tutte a 8 → «RPE serie 8»; solo %1RM → `null` → nessuna riga; RPE 0 → assenza;
-   warm-up escluso. Verde in suite (e sul rendering della home nel test SSR).
-4. **La media non esiste più** — `git grep -n "sessionRpeTarget"` → **0 occorrenze** (exit 1).
-   `git grep -n "Lower Body Power"` → **3**, nessuna di prodotto: 2 = la guardia stessa
-   (`PostWorkoutDebrief.render.test.ts:129` `not.toContain`) · 1 = `docs/UX_UI_DESIGN_SYSTEM.md:36`,
-   preesistente su `main` e fuori perimetro. `git grep -n "Marco" -- src/pages/athlete …` → **2**,
-   entrambe la guardia (`AthleteDashboard.render.test.ts` `not.toContain("Marco")`). ⚠ Divergenza
-   dichiarata in §7.2: lo «zero» letterale era irraggiungibile per costruzione (lezione 2026-08-06:
-   l'acceptance-grep si esegue su main prima di prometterlo).
-5. **v1 immobile** — `git diff origin/main..HEAD --stat -- src/lib/program/__tests__/releaseView.test.ts`
-   → `11 ++---------` (2 insertions, 9 deletions): SOLO import + l'`it` della media. ⚠ Lo 0 richiesto
-   era in conflitto col criterio 4 — v. §7.1. La parità v1 del parser (round-trip col builder reale)
-   e `dayForWeekday` sono intatte e verdi; il parser v1 non ha una riga di diff.
-6. **Gate** — `npx tsc --noEmit -p tsconfig.app.json` → verde (silenzioso) ·
-   `npx vitest run` → **306 passed (306), 23 file** — baseline su `464a90e` ri-misurata **277/20**
-   (= la promessa del prompt) · `npx eslint .` → «94 problems (**81 errors**, 13 warnings)» =
-   baseline `.eslint-baseline` 81, nessun errore nuovo. Verifica indipendente `code-test-verifier`:
-   stessi numeri (su `ae3cd9c`; ri-misura manuale identica dopo `1abb670`).
-7. **Perimetro** — `git diff origin/main..HEAD --stat` → gli 8 file di codice del §2 + 3 doc.
-   Zero `supabase/**`, zero `types.ts`, card Prontezza intatta.
+1. **Prova rossa** — v. §5: 5 test rossi con la costante, verdi al ripristino.
+2. **Casi a mano** — `npx vitest run src/lib/math/__tests__/checkinScore.test.ts`: sonno 8·stress 2·fatica 6·umore 6·digestione 8 → **68**; sonno 6·stress 8·fatica 6·umore 4·digestione assente → **41** (pesi su 90). Attesi scritti a mano nei commenti del test, mai ricalcolati dalla funzione.
+3. **Nessuna risposta → null + controllo positivo** — stesso run: `computeCheckinScore({})` e tutte-null → `null`; render test: senza riga «Da registrare» e nessun `>0<`, con riga «Punteggio Prontezza 68 su 100» **nello stesso test**.
+4. **Le due schermate concordano** — test: `subjectiveReadinessToScore(8) = 80 ≥ 40` (niente Low Recovery; prima OGNI 1-10 era `< 40`); grep: helper definito in `readinessMath.ts:283`, chiamato SOLO da `useAthletesRiskOverview.ts:245` e `AthleteDetail.tsx:2848`; `grep "subjective_readiness \* 10\|latestReadiness \* 10" src/` → **zero**.
+5. **La home non mostra più metriche di ieri** — render test «lo store legacy non è più un oggi»: blob v0 (valori 11/08) seminato in localStorage + nessuna riga → la card non mostra né nomi-metrica né numeri; controllo positivo con la riga.
+6. **Gate** — `npx tsc --noEmit -p tsconfig.app.json` **verde** · `npx vitest run` **323/323 su 25 file** (baseline 306/23 su `783378a`, confermata prima di toccare codice) · `npx eslint .` **81 errori = baseline** (13 warning). Riconfermati da un verificatore indipendente in contesto proprio.
+7. **Perimetro** — `git diff origin/main..HEAD --stat`: 13 file = 8 del mandato + 2 divergenze dichiarate (§8) + 3 doc.
 
 ## 5. La prova rossa
 
-Rotto apposta: in `AthleteDashboard.tsx` il saluto riportato a `Ciao, Marco` (cablato). Run:
-`FAIL … AssertionError: expected '<div …' to contain 'Ciao, Nicolò'` — `Expected: "Ciao, Nicolò"`,
-nel Received l'HTML della pagina con `>Ciao, Marco</p>` (3 test rossi: i due saluti + il
-niente-dati-inventati). Ripristinato il saluto dal profilo → 12/12 verdi. Il rosso nomina il valore
-atteso e quello ricevuto: il test misura il meccanismo, non la costante.
+Rimessa la costante al posto della formula (`return 68;` in testa a `computeCheckinScore`):
+**5 test rossi** che nominano i punteggi — «expected 68 not to be 68» (due check-in diversi),
+«expected 68 to be less than 68» (monotonia), «expected 68 to be **41**» (caso 01/08),
+«expected 68 to be null», «expected 68 to be **6**» (minimo). Ripristinata la formula: 12/12 verdi.
 
-## 6. Non fatto
+## 6. Il minimo raggiungibile — misurato
 
-- **Titolo della HeroWorkoutCard del Training Hub con focus vuoto** (che sui dati reali è SEMPRE) e
-  plurale «1 esercizi»: fuori dagli obiettivi della fetta (che nominano la home), flaggata come task
-  separato (chip «Titolo HeroWorkoutCard con focus vuoto + plurale esercizi»). La home ha già
-  entrambe le correzioni.
-- **Bonifica tema delle pagine atleta**: il rilievo dell'aura-theme-auditor (1 token Aura in codice
-  nuovo, `AthleteDashboard.tsx` `TodaySessionStatus` → `text-on-surface-variant`) NON è stato
-  riparato da solo: l'intera pagina — saluto, ReadinessCard, Header — e la StateCard del Training Hub
-  usano lo stesso vocabolario (grep §2.6 già non-zero su `main`); ripararne uno crea la card a due
-  toni (Fragilità #6: mai un solo gradino della scala). Debito strutturale, fetta-tema dedicata.
-- Il retry «Riprova» della card errore in home replica il pattern del Training Hub ma non è estratto
-  in componente condiviso (2 usi, <20r: soglia di estrazione non raggiunta).
+**6** (non lo 0, e non l'11 stimato dal brief). Tutte le risposte al peggio coi valori pari del
+cursore attuale — sonno 2, stress 10, fatica 10 (energia 1), umore 2, digestione 2 →
+`(30+15+10)·(1/9) = 6,11 → 6`. Eseguito dal test «minimo raggiungibile», non stimato. Il massimo
+resta 100. È il numero che l'atleta vedrà nel giorno peggiore.
 
-## 7. Divergenze (vince la misura, con file:riga)
+## 7. Non fatto — col perché
 
-1. **I criteri 4 e 5 dell'acceptance erano in conflitto diretto**: `releaseView.test.ts:13`
-   importava `sessionRpeTarget` e `:75-80` la testava — la verità di riferimento non lo diceva.
-   Zero occorrenze della media E zero diff sul file protetto erano IMPOSSIBILI insieme. Il criterio
-   («la media si rimuove, non si affianca», 🔴) ha vinto sul passo: edit MINIMO al file (2+/9−,
-   solo import e l'`it` della media), parità v1 intatta.
-2. **Grep «Lower Body Power» e «Marco» ≠ zero letterale** (v. §4.4): le occorrenze superstiti sono
-   le guardie `not.toContain` dei test nuovi + una riga doc preesistente su `main`
-   (`docs/UX_UI_DESIGN_SYSTEM.md:36`). Le costanti di prodotto sono sparite.
-3. **«Un test che monta la home» senza jsdom**: `vitest.config.ts:4` — «no jsdom on purpose»
-   (decisione 2026-07-14), include solo `src/**/*.test.ts`. La montatura è REALE ma server-side:
-   `renderToString` + `vi.mock` dei moduli dati (il blocco documentato nel Log 2026-07-23 —
-   supabase client a module-scope — non scatta perché i moduli mockati non vengono mai caricati).
-4. **`sessionForDate` costruisce `new Date(\`${isoDate}T00:00:00Z\`)`**: funzione deterministica
-   dell'INPUT (parse UTC di una data esplicita), non lettura dell'orologio — lo spirito
-   dell'invariante «niente new Date() nei moduli puri» è «il modulo non tocca l'orologio», e resta
-   vero: la data la porta sempre il chiamante. Il reviewer indipendente l'ha giudicata conforme.
-5. **La media «intermittente»**: confermata la lettura del prompt — il filtro `r > 0` scartava gli
-   esercizi v2 non uniformi (rpe legacy 0), quindi sul rilascio reale la riga «RPE target» non
-   compariva. Il paragrafo del prompt regge; nessuna correzione da fare.
-6. **Smistamento a `AthleteTraining.tsx:811-841`**, non 811-838 come da verità di riferimento
-   (3 righe di scarto, stessa sostanza). `MOCK` consumato a `:628` e `:354-363` come misurato.
+- **Wipe al re-submit con form vergine** (rilievo confermato): il form semina solo `has_pain`; un
+  re-submit sovrascrive risposte e score con null. PREESISTENTE (prima sovrascriveva le metriche e
+  scriveva 85) e dichiarato fuori scope dalla fetta precedente nel file stesso; il contratto di
+  questa fetta congela la mutazione salvo `score`. → chip «Seminare il form del check-in».
+- **Superfici coach residue** (rilievi confermati, file fuori perimetro): 78 mock in
+  `AthleteContextPane.tsx:164` (con didascalia «Dato mock» — attenuante, non assoluzione) · anello
+  rosso-vuoto su score null in `AthleteViewerDialog.tsx:425` · `AthleteDetail` non legge mai
+  `daily_readiness.score` (gauge su daily_metrics/formula base-70) · precedenza per FONTE non per
+  data in `useAthletesRiskOverview.ts:243` (`daily_metrics` ha 0 righe live: impatto nullo oggi).
+  → chip «Unificare la prontezza sulle superfici coach residue».
+- **«Da registrare» mentre la query è in volo**: pending e assente coincidono (preesistente, anche
+  nel Training Hub) — distinguere è una fetta di stato-di-caricamento.
+- **Due «oggi» sulla stessa pagina** (UTC per la prontezza, locale per la seduta): la chiave UTC è
+  coerente con la chiave di SCRITTURA del hook; unificare i calendari è un cambio di contratto.
 
-## 8. Resta a Nicolò
+## 8. Divergenze — vince la misura
 
-- **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/home-atleta)
-  coi 2 check obbligatori verdi. Nessun deploy edge, nessuna migration: publish FE e basta.
-- **Ultimo miglio a occhio, da atleta** (profilo `Nicolò Castello`, rilascio `a8d5fea4`): la home
-  saluta «Ciao, Nicolò»; nei giorni CON seduta la card dice «Giorno N», «1 esercizio», e SOLO il
-  giorno 1 la riga «RPE serie 7.5–9» (giorni senza RPE scritto = nessuna riga); nei giorni senza
-  seduta «Giorno di riposo» senza bottone; il debrief a fine sessione nomina il giorno della seduta.
-  Nessun «45 min» da nessuna parte.
-- Decisione di merito da ratificare: il **warm-up è escluso dall'intervallo RPE** (rilievo F2 della
-  review, chiuso con la decisione «l'intervallo cita l'intensità di lavoro»): se il metodo volesse
-  includerlo, è un filtro in `sessionRpeRange` + un test.
-- La chip «Titolo HeroWorkoutCard con focus vuoto + plurale esercizi» (Training Hub) è pronta da
-  lanciare quando vuoi.
+1. **`CoachAthletes.tsx:356-360`** (file non elencato): TERZO punto di conversione non citato dal
+   brief — ri-scalava `latestReadiness * 10`. Canonicalizzare nel hook senza toccarlo avrebbe
+   mostrato 800/100 nel roster: toccato (passthrough + docblock) per raggiungere il criterio.
+2. **`OverviewTab.tsx:141`** (file non elencato): l'etichetta del gauge della scheda atleta vive lì,
+   non in `AthleteDetail.tsx` — 1 riga per nominare la scala («Readiness / 100»).
+3. **Minimo = 6, non 11** (brief: «il minimo raggiungibile è 11»): la formula confermata dai due
+   casi a mano dà 6 — misura in §6.
+4. **Trend-su-ieri rimossi dalla card**: lo «ieri» era `MOCK_YESTERDAY` seminato nello store; tolto
+   lo store-come-dato, il confronto non ha più una sorgente vera. Meglio nessuna freccia di una
+   freccia contro un mock.
+5. **Worst-3 polarity-aware** (rilievo di review sul MIO codice, chiuso in `d51e355`): l'ordinamento
+   grezzo storico mostrava Stress 2 (rilassato) come prima preoccupazione. Decisione dichiarata:
+   «peggiore» = peggior bontà normalizzata secondo le polarità già scritte nel repo — non è policy
+   nuova, è la semantica che il repo dichiara (`INVERTED_CHECKIN_KEYS`, ex `POSITIVE_POLARITY`).
+6. **Baseline vitest**: 306/23 confermata su `783378a` — nessuna divergenza.
+
+## 9. Resta a Nicolò
+
+- **Merge della PR** ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/prontezza)); post-merge: NULLA (publish FE del normale flusso, zero migration, zero edge).
+- **Ratifica del dolore fuori dalla media**: `has_pain` e le zone NON contribuiscono al punteggio —
+  un dolore vero mediato con quattro risposte buone uscirebbe tranquillo proprio il giorno in cui
+  conta (CORE §0.7). Nulla a valle si aspetta il dolore dentro il punteggio (misurato: nessun
+  consumatore di `score` lo deriva dal dolore).
+- Le 2 chip aperte (superfici coach residue · seed del form check-in) e la presa d'atto del minimo 6.

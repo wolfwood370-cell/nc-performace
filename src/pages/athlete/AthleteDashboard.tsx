@@ -35,12 +35,9 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Dumbbell,
   Hourglass,
-  Minus,
   Moon,
   Play,
   Settings2,
-  TrendingDown,
-  TrendingUp,
   TriangleAlert,
   User,
   Zap,
@@ -48,14 +45,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { sorenessScoreFromMap } from "@/lib/math/readinessMath";
 import {
-  computeWorstMetrics,
   METRIC_KEYS,
   useAthleteReadinessStore,
   type MetricKey,
-  type MetricSnapshot,
 } from "@/stores/useAthleteReadinessStore";
-import { useDailyReadinessQuery } from "@/hooks/athlete/useAthleteReadinessHooks";
+import {
+  useDailyReadinessQuery,
+  type DailyReadinessRow,
+} from "@/hooks/athlete/useAthleteReadinessHooks";
 import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
 import { usePaymentOutcome } from "@/hooks/athlete/usePaymentOutcome";
 import {
@@ -81,35 +80,47 @@ function todayIso(): string {
 }
 
 // =============================================================================
-// Metric polarity map — drives whether "today > yesterday" is rendered
-// as improvement (green TrendingUp) or regression (amber TrendingDown).
-// "Sonno is up" = better sleep = good. "Stress is up" = worse. The map
-// lives at module scope (not inside the component) so its reference is
-// stable across renders.
+// Today's metric values — the ONE "oggi": straight from today's
+// daily_readiness row, never from a persisted local copy. The soreness
+// aggregate is display-only and never enters the composite score
+// (CORE §0.7).
 // =============================================================================
-const POSITIVE_POLARITY: Record<MetricKey, "high-is-good" | "low-is-good"> = {
-  Sonno: "high-is-good",
-  Umore: "high-is-good",
-  Digestione: "high-is-good",
-  Stress: "low-is-good",
-  Fatica: "low-is-good",
-  Soreness: "low-is-good",
-};
+function metricsFromRow(row: DailyReadinessRow): Record<MetricKey, number | null> {
+  return {
+    Sonno: row.sleep_quality,
+    Stress: row.stress_level,
+    Fatica: row.fatigue_score,
+    Umore: row.mood,
+    Digestione: row.digestion,
+    Soreness: sorenessScoreFromMap(row.soreness_map),
+  };
+}
 
-type TrendDirection = "up" | "down" | "flat";
+/** Axis direction per metric, mirroring the semantics the app already
+ *  declares (INVERTED_CHECKIN_KEYS in readinessMath): for Stress and
+ *  Fatica 10 = worst. Soreness here is the 0-10 aggregate where 10 =
+ *  nothing sore, so high is good. */
+const LOW_IS_GOOD_METRICS: ReadonlySet<MetricKey> = new Set(["Stress", "Fatica"]);
 
-function computeTrendDirection(
-  metric: MetricKey,
-  today: number | null,
-  yesterday: number | null,
-): TrendDirection {
-  if (today === null || yesterday === null) return "flat";
-  if (today === yesterday) return "flat";
-  const ascending = today > yesterday;
-  const polarity = POSITIVE_POLARITY[metric];
-  const isImprovement =
-    (ascending && polarity === "high-is-good") || (!ascending && polarity === "low-is-good");
-  return isImprovement ? "up" : "down";
+/** Normalised "goodness" of one answer — same linear mapping the
+ *  composite score uses, so ranking and score agree on direction. */
+function metricGoodness(metric: MetricKey, value: number): number {
+  return LOW_IS_GOOD_METRICS.has(metric) ? (10 - value) / 9 : (value - 1) / 9;
+}
+
+/**
+ * Pick the `count` "worst" metrics from today's values — worst by
+ * POLARITY-AWARE goodness (Stress 10 ranks worst, not best), `null`
+ * (unanswered) is excluded, ties break by METRIC_KEYS order. The
+ * historic raw-ascending sort surfaced a relaxed athlete's Stress 2 as
+ * a top concern and never surfaced Stress 10 — review finding fixed
+ * in-slice.
+ */
+function computeWorstMetrics(values: Record<MetricKey, number | null>, count = 3): MetricKey[] {
+  return (METRIC_KEYS as readonly MetricKey[])
+    .filter((k) => values[k] !== null)
+    .sort((a, b) => metricGoodness(a, values[a] ?? 0) - metricGoodness(b, values[b] ?? 0))
+    .slice(0, count);
 }
 
 /** First name for the greeting: first token of the profile's full_name,
@@ -124,16 +135,22 @@ function greetingName(fullName: string | null | undefined): string {
 //   - Track is a translucent surface-variant ring; progress is brand cerulean.
 //   - Rotated -90° so 0% starts at the 12 o'clock position.
 // =============================================================================
-function ReadinessRing({ value }: { value: number }) {
+function ReadinessRing({ value }: { value: number | null }) {
   const radius = 45;
   const circumference = 2 * Math.PI * radius; // ≈ 282.74
-  const safeValue = Math.max(0, Math.min(100, value));
-  const dashOffset = circumference * (1 - safeValue / 100);
+  const safeValue = value === null ? null : Math.max(0, Math.min(100, value));
+  // No score → no arc: an empty ring is honest, a 0-length arc would
+  // claim a zero the athlete never scored (absent ≠ zero).
+  const dashOffset = safeValue === null ? circumference : circumference * (1 - safeValue / 100);
 
   return (
     <div
       role="img"
-      aria-label={`Punteggio readiness ${safeValue} su 100`}
+      aria-label={
+        safeValue === null
+          ? "Punteggio Prontezza assente"
+          : `Punteggio Prontezza ${safeValue} su 100`
+      }
       className="relative w-28 h-28 flex items-center justify-center z-10"
     >
       <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
@@ -154,7 +171,7 @@ function ReadinessRing({ value }: { value: number }) {
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
         <span className="font-display text-3xl font-semibold tabular-nums text-brand-container">
-          {safeValue}
+          {safeValue ?? "—"}
         </span>
       </div>
     </div>
@@ -162,45 +179,22 @@ function ReadinessRing({ value }: { value: number }) {
 }
 
 // =============================================================================
-// MetricTrendRow — one dashboard metric: name + today value + trend icon.
-// All three columns derived from the live readiness store.
+// MetricValueRow — one dashboard metric: name + today's value from the
+// daily_readiness row. No trend arrow: the previous "yesterday" was a
+// mock seed persisted in localStorage, and an invented comparison is
+// worse than none.
 // =============================================================================
-function MetricTrendRow({ metric, snapshot }: { metric: MetricKey; snapshot: MetricSnapshot }) {
-  const direction = computeTrendDirection(metric, snapshot.today, snapshot.yesterday);
-  const Icon = direction === "up" ? TrendingUp : direction === "down" ? TrendingDown : Minus;
-  const iconTint =
-    direction === "up"
-      ? "text-emerald-600"
-      : direction === "down"
-        ? "text-amber-600"
-        : "text-on-surface-variant/60";
+function MetricValueRow({ metric, value }: { metric: MetricKey; value: number | null }) {
   const displayValue =
-    snapshot.today === null
-      ? "—"
-      : Number.isInteger(snapshot.today)
-        ? String(snapshot.today)
-        : snapshot.today.toFixed(1);
+    value === null ? "—" : Number.isInteger(value) ? String(value) : value.toFixed(1);
 
   return (
     <div className="flex items-center justify-between">
       <span className="font-sans text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant">
         {metric}
       </span>
-      <span className="flex items-center gap-1.5">
-        <span className="font-display text-xs font-bold tabular-nums text-on-surface">
-          {displayValue}
-        </span>
-        <Icon
-          className={cn("h-3.5 w-3.5", iconTint)}
-          strokeWidth={2.5}
-          aria-label={
-            direction === "up"
-              ? "In miglioramento"
-              : direction === "down"
-                ? "In peggioramento"
-                : "Stabile"
-          }
-        />
+      <span className="font-display text-xs font-bold tabular-nums text-on-surface">
+        {displayValue}
       </span>
     </div>
   );
@@ -215,11 +209,12 @@ function MetricTrendRow({ metric, snapshot }: { metric: MetricKey; snapshot: Met
 //     the parent's `onLogToday`. Once the check-in exists the card goes
 //     static — real score, no navigation (the mock analysis page it
 //     used to open was removed).
-//   - Completion flag and score come from the card's own
-//     useDailyReadinessQuery (DB row for today), not from the store.
-//   - The ring renders `dailyScore` when available, else 0.
-//   - The left column maps over `selectedDashboardMetrics` and renders
-//     one MetricTrendRow per pick (default: Sonno / Stress / Fatica).
+//   - EVERY value comes from the card's own useDailyReadinessQuery (the
+//     DB row for today). The store only supplies preferences (which
+//     metrics, the pin). No row today → "Da registrare" and no numbers:
+//     the ring never draws a 0 to mean "unknown" (absent ≠ zero).
+//   - The left column maps over the picked metric keys and renders one
+//     MetricValueRow per pick (default: Sonno / Stress / Fatica).
 //   - A small Settings2 button (top-right) opens the settings dialog.
 //     stopPropagation keeps it from triggering the card's tap action;
 //     the card uses `role="button"` (not an actual <button>) precisely
@@ -233,24 +228,24 @@ function ReadinessCard({
   onEditMetrics: () => void;
 }) {
   // Source of truth: the DB row for today. `isCompletedToday` is just
-  // "did we get a row back" and `dailyScore` is its `score` column.
+  // "did we get a row back" and `dailyScore` is its `score` column
+  // (null when the check-in carried no biofeedback answers).
   const todayQuery = useDailyReadinessQuery(todayIso());
-  const dailyScore = todayQuery.data?.score ?? null;
-  const isCompletedToday = Boolean(todayQuery.data);
+  const todayRow = todayQuery.data ?? null;
+  const isCompletedToday = todayRow !== null;
+  const dailyScore = todayRow?.score ?? null;
 
-  const metrics = useAthleteReadinessStore((s) => s.metrics);
   const selectedDashboardMetrics = useAthleteReadinessStore((s) => s.selectedDashboardMetrics);
   const isCustomMetricsPinned = useAthleteReadinessStore((s) => s.isCustomMetricsPinned);
 
   // When the user has NOT pinned a custom selection, surface the three
-  // worst-scoring metrics from today's checkin so the dashboard draws
-  // attention to what needs work. Falls back to the pinned default when
-  // no submission exists yet (empty worst list).
-  const worstMetrics = computeWorstMetrics(metrics, 3);
+  // worst-scoring metrics from today's row so the dashboard draws
+  // attention to what needs work. Falls back to the pinned selection
+  // when nothing is answered yet (empty worst list).
+  const todayMetrics = todayRow !== null ? metricsFromRow(todayRow) : null;
+  const worstMetrics = todayMetrics !== null ? computeWorstMetrics(todayMetrics, 3) : [];
   const displayedMetricKeys =
     isCustomMetricsPinned || worstMetrics.length === 0 ? selectedDashboardMetrics : worstMetrics;
-
-  const ringValue = isCompletedToday && dailyScore !== null ? dailyScore : 0;
 
   // Interactive only while the check-in is missing. A completed card is
   // a static region: no role, no tabIndex, no aria-label (a generic div
@@ -312,20 +307,26 @@ function ReadinessCard({
         <Settings2 className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
       </button>
 
-      {/* Left half: dynamic metric rows */}
+      {/* Left half: today's metric rows, or the honest missing state */}
       <div className="flex flex-col gap-3 z-10 w-1/2">
         <h2 className="font-display text-xl font-semibold text-brand-container leading-tight">
           Prontezza
         </h2>
 
-        {displayedMetricKeys.map((key) => (
-          <MetricTrendRow key={key} metric={key} snapshot={metrics[key]} />
-        ))}
+        {todayMetrics !== null ? (
+          displayedMetricKeys.map((key) => (
+            <MetricValueRow key={key} metric={key} value={todayMetrics[key]} />
+          ))
+        ) : (
+          <p className="font-display text-base font-bold text-on-surface leading-none">
+            Da registrare
+          </p>
+        )}
       </div>
 
-      {/* Right half: circular gauge — real value from today's check-in
-          (0 while the check-in is missing) */}
-      <ReadinessRing value={ringValue} />
+      {/* Right half: circular gauge — today's real score, or an empty
+          ring with a dash: never a 0 that means "unknown" */}
+      <ReadinessRing value={dailyScore} />
     </div>
   );
 }

@@ -25,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAthleteReadinessStore, type MetricKey } from "@/stores/useAthleteReadinessStore";
+import { computeCheckinScore } from "@/lib/math/readinessMath";
 import {
   useDailyReadinessQuery,
   useSubmitReadinessMutation,
@@ -250,9 +250,6 @@ function IntensityControl({
 // =============================================================================
 export default function DailyCheckin() {
   const navigate = useNavigate();
-  // Atomic selector — we only fire the submit action; we don't read
-  // state here, so the page never re-renders on unrelated mutations.
-  const submitDailyCheckin = useAthleteReadinessStore((s) => s.submitDailyCheckin);
   const submitReadiness = useSubmitReadinessMutation();
 
   // Today's readiness row (if any). Read ONLY to seed the pain answer: the
@@ -319,47 +316,25 @@ export default function DailyCheckin() {
   };
 
   const handleSave = () => {
-    // Map the 1..5 biofeedback inputs into the 0..10 scale the store
-    // (and the dashboard ring) expects. "Energia" is inverted into
-    // "Fatica" because the store models the negative axis (lower
-    // fatigue = better). Stress likewise — we store the raw scale and
-    // let the dashboard's trend math decide whether up-is-good.
-    //
-    // The soreness payload aggregates across the picked muscles into a
-    // single 0..10 number: average over (10 - intensityCost) where
-    // mild=2, moderate=5, severe=8. Zero sore muscles = perfect 10.
+    // Map the 1..5 biofeedback inputs onto the 1-10 domain the DB
+    // declares (CHECK 1..10). "Energia" is inverted into "Fatica"
+    // because the schema models the negative axis (energy 5 → fatigue
+    // 2); an unanswered metric stays null — never forged (CORE §0.8).
     const scale = (n: Score1to5 | undefined): number | null =>
       typeof n === "number" ? n * 2 : null;
 
-    const soreEntries = Object.entries(soreness);
-    let sorenessScore: number | null = 10;
-    if (soreEntries.length > 0) {
-      const intensityCost: Record<Intensity, number> = {
-        mild: 2,
-        moderate: 5,
-        severe: 8,
-      };
-      const totalCost = soreEntries.reduce(
-        (acc, [, level]) => acc + intensityCost[level as Intensity],
-        0,
-      );
-      const avg = totalCost / soreEntries.length;
-      sorenessScore = Math.max(0, Math.min(10, 10 - avg));
-    }
+    const sleep = scale(biofeedback.sleep);
+    const stress = scale(biofeedback.stress);
+    const fatigue = biofeedback.energy !== undefined ? (6 - biofeedback.energy) * 2 : null;
+    const mood = scale(biofeedback.mood);
+    const digestion = scale(biofeedback.digestion);
 
-    const payload: Partial<Record<MetricKey, number | null>> = {
-      Sonno: scale(biofeedback.sleep),
-      Stress: scale(biofeedback.stress),
-      // Fatica = inverted energy. Energy 5 (high) → Fatica 2 (low).
-      Fatica: biofeedback.energy !== undefined ? (6 - biofeedback.energy) * 2 : null,
-      Umore: scale(biofeedback.mood),
-      Digestione: scale(biofeedback.digestion),
-      Soreness: sorenessScore,
-    };
-
-    // Snappy local UI update so the dashboard trend rows reflect today
-    // before the network round-trip completes.
-    submitDailyCheckin(payload);
+    // Composite score from the answers the athlete actually gave:
+    // missing answers redistribute their weight, no answer at all →
+    // null. Pain and soreness stay OUT of the score by contract
+    // (CORE §0.7): a real pain averaged with good answers would look
+    // reassuring on the very day it matters.
+    const score = computeCheckinScore({ sleep, fatigue, stress, mood, digestion });
 
     // Re-check the day at submit time (the hook stamps the row date when the
     // mutation runs): if midnight (UTC) slipped past while the page was open,
@@ -369,21 +344,19 @@ export default function DailyCheckin() {
     const painAnswer = painTouched ? painChoice : submitDate === todayIso ? storedPain : null;
 
     // Persist to `daily_readiness`. The hook handles error toasts; on
-    // success we close the page. The composite `score` is currently a
-    // placeholder (85) to match prior mock behaviour — a server-side
-    // weighted composite will replace it in a follow-up.
+    // success we close the page.
     submitReadiness.mutate(
       {
-        sleep_quality: payload.Sonno,
-        stress_level: payload.Stress,
-        fatigue_score: payload.Fatica,
-        mood: payload.Umore,
-        digestion: payload.Digestione,
+        sleep_quality: sleep,
+        stress_level: stress,
+        fatigue_score: fatigue,
+        mood,
+        digestion,
         soreness_map: soreness,
         // Three-way pain answer: null = unanswered (never forged to false).
         // Independent from soreness by contract: zones never imply pain.
         has_pain: painAnswer,
-        score: 85,
+        score,
       },
       {
         onSuccess: () => {
