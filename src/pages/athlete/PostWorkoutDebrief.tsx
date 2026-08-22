@@ -4,9 +4,11 @@
 // Phase 9 — Post-Workout Debrief.
 //
 // Modal-style summary shown after a finished session. Captures:
-//   - A celebratory hero (mock title + the REAL elapsed duration from the
-//     session timer).
-//   - Session stats (total volume, sets/sets, muscle chips).
+//   - A celebratory hero: the name of TODAY's released session (same
+//     day-selection door as home and Training Hub — sessionForDate) plus
+//     the REAL elapsed duration from the session timer. When today has no
+//     released session, only the duration renders: no invented title.
+//   - Session stats (total volume, total sets).
 //   - Session RPE: 1..10 horizontal scale, no preselection — the scale
 //     starts empty and a value exists only if the athlete declares it.
 //     The selected number becomes the focal pill (brand-filled,
@@ -32,23 +34,12 @@ import {
   useFinishSessionMutation,
   useSessionSetsQuery,
 } from "@/hooks/athlete/useAthleteWorkoutHooks";
+import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
+import { localIsoDate, sessionForDate, sessionTitle } from "@/lib/program/releaseView";
 
 // =============================================================================
-// Constants — mock session labels + RPE label dictionary.
+// Constants — RPE label dictionary.
 // =============================================================================
-/**
- * Mock labels for the just-finished session. Everything DERIVED is live:
- * total volume + total sets come from the session-sets query
- * (exercise_logs rows) inside SessionStatsCard, and the hero duration
- * comes from the store's `elapsedTime` timer. What remains here — title +
- * muscles — is still mock until the program release is wired in as the
- * source of "what session was this".
- */
-const WORKOUT_SUMMARY = {
-  title: "Lower Body Power",
-  muscles: ["Quadricipiti", "Glutei", "Femorali", "Core"] as const,
-};
-
 const RPE_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 type Rpe = (typeof RPE_VALUES)[number];
 
@@ -114,19 +105,6 @@ function SessionStatsCard() {
           >
             {totalSetsCompleted}
           </p>
-        </div>
-      </div>
-      <div>
-        <p className="text-sm text-on-surface-variant mb-3">Muscoli Allenati</p>
-        <div className="flex flex-wrap gap-2">
-          {WORKOUT_SUMMARY.muscles.map((m) => (
-            <span
-              key={m}
-              className="bg-surface-container px-3 py-1.5 rounded-full font-sans text-[11px] font-semibold tracking-wide text-on-surface-variant"
-            >
-              {m}
-            </span>
-          ))}
         </div>
       </div>
     </section>
@@ -220,6 +198,14 @@ export default function PostWorkoutDebrief() {
   const [rpe, setRpe] = useState<Rpe | null>(null);
   const [notes, setNotes] = useState("");
 
+  // The session's NAME comes from today's released session — same
+  // day-selection door as home and Training Hub. No session released for
+  // today (or no readable release) -> no title, only the real duration:
+  // a name nobody wrote is not a summary.
+  const releaseQuery = useLatestReleaseQuery();
+  const program = releaseQuery.data?.program ?? null;
+  const todaySession = program ? sessionForDate(program, localIsoDate(new Date())) : null;
+
   /**
    * Final submit handler — UPDATE the workout_logs row with end time /
    * duration / RPE / notes, then clear the local session and return to
@@ -297,7 +283,8 @@ export default function PostWorkoutDebrief() {
             Workout Completo
           </h2>
           <p className="text-base text-on-surface-variant">
-            {WORKOUT_SUMMARY.title} · {formatDurationHuman(elapsedTime)}
+            {todaySession ? `${sessionTitle(todaySession)} · ` : ""}
+            {formatDurationHuman(elapsedTime)}
           </p>
         </section>
 
