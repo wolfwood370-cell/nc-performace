@@ -45,7 +45,9 @@ import AthleteDashboard from "@/pages/athlete/AthleteDashboard";
 // Fixtures — v2 raw documents round-tripped through the REAL parser.
 // ---------------------------------------------------------------------------
 
-const TODAY = localIsoDate(new Date());
+// Read the clock per call, not at import: an import at 23:59 with tests
+// running past midnight must not date the fixtures to the wrong day.
+const TODAY = () => localIsoDate(new Date());
 
 const rawSet = (setNumber: number, rpe: number | null, percent1rm: number | null = null) => ({
   set_number: setNumber,
@@ -99,7 +101,7 @@ beforeEach(() => {
 
 describe("il saluto viene dal profilo (due profili → due saluti)", () => {
   it("primo token del full_name; profili diversi salutano diversamente", () => {
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 8)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 8)]));
 
     h.auth.profile = { full_name: "Nicolò Castello" };
     const htmlA = renderHome();
@@ -122,19 +124,19 @@ describe("il saluto viene dal profilo (due profili → due saluti)", () => {
 
 describe("la seduta viene dal documento (due documenti → due schermate)", () => {
   it("documenti diversi producono card diverse, col nome del giorno come titolo", () => {
-    setRelease(docWithDay("Sessione Alfa Spinta", TODAY, [rawSet(1, 8)]));
+    setRelease(docWithDay("Sessione Alfa Spinta", TODAY(), [rawSet(1, 8)]));
     const htmlA = renderHome();
     expect(htmlA).toContain("Sessione Alfa Spinta");
     expect(htmlA).not.toContain("Sessione Beta Tirata");
 
-    setRelease(docWithDay("Sessione Beta Tirata", TODAY, [rawSet(1, 8)]));
+    setRelease(docWithDay("Sessione Beta Tirata", TODAY(), [rawSet(1, 8)]));
     const htmlB = renderHome();
     expect(htmlB).toContain("Sessione Beta Tirata");
     expect(htmlB).not.toContain("Sessione Alfa Spinta");
   });
 
   it("nessun dato inventato sopravvive: niente Marco, niente titolo/durata/intensità mock", () => {
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 7.5), rawSet(2, 8), rawSet(3, 9)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 7.5), rawSet(2, 8), rawSet(3, 9)]));
     h.auth.profile = { full_name: "Nicolò Castello" };
     const html = renderHome();
     expect(html).not.toContain("Marco");
@@ -147,7 +149,7 @@ describe("la seduta viene dal documento (due documenti → due schermate)", () =
 describe("tre stati, e il bottone ne segue uno solo", () => {
   it("seduta oggi → CTA presente; nessuna seduta oggi → riposo SENZA CTA", () => {
     // Positive control FIRST: with today's session the button exists.
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 8)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 8)]));
     const withSession = renderHome();
     expect(withSession).toContain("Inizia Sessione");
     expect(withSession).not.toContain("Giorno di riposo");
@@ -190,15 +192,15 @@ describe("tre stati, e il bottone ne segue uno solo", () => {
 
 describe("l'intensità è l'intervallo prescritto, mai la media, mai uno 0", () => {
   it("7.5/8/9 → 'RPE serie 7.5–9'; tutte a 8 → 'RPE serie 8'", () => {
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 7.5), rawSet(2, 8), rawSet(3, 9)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 7.5), rawSet(2, 8), rawSet(3, 9)]));
     expect(renderHome()).toContain("RPE serie 7.5–9");
 
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 8), rawSet(2, 8)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 8), rawSet(2, 8)]));
     expect(renderHome()).toContain("RPE serie 8");
   });
 
   it("nessun RPE scritto (solo %1RM) → nessuna riga, e mai 'RPE serie 0'", () => {
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, null, 80), rawSet(2, null, 85)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, null, 80), rawSet(2, null, 85)]));
     const html = renderHome();
     expect(html).not.toContain("RPE serie");
     expect(html).not.toContain("RPE serie 0");
@@ -207,14 +209,14 @@ describe("l'intensità è l'intervallo prescritto, mai la media, mai uno 0", () 
 
 describe("un esercizio si conta al singolare", () => {
   it("1 → '1 esercizio', 3 → '3 esercizi'", () => {
-    setRelease(docWithDay("Giorno 1", TODAY, [rawSet(1, 8)]));
+    setRelease(docWithDay("Giorno 1", TODAY(), [rawSet(1, 8)]));
     expect(renderHome()).toContain("1 esercizio");
 
     const threeExercises = {
-      ...docWithDay("Giorno 1", TODAY, [rawSet(1, 8)]),
+      ...docWithDay("Giorno 1", TODAY(), [rawSet(1, 8)]),
       days: [
         {
-          ...docWithDay("Giorno 1", TODAY, [rawSet(1, 8)]).days[0],
+          ...docWithDay("Giorno 1", TODAY(), [rawSet(1, 8)]).days[0],
           exercises: [
             { item_id: "s1-e1", name: "Back Squat", sets: [rawSet(1, 8)] },
             { item_id: "s1-e2", name: "Bench Press", sets: [rawSet(1, 8)] },

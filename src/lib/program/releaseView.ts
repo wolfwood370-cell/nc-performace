@@ -314,13 +314,16 @@ export interface SessionRpeRange {
  * v2 reads the per-set prescriptions (sets_detail); v1 the per-exercise
  * RPEs. Null and 0 both mean "not prescribed" (0 is the legacy honesty
  * marker, never a real prescription): with no written RPE there is no
- * range — the UI renders no line, never an "RPE 0".
+ * range — the UI renders no line, never an "RPE 0". Warm-up sets are
+ * excluded: a ramp-up RPE is not the session's working intensity, and
+ * "RPE serie 4–9" would misquote a 9-RPE session with a light warm-up.
  */
 export function sessionRpeRange(day: ReleaseDayView): SessionRpeRange | null {
   const rpes: number[] = [];
   for (const exercise of day.exercises) {
     if (exercise.sets_detail) {
       for (const set of exercise.sets_detail) {
+        if (set.is_warmup) continue;
         if (set.rpe !== null && set.rpe > 0) rpes.push(set.rpe);
       }
     } else if (exercise.rpe > 0) {

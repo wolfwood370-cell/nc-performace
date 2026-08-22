@@ -194,17 +194,21 @@ export default function PostWorkoutDebrief() {
   const stopSession = useAthleteWorkoutStore((s) => s.stopSession);
   const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const elapsedTime = useAthleteWorkoutStore((s) => s.elapsedTime);
+  const startedAt = useAthleteWorkoutStore((s) => s.startedAt);
   const finishSession = useFinishSessionMutation();
   const [rpe, setRpe] = useState<Rpe | null>(null);
   const [notes, setNotes] = useState("");
 
-  // The session's NAME comes from today's released session — same
-  // day-selection door as home and Training Hub. No session released for
-  // today (or no readable release) -> no title, only the real duration:
-  // a name nobody wrote is not a summary.
+  // The session's NAME is the released session of the day the workout
+  // STARTED (store's startedAt) — not the clock at debrief time: a session
+  // begun at 22:30 and closed past midnight still belongs to its own day.
+  // Same day-selection door as home and Training Hub. No released session
+  // for that day (or no readable release) -> no title, only the real
+  // duration: a name nobody wrote is not a summary.
   const releaseQuery = useLatestReleaseQuery();
   const program = releaseQuery.data?.program ?? null;
-  const todaySession = program ? sessionForDate(program, localIsoDate(new Date())) : null;
+  const sessionDay = localIsoDate(startedAt !== null ? new Date(startedAt) : new Date());
+  const todaySession = program ? sessionForDate(program, sessionDay) : null;
 
   /**
    * Final submit handler — UPDATE the workout_logs row with end time /

@@ -131,6 +131,14 @@ describe("sessionRpeRange — l'intervallo prescritto, mai la media", () => {
     expect(sessionRpeRange(day)).toBeNull();
   });
 
+  it("v2: le serie di riscaldamento non entrano nell'intervallo prescritto", () => {
+    const warmup = { ...rawSet(1, 4), is_warmup: true };
+    const view = parseReleaseDocument(
+      v2Doc([v2Day(0, "Giorno 1", "2026-08-24", [warmup, rawSet(2, 8), rawSet(3, 9)])]),
+    )!;
+    expect(sessionRpeRange(view.days[0])).toEqual({ min: 8, max: 9 });
+  });
+
   it("v2: un RPE 0 difensivo conta come non-prescritto, non come minimo", () => {
     const view = parseReleaseDocument(
       v2Doc([v2Day(0, "Giorno 1", "2026-08-24", [rawSet(1, 0), rawSet(2, 8)])]),

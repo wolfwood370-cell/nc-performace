@@ -1,7 +1,9 @@
 // Mechanism proof for the debrief (objective #6 of the slice): the hero
-// names TODAY's released session — through the same day-selection door as
-// home and Training Hub — or shows ONLY the real duration when today has no
-// session. Mounted for real via renderToString (node, no jsdom — decision
+// names the released session of the day the workout STARTED (store's
+// startedAt — never the clock at debrief time) through the same
+// day-selection door as home and Training Hub, or shows ONLY the real
+// duration when that day has no session. Mounted for real via
+// renderToString (node, no jsdom — decision
 // 2026-07-14 in vitest.config.ts) with the data hooks and the workout store
 // mocked. Two different documents must yield two different heroes: a test
 // that matches one fixed title would pass with the old constant too.
@@ -17,6 +19,9 @@ const h = vi.hoisted(() => ({
   workout: {
     activeSessionId: "sess-1" as string | null,
     elapsedTime: 3723, // 1h 2m — the REAL timer value the store would carry
+    // Fixed epoch: the debrief must date the session by the day the workout
+    // STARTED, never by the clock at debrief time (midnight crossing).
+    startedAt: new Date(2026, 7, 20, 18, 30).getTime() as number | null,
     stopSession: () => {},
   },
 }));
@@ -38,7 +43,8 @@ vi.mock("@/hooks/athlete/useProgramRelease", () => ({
 
 import PostWorkoutDebrief from "@/pages/athlete/PostWorkoutDebrief";
 
-const TODAY = localIsoDate(new Date());
+// The day the mocked workout started (2026-08-20) — deterministic, no clock.
+const SESSION_DAY = localIsoDate(new Date(2026, 7, 20, 18, 30));
 
 const docWithDay = (dayName: string, date: string) => ({
   version: 2,
@@ -93,23 +99,33 @@ beforeEach(() => {
 
 describe("il debrief nomina la seduta vera del giorno", () => {
   it("due documenti diversi → due heroes diversi, con la durata reale", () => {
-    setRelease(docWithDay("Seduta Spinta Alfa", TODAY));
+    setRelease(docWithDay("Seduta Spinta Alfa", SESSION_DAY));
     const htmlA = renderDebrief();
     expect(htmlA).toContain("Seduta Spinta Alfa · 1h 2m");
     expect(htmlA).not.toContain("Seduta Tirata Beta");
 
-    setRelease(docWithDay("Seduta Tirata Beta", TODAY));
+    setRelease(docWithDay("Seduta Tirata Beta", SESSION_DAY));
     const htmlB = renderDebrief();
     expect(htmlB).toContain("Seduta Tirata Beta · 1h 2m");
     expect(htmlB).not.toContain("Seduta Spinta Alfa");
   });
 
-  it("nessuna seduta oggi → SOLO la durata reale, nessun titolo", () => {
+  it("nessuna seduta nel giorno d'inizio → SOLO la durata reale, nessun titolo", () => {
     setRelease(docWithDay("Seduta Spinta Alfa", "2000-01-01"));
     const html = renderDebrief();
     expect(html).toContain("1h 2m");
     expect(html).not.toContain("Seduta Spinta Alfa");
     expect(html).not.toContain(" · ");
+  });
+
+  it("l'ancora è startedAt, non l'orologio: la seduta datata OGGI non viene nominata", () => {
+    // The release has a session dated with the CLOCK's today, but the mocked
+    // workout started on 2026-08-20 (a fixed past day): the hero must not
+    // borrow today's session for a workout that belongs to another day.
+    setRelease(docWithDay("Seduta Di Un Altro Giorno", localIsoDate(new Date())));
+    const html = renderDebrief();
+    expect(html).not.toContain("Seduta Di Un Altro Giorno");
+    expect(html).toContain("1h 2m");
   });
 
   it("nessuna release → SOLO la durata reale", () => {
@@ -120,7 +136,7 @@ describe("il debrief nomina la seduta vera del giorno", () => {
   });
 
   it("il mock non esiste più: niente 'Lower Body Power', niente chip muscolari", () => {
-    setRelease(docWithDay("Seduta Spinta Alfa", TODAY));
+    setRelease(docWithDay("Seduta Spinta Alfa", SESSION_DAY));
     const html = renderDebrief();
     expect(html).not.toContain("Lower Body Power");
     expect(html).not.toContain("Muscoli Allenati");
