@@ -118,6 +118,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { subjectiveReadinessToScore } from "@/lib/math/readinessMath";
 import {
   computeTrendSeries,
   computeWeightStats,
@@ -2840,9 +2841,11 @@ export default function AthleteDetail() {
   const calculateReadinessScore = () => {
     if (!todayMetrics) return null;
 
-    // Use subjective_readiness if available, otherwise calculate from metrics
-    if (todayMetrics.subjective_readiness) {
-      return Math.round(todayMetrics.subjective_readiness * 10); // Scale 1-10 to 10-100
+    // Use subjective_readiness if available, otherwise calculate from metrics.
+    // Single shared conversion point (1-10 → 0-100): the same scale the
+    // risk overview reads — two screens, one conversion.
+    if (todayMetrics.subjective_readiness != null) {
+      return subjectiveReadinessToScore(todayMetrics.subjective_readiness);
     }
 
     // Simple formula based on available metrics

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { subjectiveReadinessToScore } from "@/lib/math/readinessMath";
 import { getArchivedAt, isArchived } from "@/types/profile";
 import { useAuth } from "./useAuth";
 import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
@@ -27,6 +28,8 @@ export interface AthleteRiskData {
   riskLevel: RiskLevel;
   riskFlags: RiskFlag[];
   primaryFlag: RiskFlag | null;
+  /** 0-100 scale. A 1-10 `subjective_readiness` is already converted
+   *  through `subjectiveReadinessToScore` — consumers must NOT rescale. */
   latestReadiness: number | null;
   readinessDate: string | null;
   dailyLoadHistory: number[];
@@ -233,8 +236,14 @@ export function useAthletesRiskOverview() {
     const latestReadinessRecord = (readinessQuery.data ?? []).find(
       (r) => r.athlete_id === athlete.id,
     );
+    // Same quantity, ONE scale: subjective_readiness (1-10 per DB CHECK)
+    // converts through the single shared helper; daily_readiness.score
+    // is already 0-100. Mixing the raw scales made assessRisks flag
+    // "Low Recovery" for EVERY 1-10 value (all are < 40).
     const latestReadiness =
-      latestMetric?.subjective_readiness ?? latestReadinessRecord?.score ?? null;
+      latestMetric?.subjective_readiness != null
+        ? subjectiveReadinessToScore(latestMetric.subjective_readiness)
+        : (latestReadinessRecord?.score ?? null);
     const readinessDate = latestMetric?.date ?? latestReadinessRecord?.date ?? null;
     const { riskLevel, riskFlags } = assessRisks(acwr, latestReadiness);
     const avatarInitials =

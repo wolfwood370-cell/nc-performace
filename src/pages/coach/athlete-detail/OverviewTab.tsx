@@ -138,7 +138,7 @@ export function OverviewTab({
                     {readinessScore ?? "—"}
                   </span>
                   <span className="text-3xs text-muted-foreground uppercase tracking-wide">
-                    Readiness
+                    Readiness / 100
                   </span>
                 </div>
               </div>
