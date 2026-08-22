@@ -109,8 +109,10 @@ export const useAthleteReadinessStore = create<AthleteReadinessStoreState>()(
               (METRIC_KEYS as readonly string[]).includes(k as string),
             )
           : [];
+        // Same contract setSelectedMetrics enforces: unique keys, max 3.
+        const unique = Array.from(new Set(selected)).slice(0, 3);
         return {
-          selectedDashboardMetrics: selected.length > 0 ? selected : DEFAULT_DASHBOARD_METRICS,
+          selectedDashboardMetrics: unique.length > 0 ? unique : DEFAULT_DASHBOARD_METRICS,
           isCustomMetricsPinned: p.isCustomMetricsPinned === true,
         } as AthleteReadinessStoreState;
       },

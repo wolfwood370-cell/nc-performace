@@ -34,7 +34,7 @@
  *
  * AthleteCard mapping:
  *   - acwrValue: trigger State Critical quando ACWR > 1.5
- *   - readinessScore: scale 1-10 → 0-100 per la chip
+ *   - readinessScore: già 0-100 dal hook rischio (conversione unica in readinessMath) — passthrough
  *   - painMarkers: derivati dai riskFlags con label fisiologico
  *   - missingOnboardingSteps: array vuoto per "onboarding" filter → AthleteCard renderizza Pending
  */

@@ -124,6 +124,8 @@ describe("assente ≠ zero: senza riga di oggi nessun numero, con la riga il num
     });
     const html = renderHome();
     expect(html).toContain("Punteggio Prontezza assente");
+    // Positive control: the dash IS rendered where the number would be.
+    expect(html).toContain(">—<");
     expect(html).not.toContain("Punteggio Prontezza 0");
     expect(html).not.toMatch(/>0</);
   });
@@ -161,9 +163,12 @@ describe("lo store legacy non è più un «oggi»", () => {
   it("controllo positivo: con la riga di oggi le metriche compaiono (dalla riga, non dallo store)", () => {
     h.readiness.data = todayRow();
     const html = renderHome();
-    // Worst-3 of today's row: Stress 2, Fatica 6, Umore 6.
-    expect(html).toContain("Stress");
-    expect(html).toContain(">2<");
+    // Worst-3 BY POLARITY of today's row (sleep 8, stress 2, fatigue 6,
+    // mood 6, digestion 8, soreness 10): Fatica, Umore, Sonno. Stress 2
+    // means RELAXED — it must NOT surface as a concern.
     expect(html).toContain("Fatica");
+    expect(html).toContain(">6<");
+    expect(html).toContain("Umore");
+    expect(html).not.toContain("Stress");
   });
 });

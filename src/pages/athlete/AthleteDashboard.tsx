@@ -96,19 +96,30 @@ function metricsFromRow(row: DailyReadinessRow): Record<MetricKey, number | null
   };
 }
 
+/** Axis direction per metric, mirroring the semantics the app already
+ *  declares (INVERTED_CHECKIN_KEYS in readinessMath): for Stress and
+ *  Fatica 10 = worst. Soreness here is the 0-10 aggregate where 10 =
+ *  nothing sore, so high is good. */
+const LOW_IS_GOOD_METRICS: ReadonlySet<MetricKey> = new Set(["Stress", "Fatica"]);
+
+/** Normalised "goodness" of one answer — same linear mapping the
+ *  composite score uses, so ranking and score agree on direction. */
+function metricGoodness(metric: MetricKey, value: number): number {
+  return LOW_IS_GOOD_METRICS.has(metric) ? (10 - value) / 9 : (value - 1) / 9;
+}
+
 /**
- * Pick the `count` "worst" metrics from today's values — lowest raw
- * value ranks worst, `null` (unanswered) is excluded, ties break by
- * METRIC_KEYS order. Same selection semantics the store used to ship.
+ * Pick the `count` "worst" metrics from today's values — worst by
+ * POLARITY-AWARE goodness (Stress 10 ranks worst, not best), `null`
+ * (unanswered) is excluded, ties break by METRIC_KEYS order. The
+ * historic raw-ascending sort surfaced a relaxed athlete's Stress 2 as
+ * a top concern and never surfaced Stress 10 — review finding fixed
+ * in-slice.
  */
 function computeWorstMetrics(values: Record<MetricKey, number | null>, count = 3): MetricKey[] {
   return (METRIC_KEYS as readonly MetricKey[])
     .filter((k) => values[k] !== null)
-    .sort((a, b) => {
-      const aVal = values[a] ?? Number.POSITIVE_INFINITY;
-      const bVal = values[b] ?? Number.POSITIVE_INFINITY;
-      return aVal - bVal;
-    })
+    .sort((a, b) => metricGoodness(a, values[a] ?? 0) - metricGoodness(b, values[b] ?? 0))
     .slice(0, count);
 }
 
