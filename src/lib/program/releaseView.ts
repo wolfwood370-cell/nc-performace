@@ -132,13 +132,6 @@ export function dayForWeekday(
   return program.days[mondayBasedIndex];
 }
 
-/** Average target RPE of a session (display), rounded to the nearest int. */
-export function sessionRpeTarget(day: ReleaseDayView): number | null {
-  const rpes = day.exercises.map((e) => e.rpe).filter((r) => r > 0);
-  if (rpes.length === 0) return null;
-  return Math.round(rpes.reduce((a, b) => a + b, 0) / rpes.length);
-}
-
 // =============================================================================
 // v2 — coach release document (schema_version 2)
 // =============================================================================
@@ -271,4 +264,83 @@ function parseReleaseDocumentV2(doc: Record<string, unknown>): ReleaseProgramVie
  */
 export function dayForDate(program: ReleaseProgramView, isoDate: string): ReleaseDayView | null {
   return program.days.find((d) => d.date === isoDate) ?? null;
+}
+
+// =============================================================================
+// Cross-version selectors — ONE door for every screen (home, Training Hub,
+// post-workout debrief). Two screens answering "what does the athlete do
+// today?" on their own is exactly how they diverge (defect D6).
+// =============================================================================
+
+/**
+ * LOCAL-calendar YYYY-MM-DD of a Date — the key that matches the
+ * coach-confirmed session dates (v2). Not toISOString(): that is UTC, and at
+ * 00:30 in Rome it would still say yesterday. The CALLER owns the clock and
+ * passes its own Date; this module never reads it.
+ */
+export function localIsoDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * The session the release prescribes for one calendar date, whatever the
+ * document version: v2 matches the coach-confirmed date exactly; v1 maps the
+ * date's Monday-based weekday to program day i (Mon -> "Giorno 1"), beyond
+ * the program length the athlete rests. Null = rest day (or malformed date).
+ */
+export function sessionForDate(
+  program: ReleaseProgramView,
+  isoDate: string,
+): ReleaseDayView | null {
+  if (!ISO_DATE_RE.test(isoDate)) return null;
+  if (program.version === 2) return dayForDate(program, isoDate);
+  // Weekday derived from the ISO date itself (UTC parse of a date-only
+  // string is timezone-independent): 0 = Monday .. 6 = Sunday.
+  const mondayIdx = (new Date(`${isoDate}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return dayForWeekday(program, mondayIdx);
+}
+
+/** Prescribed RPE range of a session. min === max when every prescription
+ *  agrees. This is a QUOTATION of what the coach wrote, on the scale they
+ *  wrote it — never a session-RPE estimate: that judgement belongs to the
+ *  athlete, after the session (sRPE method). */
+export interface SessionRpeRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * v2 reads the per-set prescriptions (sets_detail); v1 the per-exercise
+ * RPEs. Null and 0 both mean "not prescribed" (0 is the legacy honesty
+ * marker, never a real prescription): with no written RPE there is no
+ * range — the UI renders no line, never an "RPE 0".
+ */
+export function sessionRpeRange(day: ReleaseDayView): SessionRpeRange | null {
+  const rpes: number[] = [];
+  for (const exercise of day.exercises) {
+    if (exercise.sets_detail) {
+      for (const set of exercise.sets_detail) {
+        if (set.rpe !== null && set.rpe > 0) rpes.push(set.rpe);
+      }
+    } else if (exercise.rpe > 0) {
+      rpes.push(exercise.rpe);
+    }
+  }
+  if (rpes.length === 0) return null;
+  return { min: Math.min(...rpes), max: Math.max(...rpes) };
+}
+
+/** Display label for the prescribed range: "RPE serie 7.5–9", collapsing to
+ *  "RPE serie 8" when min === max. */
+export function formatSessionRpeRange(range: SessionRpeRange): string {
+  return range.min === range.max ? `RPE serie ${range.min}` : `RPE serie ${range.min}–${range.max}`;
+}
+
+/** Display title of a session: the coach's focus when written, else the day
+ *  name. An empty focus is the NORMAL case on real releases, not an edge —
+ *  the fallback is the day's own name, never an invented description. */
+export function sessionTitle(day: ReleaseDayView): string {
+  const focus = day.focus.trim();
+  return focus !== "" ? focus : day.dayName;
 }
