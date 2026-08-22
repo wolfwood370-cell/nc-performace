@@ -10,7 +10,7 @@ import {
   applyConservativeFirstBlock,
   buildProgramDocument,
 } from "../../../../supabase/functions/release-autonomous-program/release/buildRelease.ts";
-import { dayForWeekday, parseReleaseDocument, sessionRpeTarget } from "../releaseView";
+import { dayForWeekday, parseReleaseDocument } from "../releaseView";
 
 const engineInput = {
   focusGoal: "forza",
@@ -61,7 +61,7 @@ describe("parseReleaseDocument — parità col builder reale", () => {
   });
 });
 
-describe("dayForWeekday / sessionRpeTarget", () => {
+describe("dayForWeekday", () => {
   const view = parseReleaseDocument(buildProgramDocument(assembleWeek(engineInput), "forza"))!;
 
   it("lun->Giorno 1, mer->Giorno 3, gio->riposo (programma da 3)", () => {
@@ -70,12 +70,5 @@ describe("dayForWeekday / sessionRpeTarget", () => {
     expect(dayForWeekday(view, 3)).toBeNull();
     expect(dayForWeekday(view, 6)).toBeNull();
     expect(dayForWeekday(view, -1)).toBeNull();
-  });
-
-  it("RPE target = media arrotondata degli RPE della seduta", () => {
-    const day = view.days[0];
-    const mean = Math.round(day.exercises.reduce((a, e) => a + e.rpe, 0) / day.exercises.length);
-    expect(sessionRpeTarget(day)).toBe(mean);
-    expect(sessionRpeTarget({ ...day, exercises: [] })).toBeNull();
   });
 });

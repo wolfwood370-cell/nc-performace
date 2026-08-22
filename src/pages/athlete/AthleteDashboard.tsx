@@ -13,8 +13,8 @@
 // Strict deviations from the reference HTML:
 //   - "LUMINA" brand mark → "NC Performance"
 //   - Avatar moved from top-left to top-right (per brief)
-//   - "Today's Focus" card relabelled "Prossimo Allenamento"; CTA text
-//     translated to "Inizia Sessione"; mock title "Forza Lower Body"
+//   - "Today's Focus" card is the release-driven TodaySessionCard ("Seduta
+//     di oggi"); CTA text translated to "Inizia Sessione"
 //   - Notifications button dropped (brief asks only for app name + avatar)
 //   - Nutrition / Metabolic widget OMITTED entirely
 //
@@ -24,23 +24,30 @@
 // invisible against the bright #f5faff base; 70% gives the intended
 // frosted-glass effect on light mode.
 //
-// All data here is mock — Supabase wiring (daily_readiness + next workout
-// query) lands in the follow-up commit.
+// Data: the greeting reads the profile's full_name; the today-session card
+// reads the athlete's REAL program release (useLatestReleaseQuery ->
+// sessionForDate, the same day-selection door as the Training Hub — defect
+// D6); readiness comes from useDailyReadinessQuery. Nothing is invented.
 // =============================================================================
 
 import { useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Activity,
   Dumbbell,
+  Hourglass,
   Minus,
+  Moon,
   Play,
   Settings2,
   TrendingDown,
   TrendingUp,
+  TriangleAlert,
   User,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 import {
   computeWorstMetrics,
   METRIC_KEYS,
@@ -49,7 +56,15 @@ import {
   type MetricSnapshot,
 } from "@/stores/useAthleteReadinessStore";
 import { useDailyReadinessQuery } from "@/hooks/athlete/useAthleteReadinessHooks";
+import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
 import { usePaymentOutcome } from "@/hooks/athlete/usePaymentOutcome";
+import {
+  formatSessionRpeRange,
+  localIsoDate,
+  sessionForDate,
+  sessionRpeRange,
+  sessionTitle,
+} from "@/lib/program/releaseView";
 import {
   Dialog,
   DialogContent,
@@ -97,17 +112,11 @@ function computeTrendDirection(
   return isImprovement ? "up" : "down";
 }
 
-// -----------------------------------------------------------------------------
-// MOCK DATA — single source of truth for this page until we wire the hooks.
-// -----------------------------------------------------------------------------
-const MOCK = {
-  athleteName: "Marco",
-  nextWorkout: {
-    title: "Forza Lower Body",
-    durationMin: 45,
-    intensity: "High" as const,
-  },
-} as const;
+/** First name for the greeting: first token of the profile's full_name,
+ *  "Atleta" when absent — same fallback as AthleteProfile. */
+function greetingName(fullName: string | null | undefined): string {
+  return fullName?.trim().split(/\s+/)[0] || "Atleta";
+}
 
 // =============================================================================
 // ReadinessRing — inline SVG circular gauge.
@@ -322,45 +331,143 @@ function ReadinessCard({
 }
 
 // =============================================================================
-// NextWorkoutCard — middle glass widget with primary CTA. The "Inizia
-// Sessione" button delegates to the page-level `onStart` handler so the
-// store / navigation wiring lives in one place at the composition root.
+// TodaySessionCard — middle glass widget: TODAY's session straight from the
+// athlete's own released program (useLatestReleaseQuery -> sessionForDate,
+// the same day-selection door the Training Hub reads through). One honest
+// state at a time:
+//   - session today  -> day title, exercise count, prescribed RPE range
+//     (only when the coach wrote one) and the "Inizia Sessione" CTA — the
+//     ONLY state that renders a control leading to the active workout;
+//   - rest day       -> "Giorno di riposo", nothing starts a workout;
+//   - loading / error / no release / unreadable -> the Training Hub's
+//     equivalent copy, without the CTA. Never a fallback session.
+// No duration renders anywhere: the release document prescribes none, and
+// an estimated number is still a number nobody wrote.
 // =============================================================================
-function NextWorkoutCard({ onStart }: { onStart: () => void }) {
+function TodaySessionStatus({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+}) {
   return (
-    <section
-      aria-label="Prossimo allenamento"
-      className={cn(
-        "relative overflow-hidden",
-        "rounded-3xl p-6",
-        "bg-white/70 backdrop-blur-xl",
-        "border border-[#c0c7d0]/30",
-        "flex flex-col gap-6",
-      )}
-    >
-      {/* Soft brand gradient — decorative */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/8 to-transparent opacity-70"
-      />
+    <div className="z-10 flex flex-col items-center text-center gap-3 py-2">
+      <div className="h-12 w-12 rounded-full bg-brand-container/10 flex items-center justify-center">
+        <Icon className="h-6 w-6 text-brand-container" strokeWidth={1.75} aria-hidden="true" />
+      </div>
+      <p className="font-display text-base font-semibold text-on-surface">{title}</p>
+      <p className="text-sm text-on-surface-variant max-w-[280px]">{body}</p>
+    </div>
+  );
+}
+
+function TodaySessionCard({ onStart }: { onStart: () => void }) {
+  const releaseQuery = useLatestReleaseQuery();
+
+  const program = releaseQuery.data?.program ?? null;
+  // The caller owns the clock: today's LOCAL calendar date keys the lookup.
+  const day = program ? sessionForDate(program, localIsoDate(new Date())) : null;
+
+  const shell = cn(
+    "relative overflow-hidden",
+    "rounded-3xl p-6",
+    "bg-white/70 backdrop-blur-xl",
+    "border border-[#c0c7d0]/30",
+    "flex flex-col gap-6",
+  );
+  const decor = (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/8 to-transparent opacity-70"
+    />
+  );
+  const status = (icon: LucideIcon, title: string, body: string, action?: React.ReactNode) => (
+    <section aria-label="Seduta di oggi" className={shell}>
+      {decor}
+      <TodaySessionStatus icon={icon} title={title} body={body} />
+      {action}
+    </section>
+  );
+
+  if (releaseQuery.isPending) {
+    return status(Hourglass, "Caricamento", "Sto recuperando il tuo programma…");
+  }
+  if (releaseQuery.isError) {
+    return status(
+      TriangleAlert,
+      "Errore di caricamento",
+      "Non riesco a recuperare il tuo programma. Controlla la connessione e riprova.",
+      <button
+        type="button"
+        onClick={() => void releaseQuery.refetch()}
+        className={cn(
+          "z-10 self-center px-6 py-3 rounded-full",
+          "bg-brand-container text-white",
+          "font-display text-sm font-bold uppercase tracking-widest",
+          "transition-all duration-200 active:scale-[0.98] hover:brightness-110",
+        )}
+      >
+        Riprova
+      </button>,
+    );
+  }
+  if (!releaseQuery.data) {
+    // No release yet: the gate-derived detail (consent / review / generate)
+    // lives in the Training Hub — the home stays honest without duplicating
+    // that flow, and renders no start control.
+    return status(
+      Dumbbell,
+      "Nessun programma attivo",
+      "Lo stato del tuo programma è nella sezione Allenamento.",
+    );
+  }
+  if (!program) {
+    // A release exists but its document doesn't parse: never render garbage.
+    return status(
+      Hourglass,
+      "Programma non disponibile",
+      "Il programma non è leggibile su questo dispositivo: contatta il tuo coach.",
+    );
+  }
+  if (!day) {
+    return status(
+      Moon,
+      "Giorno di riposo",
+      "Nessuna seduta in programma: recupero anche questo è allenamento.",
+    );
+  }
+
+  const rpeRange = sessionRpeRange(day);
+  const exerciseCount = day.exercises.length;
+
+  return (
+    <section aria-label="Seduta di oggi" className={shell}>
+      {decor}
 
       <div className="z-10">
         <span className="block font-sans text-[11px] font-semibold tracking-widest uppercase text-brand-container/80">
-          Prossimo Allenamento
+          Seduta di oggi
         </span>
 
         <p className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant">
-          <Activity className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
-          {MOCK.nextWorkout.durationMin} min
-          <span aria-hidden="true" className="opacity-60">
-            ·
-          </span>
           <Dumbbell className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
-          {MOCK.nextWorkout.intensity} intensity
+          {exerciseCount} {exerciseCount === 1 ? "esercizio" : "esercizi"}
+          {rpeRange !== null && (
+            <>
+              <span aria-hidden="true" className="opacity-60">
+                ·
+              </span>
+              <Zap className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
+              {formatSessionRpeRange(rpeRange)}
+            </>
+          )}
         </p>
 
         <h2 className="mt-2 font-display text-2xl font-semibold leading-tight text-brand-container">
-          {MOCK.nextWorkout.title}
+          {sessionTitle(day)}
         </h2>
       </div>
 
@@ -592,6 +699,7 @@ function MetricsSettingsDialog({
 // =============================================================================
 export default function AthleteDashboard() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   // Stripe's success_url lands here with ?payment=success.
   usePaymentOutcome();
@@ -622,16 +730,16 @@ export default function AthleteDashboard() {
     <div className="flex flex-col gap-4">
       <Header />
 
-      {/* Greeting */}
+      {/* Greeting — profile's full_name, first token ("Atleta" fallback) */}
       <section className="pt-2">
         <p className="font-display text-3xl font-bold tracking-tight text-on-surface">
-          Ciao, {MOCK.athleteName}
+          Ciao, {greetingName(profile?.full_name)}
         </p>
         <p className="mt-1 text-sm text-on-surface-variant">Ecco il tuo riepilogo di oggi.</p>
       </section>
 
       <ReadinessCard onLogToday={handleLogReadiness} onEditMetrics={handleEditMetrics} />
-      <NextWorkoutCard onStart={handleStartWorkout} />
+      <TodaySessionCard onStart={handleStartWorkout} />
 
       <MetricsSettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
     </div>

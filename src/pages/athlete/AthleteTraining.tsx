@@ -67,10 +67,11 @@ import {
   useRequestReleaseMutation,
 } from "@/hooks/athlete/useProgramRelease";
 import {
-  dayForDate,
-  dayForWeekday,
   formatReleaseSetLine,
-  sessionRpeTarget,
+  formatSessionRpeRange,
+  localIsoDate,
+  sessionForDate,
+  sessionRpeRange,
 } from "@/lib/program/releaseView";
 import type { ReleaseDayView, ReleaseExerciseView } from "@/lib/program/releaseView";
 
@@ -98,16 +99,6 @@ function startOfDay(d: Date): Date {
  */
 function compareDays(a: Date, b: Date): number {
   return startOfDay(a).getTime() - startOfDay(b).getTime();
-}
-
-/**
- * LOCAL-calendar YYYY-MM-DD for matching the coach-confirmed session dates
- * (v2). Not toISOString(): that is UTC, and at 00:30 in Rome it would still
- * say yesterday — the athlete would read the wrong day's session.
- */
-function localIsoDate(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 // =============================================================================
@@ -345,10 +336,12 @@ function GenerateProgramCard({
 
 // =============================================================================
 // HeroWorkoutCard — glass card, left brand border, badge + title + meta.
-// Fed by the release day: focus as title, exercise count + mean RPE as meta.
+// Fed by the release day: focus as title, exercise count + the PRESCRIBED
+// RPE range as meta (a quotation of the sets, never a session-RPE estimate:
+// that judgement is the athlete's, after the session).
 // =============================================================================
 function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
-  const rpeTarget = sessionRpeTarget(day);
+  const rpeRange = sessionRpeRange(day);
   return (
     <section
       aria-label="Allenamento principale di oggi"
@@ -377,10 +370,12 @@ function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
             <Dumbbell className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
             <span className="font-sans text-xs font-semibold">{day.exercises.length} esercizi</span>
           </div>
-          {rpeTarget !== null && (
+          {rpeRange !== null && (
             <div className="flex items-center gap-1.5">
               <Zap className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
-              <span className="font-sans text-xs font-semibold">RPE target: {rpeTarget}</span>
+              <span className="font-sans text-xs font-semibold">
+                {formatSessionRpeRange(rpeRange)}
+              </span>
             </div>
           )}
         </div>
@@ -811,13 +806,9 @@ function DiarioView({
   const program = releaseQuery.data?.program ?? null;
 
   if (releaseQuery.data && program) {
-    // v2 (coach release): EXACT match on the coach-confirmed date.
-    // v1 (engine): weekday i (Mon-based) -> program day i; beyond -> rest.
-    const mondayIdx = (selectedDate.getDay() + 6) % 7;
-    const sessionForDay =
-      program.version === 2
-        ? dayForDate(program, localIsoDate(selectedDate))
-        : dayForWeekday(program, mondayIdx);
+    // ONE door for the day selection (v2 exact date / v1 weekday mapping),
+    // shared with the home and the debrief — the caller only owns the clock.
+    const sessionForDay = sessionForDate(program, localIsoDate(selectedDate));
     if (!sessionForDay) {
       return withPrompt(
         <>
