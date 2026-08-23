@@ -9,12 +9,7 @@ import { format } from "date-fns";
 
 type AlertSeverity = "critical" | "warning" | "info";
 type AlertType =
-  | "missed_workout"
-  | "low_readiness"
-  | "active_injury"
-  | "high_acwr"
-  | "rpe_spike"
-  | "no_checkin";
+  "missed_workout" | "low_readiness" | "active_injury" | "high_acwr" | "rpe_spike" | "no_checkin";
 
 export interface UrgentAlert {
   id: string;
@@ -75,6 +70,12 @@ export interface CoachDashboardMetrics {
   todaySchedule: TodayScheduleItem[];
   businessMetrics: BusinessMetrics;
   healthyAthletes: HealthyAthlete[];
+  /** Workout logs completed TODAY — the only measured "done today".
+   *  The review queue (feedbackItems) is a different quantity. */
+  completedTodayCount: number;
+  /** Full pending-review count BEFORE the 10-row display cap of
+   *  feedbackItems: a counted claim must not silently saturate. */
+  pendingReviewCount: number;
   isLoading: boolean;
   error: Error | null;
 }
@@ -381,17 +382,32 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
     });
   }, [athletes, readinessData, injuries, workoutLogs, workouts, today]);
 
-  // ===== COMPUTED: Feedback Items (completed with notes/video, no coach feedback) =====
-  const feedbackItems = useMemo<FeedbackItem[]>(() => {
+  // ===== COMPUTED: Pending review set (completed, no coach feedback) =====
+  // Kept SEPARATE from the sliced feed below: the feed caps at 10 rows for
+  // layout, but any counted claim must use the uncapped length.
+  const pendingReviewLogs = useMemo(() => {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    return workoutLogs
-      .filter((log) => {
-        if (!log.completed_at) return false;
-        if (log.coach_feedback) return false; // Already reviewed
-        // Prioritize those with notes or completed in last 24h
-        return log.completed_at >= twentyFourHoursAgo || log.notes;
-      })
+    return workoutLogs.filter((log) => {
+      if (!log.completed_at) return false;
+      if (log.coach_feedback) return false; // Already reviewed
+      // Prioritize those with notes or completed in last 24h
+      return log.completed_at >= twentyFourHoursAgo || log.notes;
+    });
+  }, [workoutLogs]);
+
+  const pendingReviewCount = pendingReviewLogs.length;
+
+  // ===== COMPUTED: Workouts completed today (workout_logs.completed_at) =====
+  // Same UTC-date convention as calculateAcwr above.
+  const completedTodayCount = useMemo(
+    () => workoutLogs.filter((log) => log.completed_at?.split("T")[0] === today).length,
+    [workoutLogs, today],
+  );
+
+  // ===== COMPUTED: Feedback Items (display feed, capped at 10) =====
+  const feedbackItems = useMemo<FeedbackItem[]>(() => {
+    return pendingReviewLogs
       .map((log) => {
         const athlete = athletes.find((a) => a.id === log.athlete_id);
         const workout = workouts.find((w) => w.id === log.workout_id);
@@ -410,7 +426,7 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
         };
       })
       .slice(0, 10);
-  }, [workoutLogs, athletes, workouts]);
+  }, [pendingReviewLogs, athletes, workouts]);
 
   // ===== COMPUTED: Today's Schedule =====
   const todaySchedule = useMemo<TodayScheduleItem[]>(() => {
@@ -501,6 +517,8 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
     todaySchedule,
     businessMetrics,
     healthyAthletes,
+    completedTodayCount,
+    pendingReviewCount,
     isLoading,
     error: error as Error | null,
   };
