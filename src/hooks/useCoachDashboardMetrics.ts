@@ -382,9 +382,16 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
     });
   }, [athletes, readinessData, injuries, workoutLogs, workouts, today]);
 
-  // ===== COMPUTED: Pending review set (completed, no coach feedback) =====
-  // Kept SEPARATE from the sliced feed below: the feed caps at 10 rows for
-  // layout, but any counted claim must use the uncapped length.
+  // ===== COMPUTED: Pending review (completed, no coach feedback) =====
+  // Two different quantities, deliberately: the COUNT is every unreviewed
+  // completed log in the fetched 28-day window (a counted claim must not
+  // shrink to the feed's priority filter), while the FEED below keeps its
+  // notes-or-last-24h priority filter and its 10-row display cap.
+  const pendingReviewCount = useMemo(
+    () => workoutLogs.filter((log) => log.completed_at && !log.coach_feedback).length,
+    [workoutLogs],
+  );
+
   const pendingReviewLogs = useMemo(() => {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -396,12 +403,15 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
     });
   }, [workoutLogs]);
 
-  const pendingReviewCount = pendingReviewLogs.length;
-
   // ===== COMPUTED: Workouts completed today (workout_logs.completed_at) =====
-  // Same UTC-date convention as calculateAcwr above.
+  // LOCAL date on both sides: `today` is local, so the timestamp converts
+  // through Date (a session closed at 00:30 local is today's, not
+  // yesterday's UTC day).
   const completedTodayCount = useMemo(
-    () => workoutLogs.filter((log) => log.completed_at?.split("T")[0] === today).length,
+    () =>
+      workoutLogs.filter(
+        (log) => log.completed_at && format(new Date(log.completed_at), "yyyy-MM-dd") === today,
+      ).length,
     [workoutLogs, today],
   );
 

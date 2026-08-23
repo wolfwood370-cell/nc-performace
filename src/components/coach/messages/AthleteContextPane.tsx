@@ -443,12 +443,14 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                         : "—"}
                     </span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-500"
-                      style={{ width: `${workoutData?.compliance.percentage ?? 0}%` }}
-                    />
-                  </div>
+                  {workoutData && (
+                    <div className="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${workoutData.compliance.percentage}%` }}
+                      />
+                    </div>
+                  )}
                   {workoutData && (
                     <div className="flex items-center gap-3 text-3xs">
                       <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold">

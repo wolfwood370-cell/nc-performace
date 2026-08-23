@@ -290,8 +290,8 @@ export function ProgressionInspector() {
                   <div className="min-w-0">
                     <p className="text-label-md font-bold text-on-surface mb-0.5">Coach Copilot</p>
                     {/* No fabricated recommendation: the auto-regulation
-                        engine is not wired yet, and a hardcoded "+2.5% se
-                        media RPE ≤ 7.5" read as its output. */}
+                        engine is not wired yet, and the old hardcoded
+                        load/RPE teaser read as its output. */}
                     <p className="text-xs text-on-surface-variant leading-relaxed">
                       Non ancora attivo: quando l&apos;engine di auto-regolazione sarà collegato,
                       qui comparirà il suggerimento calcolato sui dati della settimana.

@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
-import { Zap, Scale, Target, Heart, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Zap, Scale, Target, Heart, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AiInsightCard } from "@/components/coach/analytics/AiInsightCard";
 
@@ -276,12 +276,15 @@ export function OverviewTab({
           </CardContent>
         </Card>
 
-        {/* Card 3: Weekly Compliance */}
+        {/* Card 3: workouts of the week. "Allenamenti", not "Compliance":
+            no plan is consulted, so a past day without a log is simply a
+            day without a workout — never a red "missed" verdict (that
+            judgment needs the plan, which is another slice). */}
         <Card className="md:col-span-1 lg:col-span-2 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              Compliance Settimanale
+              Allenamenti della settimana
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -295,17 +298,17 @@ export function OverviewTab({
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center transition-all",
                       day.status === "completed" && "bg-success text-success-foreground",
-                      day.status === "rest" && "bg-muted text-muted-foreground",
-                      day.status === "missed" &&
-                        "bg-destructive/20 text-destructive border-2 border-destructive/50",
+                      (day.status === "rest" || day.status === "missed") &&
+                        "bg-muted text-muted-foreground",
                       day.status === "future" &&
                         "bg-muted/30 text-muted-foreground/50 border border-dashed border-muted-foreground/30",
                       day.isToday && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                     )}
                   >
                     {day.status === "completed" && <CheckCircle2 className="h-4 w-4" />}
-                    {day.status === "missed" && <XCircle className="h-4 w-4" />}
-                    {day.status === "rest" && <span className="text-xs">—</span>}
+                    {(day.status === "rest" || day.status === "missed") && (
+                      <span className="text-xs">—</span>
+                    )}
                     {day.status === "future" && <span className="text-xs">•</span>}
                   </div>
                 </div>
