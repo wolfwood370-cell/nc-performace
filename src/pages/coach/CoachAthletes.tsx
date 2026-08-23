@@ -35,8 +35,8 @@
  * AthleteCard mapping:
  *   - acwrValue: trigger State Critical quando ACWR > 1.5
  *   - readinessScore: già 0-100 dal hook rischio (conversione unica in readinessMath) — passthrough
- *   - painMarkers: derivati dai riskFlags con label fisiologico
- *   - missingOnboardingSteps: array vuoto per "onboarding" filter → AthleteCard renderizza Pending
+ *   - painMarkers: riskFlags selezionati per type === "pain_reported" (mai per label)
+ *   - missingOnboardingSteps: ["Primo check-in"] quando nessun check-in esiste → State C
  */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -53,6 +53,7 @@ import { InviteAthleteDialog } from "@/components/coach/InviteAthleteDialog";
 import { AthleteCard } from "@/components/coach/AthleteCard";
 
 import { useAthletesRiskOverview, type AthleteRiskData } from "@/hooks/useAthletesRiskOverview";
+import { selectPainMarkers } from "@/lib/painMarkers";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -358,20 +359,17 @@ export default function CoachAthletes() {
                 // (the single conversion point). Pass through, never rescale.
                 const readinessScore =
                   typeof athlete.latestReadiness === "number" ? athlete.latestReadiness : undefined;
-                // Pain markers — pull from riskFlags labelled with bodyparts.
-                const painMarkers = athlete.riskFlags
-                  .filter((f) =>
-                    /dolore|fastidio|infortun|spalla|ginocch|caviglia|schiena|lomb/i.test(f.label),
-                  )
-                  .map((f) => f.label);
-                // Onboarding stub — when the filter is "onboarding", show the
-                // Pending state via missingOnboardingSteps. Real per-athlete
-                // missing-step detection lives elsewhere; here we just signal
-                // "incomplete" so AthleteCard switches to State C.
+                // Pain markers — selected by flag TYPE (stable identifier),
+                // never by the displayed label text (see selectPainMarkers).
+                const painMarkers = selectPainMarkers(athlete.riskFlags);
+                // Onboarding — the ONLY thing this condition measures is
+                // "no check-in ever recorded", so the pending stepper names
+                // exactly that step. No invented step list ("PAR-Q", …):
+                // per-athlete step detection does not exist yet.
                 const missingOnboardingSteps =
                   activeFilter === "onboarding" ||
                   (athlete.readinessDate === null && athlete.latestReadiness === null)
-                    ? ["PAR-Q", "Prima sessione"]
+                    ? ["Primo check-in"]
                     : undefined;
                 return (
                   <div key={athlete.athleteId} role="listitem">
@@ -380,7 +378,7 @@ export default function CoachAthletes() {
                       athleteName={isLive ? `🔴 ${athlete.athleteName}` : athlete.athleteName}
                       avatarUrl={athlete.avatarUrl}
                       avatarInitials={athlete.avatarInitials}
-                      lastActivityDate={athlete.readinessDate}
+                      lastCheckinDate={athlete.readinessDate}
                       programName={null}
                       isActive={isWithinDays(athlete.readinessDate, 3)}
                       acwrValue={acwrValue}
