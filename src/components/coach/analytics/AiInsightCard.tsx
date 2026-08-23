@@ -207,8 +207,12 @@ export function AiInsightCard({ athleteId }: AiInsightCardProps) {
                       <HelpCircle className="h-3 w-3" />
                     </span>
                   </TooltipTrigger>
+                  {/* Name what the number IS: an AI-assigned qualitative
+                      score on the weekly report — no RPE/VBT/recovery index
+                      is computed anywhere. */}
                   <TooltipContent side="top" className="max-w-[220px] text-xs">
-                    Indice calcolato su base RPE, VBT e trend di recupero.
+                    Valutazione qualitativa (0-100%) assegnata dall&apos;AI al report della
+                    settimana. Non è un indice calcolato da RPE o metriche di recupero.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
