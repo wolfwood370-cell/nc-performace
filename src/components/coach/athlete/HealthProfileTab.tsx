@@ -277,6 +277,13 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
   );
 }
 
+/** Human date of a check-in row, tolerant of malformed input. Shared by
+ *  the pain-answer card and the soreness rows so the two never disagree. */
+function formatReportDate(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  return Number.isNaN(parsed.getTime()) ? isoDate : format(parsed, "EEEE d MMM", { locale: it });
+}
+
 /**
  * One check-in day and the zones it carries.
  *
@@ -288,13 +295,6 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
  * showing a number whose scale nobody can vouch for. The key is unambiguous;
  * the value is not.
  */
-/** Human date of a check-in row, tolerant of malformed input. Shared by
- *  the pain-answer card and the soreness rows so the two never disagree. */
-function formatReportDate(isoDate: string): string {
-  const parsed = new Date(isoDate);
-  return Number.isNaN(parsed.getTime()) ? isoDate : format(parsed, "EEEE d MMM", { locale: it });
-}
-
 function SorenessDayRow({ report }: { report: RecentPainReport }) {
   const label = formatReportDate(report.date);
 

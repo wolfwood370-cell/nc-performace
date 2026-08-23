@@ -98,7 +98,9 @@ describe("confine form→mutazione — il cablaggio del check-in", () => {
 
     expect(mocks.mutate).toHaveBeenCalledTimes(1);
     const payload = mocks.mutate.mock.calls[0][0];
-    // Each field pinned: a swap of ANY pair at the boundary must fail here.
+    // Each field pinned. NB: in THIS vector fatigue_score and stress_level
+    // are both 4 (and both inverted axes), so a fatigue/stress swap is
+    // invisible here — the all-distinct vector below covers that pair.
     expect(payload.sleep_quality, "sleep_quality").toBe(6);
     expect(payload.fatigue_score, "fatigue_score (energia invertita)").toBe(4);
     expect(payload.stress_level, "stress_level").toBe(4);
@@ -110,6 +112,28 @@ describe("confine form→mutazione — il cablaggio del check-in", () => {
     // Untouched pain question: null, never forged to false (CORE §0.8).
     expect(payload.has_pain, "has_pain non risposto").toBeNull();
     expect(payload.soreness_map).toEqual({});
+  });
+
+  it("valori tutti distinti: qualunque scambio di coppia muove un campo o il punteggio", async () => {
+    // Stress 1 instead of 2 → scaled values 6·4·2·8·10, all distinct and on
+    // mixed polarities: every pair swap at the payload literal changes a
+    // field assertion, and every pair swap at the computeCheckinScore call
+    // (:337) changes the score (73 becomes 74/46/55/76/82… — never 73).
+    await tap("Sonno 3");
+    await tap("Energia 4");
+    await tap("Stress 1");
+    await tap("Umore 4");
+    await tap("Digestione 5");
+    await tapText("Salva");
+
+    expect(mocks.mutate).toHaveBeenCalledTimes(1);
+    const payload = mocks.mutate.mock.calls[0][0];
+    expect(payload.sleep_quality, "sleep_quality").toBe(6);
+    expect(payload.fatigue_score, "fatigue_score").toBe(4);
+    expect(payload.stress_level, "stress_level").toBe(2);
+    expect(payload.mood, "mood").toBe(8);
+    expect(payload.digestion, "digestion").toBe(10);
+    expect(payload.score, "score composito").toBe(73);
   });
 
   it("dolore risposto «No» ⇒ has_pain false esplicito (una risposta, non un default)", async () => {

@@ -68,8 +68,10 @@ interface DailyReadinessRaw {
   has_pain: boolean | null;
 }
 
-/** Pain answer of the MOST RECENT `daily_readiness` row — the same day the
- *  readiness number describes, never "some pain in the 28-day window". */
+/** Pain answer of the MOST RECENT `daily_readiness` row — never "some pain
+ *  in the 28-day window". NB: `latestReadiness` may instead come from
+ *  `daily_metrics` (source-precedence, see :287), so the two dates can
+ *  differ — the flag label carries ITS OWN date for exactly that reason. */
 export interface PainReport {
   hasPain: boolean | null;
   /** ISO date (YYYY-MM-DD) of that row — carried into the flag label. */
