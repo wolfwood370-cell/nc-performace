@@ -388,7 +388,8 @@ function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
 // GlanceCards — single full-width Prontezza card, honest in both states:
 //   - check-in missing → tappable button into /athlete/daily-checkin;
 //     the score slot shows "—" (absent value → dash, never an invented
-//     number) under the "Da registrare" state label.
+//     number) under the "Da registrare" state label, and the mini ring
+//     draws NO arc — an empty track, never a measured-looking 0%.
 //   - check-in done → static, non-interactive card with the REAL score
 //     only. No qualitative label: a score→label mapping is not a
 //     validated method yet, and the mock analysis pages the card used
@@ -413,7 +414,7 @@ function GlanceCards() {
       <span className="font-sans text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">
         Prontezza
       </span>
-      <MiniReadinessRing percent={dailyScore ?? 0} />
+      <MiniReadinessRing percent={dailyScore} />
     </div>
   );
 
@@ -449,27 +450,30 @@ function GlanceCards() {
 }
 
 // =============================================================================
-// MiniReadinessRing — tiny SVG ring used inside the glance card.
+// MiniReadinessRing — tiny SVG ring used inside the glance card. A null
+// percent means "no measurement": only the track is drawn — a 0% arc would
+// claim a measured zero the athlete never registered.
 // =============================================================================
-function MiniReadinessRing({ percent }: { percent: number }) {
+function MiniReadinessRing({ percent }: { percent: number | null }) {
   const r = 14;
   const circumference = 2 * Math.PI * r;
-  const safe = Math.max(0, Math.min(100, percent));
-  const offset = circumference * (1 - safe / 100);
+  const safe = percent === null ? null : Math.max(0, Math.min(100, percent));
   return (
     <svg width="24" height="24" viewBox="0 0 36 36" className="-rotate-90" aria-hidden="true">
       <circle cx="18" cy="18" r={r} fill="none" stroke="#c5e7ff" strokeWidth="4" />
-      <circle
-        cx="18"
-        cy="18"
-        r={r}
-        fill="none"
-        stroke="#226fa3"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-      />
+      {safe !== null && (
+        <circle
+          cx="18"
+          cy="18"
+          r={r}
+          fill="none"
+          stroke="#226fa3"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - safe / 100)}
+        />
+      )}
     </svg>
   );
 }
