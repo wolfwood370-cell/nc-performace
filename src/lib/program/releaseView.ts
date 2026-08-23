@@ -93,11 +93,19 @@ export function parseReleaseDocument(doc: unknown): ReleaseProgramView | null {
       const sets = typeof ex.sets === "number" ? ex.sets : 0;
       const reps = typeof ex.reps === "string" ? ex.reps : "";
       const load = typeof ex.load === "string" ? ex.load : "";
+      // Degenerate v1 fields stay ABSENT in the scheme: a malformed
+      // document must not render a fabricated "0 Serie ×  Reps" as if it
+      // were a prescription of zero. Well-formed docs (builder validates
+      // sets >= 1) compose byte-identically to the previous template.
+      const schemeParts: string[] = [];
+      if (sets > 0) schemeParts.push(`${sets} Serie`);
+      if (reps !== "") schemeParts.push(`${reps} Reps`);
+      const schemeBase = schemeParts.join(" × ");
       exercises.push({
         id: typeof ex.item_id === "string" ? ex.item_id : `e${i + 1}`,
         code: letterCode(i),
         name: ex.name,
-        scheme: `${sets} Serie × ${reps} Reps${load ? ` · ${load}` : ""}`,
+        scheme: load ? (schemeBase ? `${schemeBase} · ${load}` : load) : schemeBase,
         sets,
         reps,
         rpe: typeof ex.rpe === "number" ? ex.rpe : 0,
