@@ -148,6 +148,16 @@ function DroppableDayCell({
     workouts.length + appointments.length + (showGoogleEvents ? busySlots.length : 0) > 0;
   const totalEvents =
     workouts.length + appointments.length + (showGoogleEvents ? busySlots.length : 0);
+  // "+N altri" must count the events actually HIDDEN by the chip caps
+  // below, not "total minus a constant 3": the cell can render from 2 to
+  // 5 chips depending on which archetypes are present.
+  const shownEvents =
+    (missedWorkout ? 1 : 0) +
+    Math.min(workouts.filter((w) => w.status !== "missed").length, missedWorkout ? 1 : 2) +
+    (rehabAppointment ? 1 : 0) +
+    Math.min(appointments.filter((a) => a.id !== rehabAppointment?.id).length, 1) +
+    (showGoogleEvents ? Math.min(busySlots.length, 1) : 0);
+  const hiddenEvents = totalEvents - shownEvents;
 
   // State A — Out of month (faded, transparent)
   if (!isCurrentMonth) {
@@ -292,9 +302,9 @@ function DroppableDayCell({
             </span>
           ))}
 
-        {totalEvents > 3 && (
+        {hiddenEvents > 0 && (
           <span className="text-3xs text-on-surface-variant px-1 font-medium">
-            +{totalEvents - 3} altri
+            +{hiddenEvents} altri
           </span>
         )}
       </div>

@@ -44,7 +44,7 @@ import {
   ArrowRightCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { log } from "@/lib/logger";
 import { useCoachAppointments } from "@/hooks/useCoachAppointments";
 
@@ -67,30 +67,12 @@ interface Athlete {
   avatar_url: string | null;
 }
 
-// Mock Google Calendar busy slots (for UI preparation)
-const MOCK_GOOGLE_BUSY_SLOTS: GoogleBusySlot[] = [
-  {
-    id: "g1",
-    title: "Riunione Team",
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "10:00",
-    endTime: "11:00",
-  },
-  {
-    id: "g2",
-    title: "Call Cliente",
-    date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-    startTime: "14:00",
-    endTime: "15:00",
-  },
-  {
-    id: "g3",
-    title: "Appuntamento",
-    date: format(addDays(new Date(), 3), "yyyy-MM-dd"),
-    startTime: "09:00",
-    endTime: "10:30",
-  },
-];
+// No Google Calendar integration exists yet: the busy-slot feed stays
+// EMPTY until one does. The old mock slots ("Riunione Team" 10:00-11:00,
+// anchored to today so they always appeared) rendered fabricated
+// engagements under a "Google" badge as if they were synced from the
+// coach's real calendar.
+const GOOGLE_BUSY_SLOTS: GoogleBusySlot[] = [];
 
 // `MOCK_APPOINTMENTS` removed — see `useCoachAppointments` (audit M3).
 
@@ -662,7 +644,7 @@ export default function CoachCalendar() {
                 ) : (
                   <CalendarGrid
                     workoutLogs={workoutLogs}
-                    googleBusySlots={MOCK_GOOGLE_BUSY_SLOTS}
+                    googleBusySlots={GOOGLE_BUSY_SLOTS}
                     onDateSelect={setSelectedDate}
                     selectedDate={selectedDate}
                     view={viewMode}
