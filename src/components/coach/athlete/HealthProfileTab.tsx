@@ -7,6 +7,7 @@ import { it } from "date-fns/locale";
 import {
   useAthleteHealthProfile,
   getStatusLabel,
+  painAnswerLabel,
   type HealthStatus,
   type FmsScore,
   type RecentPainReport,
@@ -43,6 +44,15 @@ function fmsScoreTone(status: FmsScore["status"]): string {
     case "pain":
       return "text-destructive border-destructive/40";
   }
+}
+
+/** Three tones for three states: declared pain, declared "no pain",
+ *  unanswered. The neutral tone is deliberate — an unanswered question
+ *  is not a green light (CORE §0.8). */
+function painAnswerTone(hasPain: boolean | null): string {
+  if (hasPain === true) return "text-destructive border-destructive/40";
+  if (hasPain === false) return "text-success border-success/40";
+  return "text-muted-foreground border-border";
 }
 
 /**
@@ -94,6 +104,11 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
     (r) => Object.keys(r.sorenessMap ?? {}).length > 0,
   );
 
+  // Most recent check-in row (hook orders date DESC). Rendered as a
+  // three-state answer: "Non risposto" is a state of its own, never
+  // collapsed into "nessun dolore".
+  const latestPainAnswer = recentPainReports[0];
+
   return (
     <div className="space-y-6">
       {/* Semaforo — overall clinical status */}
@@ -125,6 +140,29 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pain answer of the latest check-in — three states, never two */}
+      {latestPainAnswer && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <HeartPulse className="h-4 w-4 text-muted-foreground" />
+              Dolore — ultimo check-in
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-3">
+            <p className="text-xs capitalize text-muted-foreground">
+              {formatReportDate(latestPainAnswer.date)}
+            </p>
+            <Badge
+              variant="outline"
+              className={cn("shrink-0", painAnswerTone(latestPainAnswer.hasPain))}
+            >
+              {painAnswerLabel(latestPainAnswer.hasPain)}
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Soreness zones from the daily check-in */}
       {daysWithZones.length > 0 && (
@@ -239,6 +277,13 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
   );
 }
 
+/** Human date of a check-in row, tolerant of malformed input. Shared by
+ *  the pain-answer card and the soreness rows so the two never disagree. */
+function formatReportDate(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  return Number.isNaN(parsed.getTime()) ? isoDate : format(parsed, "EEEE d MMM", { locale: it });
+}
+
 /**
  * One check-in day and the zones it carries.
  *
@@ -251,10 +296,7 @@ export function HealthProfileTab({ athleteId }: HealthProfileTabProps) {
  * the value is not.
  */
 function SorenessDayRow({ report }: { report: RecentPainReport }) {
-  const parsed = new Date(report.date);
-  const label = Number.isNaN(parsed.getTime())
-    ? report.date
-    : format(parsed, "EEEE d MMM", { locale: it });
+  const label = formatReportDate(report.date);
 
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2">

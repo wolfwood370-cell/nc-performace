@@ -7,7 +7,8 @@ import { useAuth } from "./useAuth";
 import { COACH_ROSTER_QUERY_OPTS } from "@/lib/coachQueries";
 
 export type RiskLevel = "high" | "moderate" | "low" | "optimal";
-type RiskType = "high_injury_risk" | "detraining_risk" | "low_recovery" | "overload_warning";
+type RiskType =
+  "high_injury_risk" | "detraining_risk" | "low_recovery" | "overload_warning" | "pain_reported";
 
 export interface RiskFlag {
   type: RiskType;
@@ -62,6 +63,36 @@ interface DailyReadinessRaw {
   athlete_id: string;
   date: string;
   score: number | null;
+  /** Three-way by schema: true = pain declared, false = answered "no",
+   *  null = unanswered — never forged into false (CORE §0.8). */
+  has_pain: boolean | null;
+}
+
+/** Pain answer of the MOST RECENT `daily_readiness` row — never "some pain
+ *  in the 28-day window". NB: `latestReadiness` may instead come from
+ *  `daily_metrics` (source-precedence, see :287), so the two dates can
+ *  differ — the flag label carries ITS OWN date for exactly that reason. */
+export interface PainReport {
+  hasPain: boolean | null;
+  /** ISO date (YYYY-MM-DD) of that row — carried into the flag label. */
+  date: string;
+}
+
+/** dd/MM for the flag label. String arithmetic on the ISO date on purpose:
+ *  no Date parse, no timezone in the middle. */
+function shortItDate(isoDate: string): string {
+  const [, month, day] = isoDate.split("-");
+  return `${day}/${month}`;
+}
+
+/** Most recent row wins by date, whatever the array order. Older pain is
+ *  clinical history: it belongs to the health profile tab, not this flag. */
+export function latestPainReport(
+  rows: ReadonlyArray<Pick<DailyReadinessRaw, "date" | "has_pain">>,
+): PainReport | null {
+  if (rows.length === 0) return null;
+  const latest = rows.reduce((a, b) => (b.date > a.date ? b : a));
+  return { hasPain: latest.has_pain ?? null, date: latest.date };
 }
 
 interface AthleteProfile {
@@ -107,9 +138,10 @@ function calculateAcwr(dailyLoads: number[]): {
   };
 }
 
-function assessRisks(
+export function assessRisks(
   acwr: number | null,
   readiness: number | null,
+  pain: PainReport | null,
 ): { riskLevel: RiskLevel; riskFlags: RiskFlag[] } {
   const flags: RiskFlag[] = [];
   if (acwr !== null) {
@@ -145,6 +177,20 @@ function assessRisks(
       level: "high",
       value: `Readiness ${readiness}/100`,
       details: "Athlete reports poor recovery status",
+    });
+  }
+  // Fifth flag — declared pain on the LATEST check-in row. Only an explicit
+  // "yes" raises it: false is an answer, null is the absence of one, and
+  // neither may become the other (CORE §0.8). Level "high" (ratified
+  // 2026-08-22): pain never averages into the readiness score, so it must
+  // not dilute into a "moderate" aggregate either.
+  if (pain?.hasPain === true) {
+    flags.push({
+      type: "pain_reported",
+      label: `Dolore dichiarato (${shortItDate(pain.date)})`,
+      level: "high",
+      value: `Check-in ${shortItDate(pain.date)}`,
+      details: "L'atleta ha dichiarato dolore nell'ultimo check-in",
     });
   }
   let riskLevel: RiskLevel = "optimal";
@@ -218,7 +264,7 @@ export function useAthletesRiskOverview() {
       if (!user || athleteIds.length === 0) return [];
       const { data, error } = await supabase
         .from("daily_readiness")
-        .select("id, athlete_id, date, score")
+        .select("id, athlete_id, date, score, has_pain")
         .in("athlete_id", athleteIds)
         .gte("date", twentyEightDaysAgo.toISOString().split("T")[0])
         .order("date", { ascending: false });
@@ -245,7 +291,10 @@ export function useAthletesRiskOverview() {
         ? subjectiveReadinessToScore(latestMetric.subjective_readiness)
         : (latestReadinessRecord?.score ?? null);
     const readinessDate = latestMetric?.date ?? latestReadinessRecord?.date ?? null;
-    const { riskLevel, riskFlags } = assessRisks(acwr, latestReadiness);
+    const pain = latestPainReport(
+      (readinessQuery.data ?? []).filter((r) => r.athlete_id === athlete.id),
+    );
+    const { riskLevel, riskFlags } = assessRisks(acwr, latestReadiness, pain);
     const avatarInitials =
       athlete.full_name
         ?.split(" ")
