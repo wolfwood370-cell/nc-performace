@@ -289,9 +289,12 @@ export function ProgressionInspector() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-label-md font-bold text-on-surface mb-0.5">Coach Copilot</p>
+                    {/* No fabricated recommendation: the auto-regulation
+                        engine is not wired yet, and a hardcoded "+2.5% se
+                        media RPE ≤ 7.5" read as its output. */}
                     <p className="text-xs text-on-surface-variant leading-relaxed">
-                      Suggerisce di aumentare il carico del 2.5% sulla prossima microsettimana se la
-                      media RPE ≤ 7.5.
+                      Non ancora attivo: quando l&apos;engine di auto-regolazione sarà collegato,
+                      qui comparirà il suggerimento calcolato sui dati della settimana.
                     </p>
                   </div>
                 </div>
@@ -339,6 +342,15 @@ function ExerciseContextTile({
   session: Session;
 }) {
   const lastSet = exercise.sets[exercise.sets.length - 1];
+  // Label follows the datum: RIR is a DIFFERENT, inverse scale (RIR 2 ≈
+  // RPE 8, types/training.ts) — a RIR value under a "Last RPE" label read
+  // a hard set as a feather-light one.
+  const lastIntensity =
+    lastSet?.rpe_target != null
+      ? { label: "Last RPE", value: lastSet.rpe_target }
+      : lastSet?.rir_target != null
+        ? { label: "Last RIR", value: lastSet.rir_target }
+        : { label: "Last RPE", value: "—" as const };
   return (
     <section className="rounded-2xl bg-surface-container-low p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -357,11 +369,7 @@ function ExerciseContextTile({
 
       <div className="grid grid-cols-3 gap-2 mt-3">
         <Stat label="Serie" value={exercise.sets.length} icon={Flame} />
-        <Stat
-          label="Last RPE"
-          value={lastSet?.rpe_target ?? lastSet?.rir_target ?? "—"}
-          icon={Zap}
-        />
+        <Stat label={lastIntensity.label} value={lastIntensity.value} icon={Zap} />
         <Stat
           label="Top %1RM"
           value={Math.max(0, ...exercise.sets.map((s) => s.percent_1rm_target ?? 0)) || "—"}
