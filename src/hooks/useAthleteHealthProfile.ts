@@ -39,7 +39,9 @@ export interface ActiveInjury {
 
 export interface RecentPainReport {
   date: string;
-  hasPain: boolean;
+  /** Three-way (CORE §0.8): true = pain declared · false = answered "no
+   *  pain" · null = question unanswered. Never forged into false. */
+  hasPain: boolean | null;
   sorenessMap: Record<string, number>;
 }
 
@@ -88,6 +90,27 @@ function getStatusLabel(status: FmsScore["status"]): string {
     case "optimal":
       return "Ottimale";
   }
+}
+
+/** DB→view mapping for the last-7-days pain reports. Exported for the
+ *  boundary test: the null of an unanswered question must survive this
+ *  mapping — it used to die here as `|| false`. */
+export function toRecentPainReports(
+  rows: ReadonlyArray<{ date: string; has_pain: boolean | null; soreness_map: unknown }>,
+): RecentPainReport[] {
+  return rows.map((r) => ({
+    date: r.date,
+    hasPain: r.has_pain ?? null,
+    sorenessMap: (r.soreness_map as Record<string, number>) || {},
+  }));
+}
+
+/** User-facing label of the three-way pain answer. "Non risposto" is a
+ *  distinct state: an unanswered question must never read as "no pain". */
+export function painAnswerLabel(hasPain: boolean | null): string {
+  if (hasPain === true) return "Dolore dichiarato";
+  if (hasPain === false) return "Nessun dolore dichiarato";
+  return "Non risposto";
 }
 
 /**
@@ -212,14 +235,10 @@ export function useAthleteHealthProfile(athleteId: string | null) {
         injuryDate: injury.injury_date,
       }));
 
-      // Process recent pain reports
-      const recentPainReports: RecentPainReport[] = readinessData.map((r) => ({
-        date: r.date,
-        hasPain: r.has_pain || false,
-        sorenessMap: (r.soreness_map as Record<string, number>) || {},
-      }));
+      // Process recent pain reports — null preserved (CORE §0.8)
+      const recentPainReports: RecentPainReport[] = toRecentPainReports(readinessData);
 
-      const hasRecentPain = recentPainReports.some((r) => r.hasPain);
+      const hasRecentPain = recentPainReports.some((r) => r.hasPain === true);
 
       // Generate summary
       const summary = generateHealthSummary({
@@ -281,9 +300,9 @@ function generateHealthSummary({
     });
   }
 
-  // Check for recent pain
+  // Check for recent pain — only an explicit "yes" counts (null is not an answer)
   if (hasRecentPain) {
-    const painDays = recentPainReports.filter((r) => r.hasPain);
+    const painDays = recentPainReports.filter((r) => r.hasPain === true);
     if (painDays.length > 0) {
       if (status !== "red") status = "red";
       details.push(`Dolore riportato negli ultimi ${painDays.length} giorni`);
