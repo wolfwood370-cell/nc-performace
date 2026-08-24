@@ -19,20 +19,16 @@ import { Area, AreaChart, XAxis, YAxis } from "recharts";
 import { Zap, Scale, Target, Heart, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AiInsightCard } from "@/components/coach/analytics/AiInsightCard";
+import {
+  ACWR_BAND_LABELS,
+  ACWR_CAVEAT,
+  acwrAbsenceText,
+  type AcwrComputation,
+} from "@/lib/math/acwr";
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
-
-type AcwrStatus = "insufficient-data" | "optimal" | "warning" | "high-risk";
-
-interface AcwrData {
-  status: AcwrStatus;
-  ratio: number | null;
-  label: string;
-  acuteLoad: number;
-  chronicLoad: number;
-}
 
 interface ReadinessColors {
   stroke: string;
@@ -79,7 +75,8 @@ export interface OverviewTabProps {
   readinessScore: number | null;
   readinessColors: ReadinessColors;
   acwrLoading: boolean;
-  acwrData: AcwrData | null;
+  /** The load lens from src/lib/math/acwr.ts — display-only here. */
+  acwrData: AcwrComputation | null;
   weightTrend: WeightTrendPoint[] | undefined;
   weeklyCompliance: WeeklyCompliance;
   painStatus: PainStatus;
@@ -149,48 +146,48 @@ export function OverviewTab({
                 </div>
               </div>
 
-              {/* ACWR Display */}
+              {/* Load lens — words from the acwr module (single owner):
+                  the ratio with its band and the caveat, or the absence
+                  with its reason. Neutral tokens: a description is not a
+                  verdict, so it wears no alarm colours. */}
               <div className="flex-1 space-y-3">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">ACWR (Acuto:Cronico)</p>
-                  {acwrLoading ? (
-                    <Skeleton className="h-10 w-20" />
-                  ) : acwrData?.status === "insufficient-data" ? (
-                    <p className="text-2xl font-bold text-muted-foreground">—</p>
-                  ) : (
-                    <div className="flex items-baseline gap-2">
-                      <span
-                        className={cn(
-                          "text-3xl font-bold tabular-nums",
-                          acwrData?.status === "optimal" && "text-success",
-                          acwrData?.status === "warning" && "text-warning",
-                          acwrData?.status === "high-risk" && "text-destructive",
-                        )}
-                      >
-                        {acwrData?.ratio?.toFixed(2) || "—"}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-3xs",
-                          acwrData?.status === "optimal" && "bg-success/10 text-success",
-                          acwrData?.status === "warning" && "bg-warning/10 text-warning",
-                          acwrData?.status === "high-risk" && "bg-destructive/10 text-destructive",
-                        )}
-                      >
-                        {acwrData?.label || "N/A"}
-                      </Badge>
+                  <p className="text-xs text-muted-foreground mb-1">Carico recente vs abituale</p>
+                  {acwrLoading && <Skeleton className="h-10 w-20" />}
+                  {!acwrLoading && (!acwrData || acwrData.available === false) && (
+                    <div>
+                      <p className="text-2xl font-bold text-muted-foreground">—</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {acwrData && acwrData.available === false
+                          ? acwrAbsenceText(acwrData)
+                          : "Dati non disponibili"}
+                      </p>
+                    </div>
+                  )}
+                  {!acwrLoading && acwrData && acwrData.available === true && (
+                    <div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-bold tabular-nums text-foreground">
+                          {acwrData.ratio.toFixed(2)}
+                        </span>
+                        <Badge variant="secondary" className="text-3xs">
+                          {ACWR_BAND_LABELS[acwrData.band]}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{ACWR_CAVEAT}</p>
                     </div>
                   )}
                 </div>
 
-                {acwrData && acwrData.status !== "insufficient-data" && (
+                {acwrData && acwrData.available === true && (
                   <div className="flex gap-4 text-xs text-muted-foreground">
                     <span>
-                      Acuto: <strong className="text-foreground">{acwrData.acuteLoad}</strong>
+                      Recente (7gg):{" "}
+                      <strong className="text-foreground">{acwrData.acuteLoad}</strong>
                     </span>
                     <span>
-                      Cronico: <strong className="text-foreground">{acwrData.chronicLoad}</strong>
+                      Abituale (28gg):{" "}
+                      <strong className="text-foreground">{acwrData.chronicLoad}</strong>
                     </span>
                   </div>
                 )}
