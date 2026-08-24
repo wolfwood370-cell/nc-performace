@@ -2,7 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import { ACWR_BAND_LABELS, ACWR_CAVEAT, computeAcwr, type AcwrComputation } from "@/lib/math/acwr";
+import {
+  ACWR_BAND_LABELS,
+  ACWR_CAVEAT,
+  acwrLookbackStartIso,
+  computeAcwr,
+  type AcwrComputation,
+} from "@/lib/math/acwr";
 import { subjectiveReadinessToScore } from "@/lib/math/readinessMath";
 import { getArchivedAt, isArchived } from "@/types/profile";
 import { useAuth } from "./useAuth";
@@ -179,6 +185,11 @@ export function useAthletesRiskOverview() {
   const now = new Date();
   const twentyEightDaysAgo = new Date(now);
   twentyEightDaysAgo.setDate(now.getDate() - 28);
+  // Local calendar day on purpose: the same convention every load surface
+  // uses, so the parity contract holds — same athlete, same "today", same
+  // outcome everywhere. The fetch bound below comes from the module too
+  // (day boundary, ACWR_LOOKBACK_DAYS deep): the window is ITS contract.
+  const todayIso = format(now, "yyyy-MM-dd");
 
   const athletesQuery = useQuery({
     queryKey: ["risk-overview-athletes", user?.id],
@@ -207,7 +218,7 @@ export function useAthletesRiskOverview() {
         .select("id, athlete_id, completed_at, duration_seconds, srpe")
         .in("athlete_id", athleteIds)
         .not("completed_at", "is", null)
-        .gte("completed_at", twentyEightDaysAgo.toISOString())
+        .gte("completed_at", acwrLookbackStartIso(todayIso))
         .order("completed_at", { ascending: true });
       if (error) throw error;
       return data as WorkoutLogRaw[];
@@ -246,11 +257,6 @@ export function useAthletesRiskOverview() {
     },
     enabled: !!user && profile?.role === "coach" && athleteIds.length > 0,
   });
-
-  // Local calendar day on purpose: the same convention every load surface
-  // uses (see useCoachDashboardMetrics `today`), so the parity contract
-  // holds — same athlete, same "today", same outcome everywhere.
-  const todayIso = format(now, "yyyy-MM-dd");
 
   const athleteRiskData: AthleteRiskData[] = (athletesQuery.data ?? []).map((athlete) => {
     const athleteLogs = (logsQuery.data ?? []).filter((log) => log.athlete_id === athlete.id);

@@ -1,14 +1,15 @@
 // =============================================================================
 // Parità cross-superficie (C-09) — la prova rossa sul meccanismo.
 //
-// Le tre superfici del carico (roster, dettaglio atleta, dashboard) entrano
-// nel modulo unico SOLO attraverso i loro adapter puri. Questo test dà agli
-// adapter lo STESSO insieme di log e lo stesso «oggi» e pretende lo stesso
-// esito: se una superficie reintroduce una fusione propria (srpe??rpe_global,
-// default inventati, soglie locali), il test fallisce NOMINANDO le due
-// superfici e i due valori. Poi: la finestra minima uccide il numero su
-// tutte le superfici insieme, e la scala per-serie (rpe_global) non può
-// sostituire quella di sessione su nessuna.
+// Le superfici del carico (roster e dettaglio atleta; la dashboard non lo
+// mostra più: la vecchia RULE 5 fabbricava carico ed è stata rimossa)
+// entrano nel modulo unico SOLO attraverso i loro adapter puri. Questo test
+// dà agli adapter lo STESSO insieme di log e lo stesso «oggi» e pretende lo
+// stesso esito: se una superficie reintroduce una fusione propria
+// (srpe??rpe_global, default inventati, soglie locali), il test fallisce
+// NOMINANDO le due superfici e i due valori. Poi: la finestra minima uccide
+// il numero su tutte le superfici insieme, e la scala per-serie (rpe_global)
+// non può sostituire quella di sessione su nessuna.
 // =============================================================================
 import { describe, expect, it, vi } from "vitest";
 
@@ -18,7 +19,6 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import { riskOverviewAcwr } from "@/hooks/useAthletesRiskOverview";
 import { athleteAcwrFromLogs } from "@/hooks/useAthleteAcwrData";
-import { dashboardAcwr } from "@/hooks/useCoachDashboardMetrics";
 import type { AcwrComputation } from "@/lib/math/acwr";
 
 const TODAY = "2026-08-24";
@@ -67,7 +67,6 @@ type Superficie = [string, (logs: RigaLog[], todayIso: string) => AcwrComputatio
 const SUPERFICI: Superficie[] = [
   ["roster (useAthletesRiskOverview.riskOverviewAcwr)", riskOverviewAcwr],
   ["dettaglio (useAthleteAcwrData.athleteAcwrFromLogs)", athleteAcwrFromLogs],
-  ["dashboard (useCoachDashboardMetrics.dashboardAcwr)", dashboardAcwr],
 ];
 
 function esito(c: AcwrComputation): string {

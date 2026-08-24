@@ -10,6 +10,7 @@ import {
   ACWR_BAND_LABELS,
   ACWR_CAVEAT,
   acwrAbsenceText,
+  acwrLookbackStartIso,
   computeAcwr,
   type AcwrSessionInput,
 } from "@/lib/math/acwr";
@@ -190,6 +191,11 @@ describe("computeAcwr — determinismo", () => {
 
   it("una data 'oggi' non valida è un errore del chiamante, non un esito", () => {
     expect(() => computeAcwr([], "24/08/2026")).toThrow(TypeError);
+  });
+
+  it("acwrLookbackStartIso: confine di GIORNO, 42 giorni indietro (a mano: 24/08 − 42gg = 13/07)", () => {
+    expect(acwrLookbackStartIso("2026-08-24")).toBe("2026-07-13");
+    expect(() => acwrLookbackStartIso("24/08/2026")).toThrow(TypeError);
   });
 });
 

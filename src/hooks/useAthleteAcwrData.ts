@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { computeAcwr, type AcwrComputation } from "@/lib/math/acwr";
+import { acwrLookbackStartIso, computeAcwr, type AcwrComputation } from "@/lib/math/acwr";
 
 interface WorkoutLogRow {
   id: string;
@@ -44,16 +44,15 @@ export function useAthleteAcwrData(athleteId: string | undefined): {
       const todayIso = format(new Date(), "yyyy-MM-dd");
       if (!athleteId) return athleteAcwrFromLogs([], todayIso);
 
-      // Fetch window: last 28 days of completed logs (unchanged).
-      const twentyEightDaysAgo = new Date();
-      twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
-
+      // Fetch bound from the module (day boundary, ACWR_LOOKBACK_DAYS
+      // deep): the window is the module's contract, and a day boundary
+      // keeps two surfaces mounted at different hours on the same universe.
       const { data: logs, error: logsError } = await supabase
         .from("workout_logs")
         .select("id, srpe, duration_seconds, completed_at")
         .eq("athlete_id", athleteId)
         .not("completed_at", "is", null)
-        .gte("completed_at", twentyEightDaysAgo.toISOString())
+        .gte("completed_at", acwrLookbackStartIso(todayIso))
         .order("completed_at", { ascending: false });
 
       if (logsError) throw logsError;

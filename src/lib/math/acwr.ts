@@ -15,7 +15,7 @@
 // Purity: "today" is an argument — no clock, no timezone dependence
 // (calendar-day arithmetic through Date.UTC), no randomness.
 
-import { ACWR_BASELINE_DAYS } from "./constants";
+import { ACWR_BASELINE_DAYS, ACWR_LOOKBACK_DAYS } from "./constants";
 
 /** Acute (recent) window in days — the numerator of the ratio. */
 export const ACWR_ACUTE_DAYS = 7;
@@ -91,6 +91,24 @@ function dayNumber(iso: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (!m) return null;
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000;
+}
+
+/**
+ * First calendar day (ISO, YYYY-MM-DD) a caller's fetch must include so this
+ * module can both fill the chronic window AND see enough history to prove
+ * coverage. Owned here — the fetch window is part of the window contract:
+ * - a DAY boundary, not an instant: two surfaces mounting at different hours
+ *   still fetch the same universe for the same "today";
+ * - ACWR_LOOKBACK_DAYS (42) deep, not 28: sessions aged 29-42 days open the
+ *   minimum-window gate stably; with a 28-day instant fetch the gate could
+ *   only be reached on the boundary day, i.e. almost never.
+ */
+export function acwrLookbackStartIso(todayIso: string): string {
+  const today = dayNumber(todayIso);
+  if (today === null) {
+    throw new TypeError(`acwrLookbackStartIso: data "oggi" non valida: ${todayIso}`);
+  }
+  return new Date((today - ACWR_LOOKBACK_DAYS) * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
