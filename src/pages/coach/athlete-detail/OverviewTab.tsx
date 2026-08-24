@@ -20,11 +20,13 @@ import { Zap, Scale, Target, Heart, CheckCircle2, AlertTriangle } from "lucide-r
 import { cn } from "@/lib/utils";
 import { AiInsightCard } from "@/components/coach/analytics/AiInsightCard";
 import {
+  ACWR_ACUTE_DAYS,
   ACWR_BAND_LABELS,
   ACWR_CAVEAT,
   acwrAbsenceText,
   type AcwrComputation,
 } from "@/lib/math/acwr";
+import { ACWR_BASELINE_DAYS } from "@/lib/math/constants";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -182,11 +184,11 @@ export function OverviewTab({
                 {acwrData && acwrData.available === true && (
                   <div className="flex gap-4 text-xs text-muted-foreground">
                     <span>
-                      Recente (7gg):{" "}
+                      Recente ({ACWR_ACUTE_DAYS}gg):{" "}
                       <strong className="text-foreground">{acwrData.acuteLoad}</strong>
                     </span>
                     <span>
-                      Abituale (28gg):{" "}
+                      Abituale ({ACWR_BASELINE_DAYS}gg):{" "}
                       <strong className="text-foreground">{acwrData.chronicLoad}</strong>
                     </span>
                   </div>
