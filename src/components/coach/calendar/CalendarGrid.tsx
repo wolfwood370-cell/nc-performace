@@ -222,7 +222,9 @@ function DroppableDayCell({
         {missedWorkout && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold bg-destructive/10 text-destructive">
             <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">⚠️ Spike ACWR</span>
+            {/* What the chip actually flags IS a missed workout — the old
+                "Spike ACWR" label claimed a load ratio nobody computed. */}
+            <span className="truncate">Seduta saltata</span>
           </span>
         )}
 
