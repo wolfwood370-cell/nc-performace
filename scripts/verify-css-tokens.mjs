@@ -12,9 +12,16 @@
  * the stylesheet at all:
  *
  *   1. the stylesheet is not older than the sources that produce it;
- *   2. every expected class is emitted, reads the expected CSS variable, that
- *      variable is declared (a class reading an undefined var paints nothing
- *      — same invisible outcome), and the class is actually used somewhere;
+ *   2. every expected class THAT THE SOURCES STILL USE is emitted, reads the
+ *      expected CSS variable, and that variable is declared (a class reading
+ *      an undefined var paints nothing — same invisible outcome). An entry
+ *      whose class no longer appears in the sources asserts NOTHING: it
+ *      degrades to a note («toglila dall'elenco»), never to a red. EXPECTED
+ *      answers "if this class is used, does it read the right variable?" —
+ *      it must not double as "this class must exist": that turns a snapshot
+ *      of the UI into a requirement, reddens the gate on every deliberate
+ *      deletion, and the repair it suggests is the wrong one (put the class
+ *      back). A gate that punishes deletions teaches not to delete;
  *   3. those variables are still in channel form and declared in `:root`
  *      (a complete `hsl(...)` makes `hsl(var(--x) / .4)` invalid and the rule
  *      is dropped, while the built stylesheet does not change at all);
@@ -81,12 +88,29 @@ import { join } from "node:path";
 const dirArg = process.argv[2];
 const dir = dirArg ?? "dist/assets";
 
-/** Expected class → the CSS variable its declaration must read. */
+/**
+ * Expected class → the CSS variable its declaration must read.
+ * Each entry asserts ONLY while its class is still written in the sources
+ * (see check 2): the map pins classes to variables, it does not require the
+ * UI to keep using them.
+ *
+ * Removed 2026-08-24 (fetta acwr-unico) — their LAST users were interface
+ * the slice deleted on purpose, so the entries asserted nothing anymore:
+ *   - "bg-error-container/40"  → container of the old «ACWR spike» badge
+ *     (AthleteCard); the badge is gone, the load lens has no alarm colours;
+ *   - "bg-chart-fatigue/10", "text-chart-fatigue" → monotony card of the
+ *     mock «Monitor Sicurezza» (AthleteDetail), removed with its data;
+ *   - "bg-chart-load/10", "text-chart-load" → weekly-load card of the same
+ *     removed monitor;
+ *   - "bg-chart-acwr-low"      → zone bar of the old AcwrGauge, replaced by
+ *     the neutral lens card.
+ * Their variables stay declared in src/index.css, paired with their
+ * tailwind.config.ts colour entries, for future chart work.
+ */
 const EXPECTED = {
   "bg-error-container": "--error-container",
   "text-on-error-container": "--on-error-container",
   "text-error-container": "--error-container",
-  "bg-error-container/40": "--error-container",
   "bg-error-container/30": "--error-container",
   "bg-error-container/20": "--error-container",
   "text-error": "--error",
@@ -104,17 +128,12 @@ const EXPECTED = {
   "text-chart-volume": "--chart-volume",
   "bg-chart-frequency/10": "--chart-frequency",
   "text-chart-frequency": "--chart-frequency",
-  "bg-chart-fatigue/10": "--chart-fatigue",
-  "text-chart-fatigue": "--chart-fatigue",
-  "bg-chart-load/10": "--chart-load",
-  "text-chart-load": "--chart-load",
   "bg-chart-velocity/10": "--chart-velocity",
   "text-chart-velocity": "--chart-velocity",
   "bg-chart-power/10": "--chart-power",
   "text-chart-power": "--chart-power",
   "bg-chart-intensity/20": "--chart-intensity",
   "text-chart-intensity": "--chart-intensity",
-  "bg-chart-acwr-low": "--chart-acwr-low",
 };
 
 /**
@@ -242,10 +261,21 @@ function usagesOf(cls) {
   return hits;
 }
 
+// Usage FIRST: an entry asserts only while its class is still in the
+// sources. Unused is not a failure — the interface may have deleted its
+// last user on purpose — it is a maintenance note: drop the entry.
+const notes = [];
+let expectedVerified = 0;
+
 for (const [cls, varName] of Object.entries(EXPECTED)) {
+  const sites = usagesOf(cls);
+  if (sites.length === 0) {
+    notes.push(`${cls} — non più usata nei sorgenti: voce da togliere da EXPECTED`);
+    continue;
+  }
   const rule = findRule(cls);
   if (!rule) {
-    failures.push(`${cls} — nessuna regola emessa`);
+    failures.push(`${cls} — usata in ${sites[0]} ma nessuna regola emessa`);
     continue;
   }
   if (!rule.includes(`var(${varName})`)) {
@@ -256,11 +286,7 @@ for (const [cls, varName] of Object.entries(EXPECTED)) {
     failures.push(`${cls} — legge var(${varName}), che non è dichiarata in nessun foglio`);
     continue;
   }
-  const sites = usagesOf(cls);
-  if (sites.length === 0) {
-    failures.push(`${cls} — emessa ma non usata da nessuna parte: l'asserzione non protegge nulla`);
-    continue;
-  }
+  expectedVerified += 1;
   console.log(`  ✓ ${cls.padEnd(30)} → var(${varName})   ${sites.join(" · ")}`);
 }
 
@@ -411,6 +437,11 @@ console.log(
     `su variabile-colore completa / ${hslWrapOk} corretti`,
 );
 
+if (notes.length > 0) {
+  console.log(`\nℹ ${notes.length} note (non bloccanti):`);
+  for (const n of notes) console.log(`  - ${n}`);
+}
+
 if (failures.length > 0) {
   console.error(`\n✗ ${failures.length} controlli falliti — la gravità non arriva a schermo:`);
   for (const f of failures) console.error(`  - ${f}`);
@@ -422,7 +453,7 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\n✓ ${Object.keys(EXPECTED).length} classi presenti e in uso, ` +
+  `\n✓ ${expectedVerified}/${Object.keys(EXPECTED).length} classi attese in uso e verificate, ` +
     `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime, ` +
     `${chartClassSites.size} utility chart-* derivate dai sorgenti tutte emesse, ` +
     `${hslWrapOk} usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime.`,
