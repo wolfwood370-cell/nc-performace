@@ -95,8 +95,8 @@ interface CalendarGridProps {
  *   A) Out-of-month: `opacity-40 bg-transparent` (no white surface, faded)
  *   B) Standard Training Day: white card + horizontal pill chips for each
  *      workout (`bg-primary-container/10 text-primary font-bold`).
- *   C) Triage Alert Day: red high-signal badge for missed workouts (proxy
- *      for ACWR spikes / overreaching) (`bg-error/10 text-error font-bold`).
+ *   C) Triage Alert Day: red high-signal badge for missed workouts
+ *      (`bg-error/10 text-error font-bold`).
  *   D) Rehab Focus Day: amber tokens for "consult" appointments (proxy for
  *      FMS / corrective protocols) (`bg-tertiary-container/10 text-tertiary
  *      border-tertiary-container/20`).
@@ -222,7 +222,9 @@ function DroppableDayCell({
         {missedWorkout && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold bg-destructive/10 text-destructive">
             <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-            <span className="truncate">⚠️ Spike ACWR</span>
+            {/* What the chip actually flags IS a missed workout — the old
+                label claimed a load-ratio verdict nobody computed. */}
+            <span className="truncate">Seduta saltata</span>
           </span>
         )}
 

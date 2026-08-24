@@ -35,7 +35,7 @@ function renderCardWithMarkers(markers: string[]): string {
 describe("il chip si seleziona sul type, mai sulla label", () => {
   it("cambiare la LABEL non cambia il chip; cambiare il TYPE sì", () => {
     const base = [
-      { type: "high_injury_risk" as const, label: "High Injury Risk" },
+      { type: "overload_warning" as const, label: "Carico recente sopra l'abituale" },
       { type: "pain_reported" as const, label: "Dolore dichiarato (22/08)" },
     ];
     const selected = selectPainMarkers(base);

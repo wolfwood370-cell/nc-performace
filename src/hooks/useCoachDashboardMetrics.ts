@@ -8,8 +8,12 @@ import { format } from "date-fns";
 // ===== TYPE DEFINITIONS =====
 
 type AlertSeverity = "critical" | "warning" | "info";
-type AlertType =
-  "missed_workout" | "low_readiness" | "active_injury" | "high_acwr" | "rpe_spike" | "no_checkin";
+// "high_acwr" is gone (C-09): the load ratio is a descriptive lens owned by
+// src/lib/math/acwr.ts, not a triage verdict — and this hook's old local
+// computation invented RPE 5 × 30 min for missing data. The dashboard no
+// longer computes or shows the load ratio at all; its surfaces are the
+// roster and the athlete detail.
+type AlertType = "missed_workout" | "low_readiness" | "active_injury" | "rpe_spike" | "no_checkin";
 
 export interface UrgentAlert {
   id: string;
@@ -91,43 +95,6 @@ function getInitials(name: string | null): string {
       .toUpperCase()
       .slice(0, 2) ?? "??"
   );
-}
-
-function calculateAcwr(
-  logs: Array<{
-    completed_at: string | null;
-    duration_seconds: number | null;
-    rpe_global: number | null;
-    srpe: number | null;
-  }>,
-): number | null {
-  if (logs.length < 7) return null;
-
-  const now = new Date();
-  let acuteSum = 0;
-  let chronicSum = 0;
-
-  for (let i = 0; i < 28; i++) {
-    const targetDate = new Date(now);
-    targetDate.setDate(now.getDate() - i);
-    const dateStr = format(targetDate, "yyyy-MM-dd");
-
-    const dayLoad = logs
-      .filter((log) => log.completed_at?.split("T")[0] === dateStr)
-      .reduce((sum, log) => {
-        const rpe = log.srpe ?? log.rpe_global ?? 5;
-        const duration = (log.duration_seconds ?? 1800) / 60;
-        return sum + rpe * duration;
-      }, 0);
-
-    if (i < 7) acuteSum += dayLoad;
-    chronicSum += dayLoad;
-  }
-
-  const acuteAvg = acuteSum / 7;
-  const chronicAvg = chronicSum / 28;
-
-  return chronicAvg > 0 ? acuteAvg / chronicAvg : null;
 }
 
 // ===== MAIN HOOK =====
@@ -342,21 +309,12 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
         });
       }
 
-      // RULE 5: High ACWR (> 1.3)
-      const acwr = calculateAcwr(athleteLogs);
-      if (acwr !== null && acwr > 1.3) {
-        alerts.push({
-          id: `acwr-${athlete.id}`,
-          athleteId: athlete.id,
-          athleteName: athlete.full_name ?? "Atleta",
-          avatarUrl: athlete.avatar_url,
-          avatarInitials: initials,
-          alertType: "high_acwr",
-          severity: acwr > 1.5 ? "critical" : "warning",
-          value: `ACWR ${acwr.toFixed(2)}`,
-          details: "High injury risk - acute load exceeds chronic capacity",
-        });
-      }
+      // The old RULE 5 ("High ACWR", severity critical/warning) is gone
+      // (C-09): it fabricated load (RPE 5 × 30 min defaults), applied its
+      // own thresholds, fed churnRisk with a verdict the method rejects —
+      // and its fetched rows (created_at bound, uncompleted included)
+      // could not match the roster's universe anyway. The load lens lives
+      // on the roster and the athlete detail, through the acwr module.
 
       // RULE 6: Active Injuries
       const athleteInjuries = injuries.filter((i) => i.athlete_id === athlete.id);

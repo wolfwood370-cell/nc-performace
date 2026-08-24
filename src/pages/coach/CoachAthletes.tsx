@@ -33,7 +33,7 @@
  *   - archived  → settings.archived === true; azione «Ripristina» via RPC
  *
  * AthleteCard mapping:
- *   - acwrValue: trigger State Critical quando ACWR > 1.5
+ *   - acwr: la lente del carico dal modulo unico (descrittiva, mai Critical)
  *   - readinessScore: già 0-100 dal hook rischio (conversione unica in readinessMath) — passthrough
  *   - painMarkers: riskFlags selezionati per type === "pain_reported" (mai per label)
  *   - missingOnboardingSteps: ["Primo check-in"] quando nessun check-in esiste → State C
@@ -352,8 +352,6 @@ export default function CoachAthletes() {
             >
               {visible.map((athlete) => {
                 const isLive = liveAthleteIds.includes(athlete.athleteId);
-                // Derive AthleteCard props from the risk-overview row.
-                const acwrValue = typeof athlete.acwr === "number" ? athlete.acwr : undefined;
                 // latestReadiness is ALREADY 0-100: the risk hook converts
                 // 1-10 subjective values through subjectiveReadinessToScore
                 // (the single conversion point). Pass through, never rescale.
@@ -381,7 +379,7 @@ export default function CoachAthletes() {
                       lastCheckinDate={athlete.readinessDate}
                       programName={null}
                       isActive={isWithinDays(athlete.readinessDate, 3)}
-                      acwrValue={acwrValue}
+                      acwr={athlete.acwr}
                       readinessScore={readinessScore}
                       painMarkers={painMarkers.length > 0 ? painMarkers : undefined}
                       missingOnboardingSteps={missingOnboardingSteps}
@@ -515,7 +513,7 @@ function FilterEmpty({ filter, searchQuery }: { filter: FilterKey; searchQuery: 
     },
     rehab: {
       title: "Nessun atleta in Rehab / Limitato",
-      subtitle: "Nessun atleta presenta flag di rischio moderato o alto.",
+      subtitle: "Nessun atleta con dolore dichiarato o recupero basso.",
       icon: Users,
     },
     suspended: {

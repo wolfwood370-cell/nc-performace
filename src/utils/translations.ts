@@ -43,7 +43,6 @@ export const ALERT_TYPE_LABELS: Record<string, string> = {
   missed_workout: "Allenamento Saltato",
   low_readiness: "Readiness Bassa",
   active_injury: "Infortunio Attivo",
-  high_acwr: "ACWR Elevato",
   rpe_spike: "RPE Elevato",
   no_checkin: "Nessun Check-in",
   injury_risk: "Rischio Infortunio",

@@ -73,12 +73,10 @@ import {
   Calendar,
   Clock,
   Zap,
-  Flame,
   Target,
   AlertTriangle,
   Heart,
   ChevronRight,
-  Coffee,
   Play,
   Trophy,
   ChevronsUpDown,
@@ -88,7 +86,6 @@ import {
   Hash,
   Plus,
   Ruler,
-  TrendingDown,
   CircleDot,
   Upload,
   Image,
@@ -142,6 +139,7 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { useAthleteAcwrData } from "@/hooks/useAthleteAcwrData";
+import { AcwrGauge } from "@/components/coach/analytics/AcwrGauge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   AreaChart,
@@ -151,14 +149,11 @@ import {
   LineChart,
   Line,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  ReferenceLine,
   ComposedChart,
 } from "recharts";
 import { Tooltip } from "@/components/ui/tooltip";
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info, ShieldAlert, ShieldCheck, Gauge } from "lucide-react";
+import { Info, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { StrategyContent } from "@/components/coach/athlete/StrategyContent";
 import { HealthProfileTab } from "@/components/coach/athlete/HealthProfileTab";
@@ -531,529 +526,35 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
   );
 }
 
-// Generate mock daily load data for Foster's method
-const generateMockDailyLoads = () => {
-  const loads: Array<{
-    date: Date;
-    dayLabel: string;
-    load: number;
-    rpe: number;
-    duration: number;
-  }> = [];
-
-  for (let i = 13; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dayOfWeek = date.getDay();
-
-    // Simulate rest days on Sunday (0) and sometimes Wednesday (3)
-    const isRestDay = dayOfWeek === 0 || (dayOfWeek === 3 && Math.random() > 0.5);
-
-    if (isRestDay) {
-      loads.push({
-        date,
-        dayLabel: format(date, "EEE d", { locale: it }),
-        load: 0,
-        rpe: 0,
-        duration: 0,
-      });
-    } else {
-      const rpe = Math.floor(Math.random() * 4) + 5; // 5-8
-      const duration = Math.floor(Math.random() * 40) + 40; // 40-80 min
-      loads.push({
-        date,
-        dayLabel: format(date, "EEE d", { locale: it }),
-        load: rpe * duration,
-        rpe,
-        duration,
-      });
-    }
-  }
-
-  return loads;
-};
-
-// Calculate risk metrics from daily loads
-const calculateRiskMetrics = (loads: Array<{ load: number }>) => {
-  const nonZeroLoads = loads.filter((l) => l.load > 0).map((l) => l.load);
-
-  if (nonZeroLoads.length < 3) {
-    return { monotony: 0, strain: 0, weeklyLoad: 0 };
-  }
-
-  const weeklyLoad = nonZeroLoads.slice(-7).reduce((sum, l) => sum + l, 0);
-  const mean = weeklyLoad / 7;
-
-  // Standard deviation
-  const squaredDiffs = nonZeroLoads.slice(-7).map((l) => Math.pow(l - mean, 2));
-  const avgSquaredDiff = squaredDiffs.reduce((sum, d) => sum + d, 0) / squaredDiffs.length;
-  const sd = Math.sqrt(avgSquaredDiff);
-
-  const monotony = sd > 0 ? mean / sd : 0;
-  const strain = weeklyLoad * monotony;
-
-  return {
-    monotony: Math.round(monotony * 100) / 100,
-    strain: Math.round(strain),
-    weeklyLoad: Math.round(weeklyLoad),
-  };
-};
-
-// Generate ACWR trend data
-const generateAcwrTrendData = () => {
-  const data: Array<{
-    week: string;
-    acute: number;
-    chronic: number;
-    ratio: number;
-  }> = [];
-
-  let chronicBase = 350;
-
-  for (let i = 4; i >= 0; i--) {
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - i * 7);
-
-    const acute = Math.floor(Math.random() * 200) + 300;
-    chronicBase = chronicBase * 0.7 + acute * 0.3;
-    const chronic = Math.round(chronicBase);
-    const ratio = chronic > 0 ? Math.round((acute / chronic) * 100) / 100 : 0;
-
-    data.push({
-      week: format(weekStart, "MMM d"),
-      acute,
-      chronic,
-      ratio,
-    });
-  }
-
-  return data;
-};
-
-// Advanced Stats Content Component
+// Advanced Stats Content — the load lens, and nothing invented (C-09).
+// The old "Monitor Sicurezza" rendered Math.random() series (mock daily
+// loads, mock ACWR trend, monotony/strain over fake data) with risk
+// verdicts on top. Where the source is fake, the surface now shows the
+// honest state instead: the single ACWR module result — same hook, same
+// module, same outcome as the Overview tab — or its absence with the
+// reason. The real load history will exist when the product collects the
+// session RPE in its own column.
 function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) {
-  const { data: acwrData, isLoading: acwrLoading } = useAthleteAcwrData(athleteId);
-
-  // Mock data for visualization
-  const dailyLoads = useMemo(() => generateMockDailyLoads(), []);
-  const riskMetrics = useMemo(() => calculateRiskMetrics(dailyLoads), [dailyLoads]);
-  const acwrTrend = useMemo(() => generateAcwrTrendData(), []);
-
-  // ACWR status helpers
-  const getAcwrStatus = (ratio: number) => {
-    if (ratio >= 0.8 && ratio <= 1.3)
-      return {
-        status: "optimal",
-        color: "text-green-500",
-        bgColor: "bg-green-500/10",
-      };
-    if (ratio > 1.5)
-      return {
-        status: "high-risk",
-        color: "text-destructive",
-        bgColor: "bg-destructive/10",
-      };
-    return {
-      status: "warning",
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/10",
-    };
-  };
-
-  const currentAcwr = acwrData?.ratio ?? acwrTrend[acwrTrend.length - 1]?.ratio ?? 0;
-  const acwrStatus = getAcwrStatus(currentAcwr);
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <ShieldCheck className="h-6 w-6 text-primary" />
+              <Activity className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-lg">Monitor Sicurezza Allenamento</CardTitle>
+              <CardTitle className="text-lg">Carico di allenamento</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Analisi carico metodo Foster e metriche rischio infortunio
+                Carico interno sRPE × durata (Foster) — il rapporto recente/abituale è una lente
+                descrittiva
               </p>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Foster's Load Monitor */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Gauge className="h-5 w-5 text-primary" />
-              Carico RPE Sessione (Ultimi 14 Giorni)
-            </CardTitle>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Informazioni" className="h-8 w-8">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="max-w-[280px]">
-                  <p className="text-sm">
-                    <strong>Foster's Session RPE</strong>
-                    <br />
-                    Load = RPE × Duration (min)
-                    <br />
-                    <br />
-                    <span className="text-green-500">● Recovery:</span> &lt;300 AU
-                    <br />
-                    <span className="text-amber-500">● Maintenance:</span> 300-600 AU
-                    <br />
-                    <span className="text-destructive">● Overreaching:</span> &gt;600 AU
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dailyLoads} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                <XAxis
-                  dataKey="dayLabel"
-                  stroke="var(--muted-foreground)"
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  domain={[0, 800]}
-                />
-                {/* Reference zones */}
-                <ReferenceLine
-                  y={300}
-                  stroke="var(--success)"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.5}
-                />
-                <ReferenceLine
-                  y={600}
-                  stroke="var(--destructive)"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.5}
-                />
-                <ChartTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const data = payload[0].payload;
-                    return (
-                      <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-                        <p className="text-sm font-medium text-foreground">{data.dayLabel}</p>
-                        {data.load > 0 ? (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              Load:{" "}
-                              <span className="font-semibold text-foreground">{data.load} AU</span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              RPE {data.rpe} × {data.duration} min
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Giorno di Riposo</p>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-                <Bar dataKey="load" radius={[4, 4, 0, 0]} fill="var(--primary)" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Zone Legend */}
-          <div className="flex items-center justify-center gap-6 pt-4 border-t border-border/50">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-success" />
-              <span className="text-xs text-muted-foreground">Recupero (&lt;300)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-warning" />
-              <span className="text-xs text-muted-foreground">Mantenimento (300-600)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-destructive" />
-              <span className="text-xs text-muted-foreground">Sovraccarico (&gt;600)</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Risk Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Monotony */}
-        <Card
-          className={cn(
-            "overflow-hidden transition-colors",
-            riskMetrics.monotony > 2.0 && "border-destructive/50 bg-destructive/5",
-          )}
-        >
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm text-muted-foreground">Monotonia</p>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[220px]">
-                        <p className="text-xs">
-                          <strong>Monotonia dell'Allenamento</strong>
-                          <br />
-                          Carico Medio ÷ Deviazione Standard
-                          <br />
-                          <br />
-                          Alta monotonia (&gt;2.0) = allenamento ripetitivo, maggior rischio
-                          infortunio
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <p
-                  className={cn(
-                    "text-3xl font-bold",
-                    riskMetrics.monotony > 2.0
-                      ? "text-destructive"
-                      : riskMetrics.monotony > 1.5
-                        ? "text-amber-500"
-                        : "text-foreground",
-                  )}
-                >
-                  {riskMetrics.monotony.toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {riskMetrics.monotony > 2.0
-                    ? "Alto Rischio"
-                    : riskMetrics.monotony > 1.5
-                      ? "Moderato"
-                      : "Sicuro"}
-                </p>
-              </div>
-              <div
-                className={cn(
-                  "h-14 w-14 rounded-xl flex items-center justify-center",
-                  riskMetrics.monotony > 2.0 ? "bg-destructive/10" : "bg-primary/10",
-                )}
-              >
-                <Target
-                  className={cn(
-                    "h-7 w-7",
-                    riskMetrics.monotony > 2.0 ? "text-destructive" : "text-primary",
-                  )}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Strain */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm text-muted-foreground">Strain</p>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[220px]">
-                        <p className="text-xs">
-                          <strong>Strain di Allenamento</strong>
-                          <br />
-                          Carico Settimanale × Monotonia
-                          <br />
-                          <br />
-                          Strain elevato aumenta il rischio di sovrallenamento
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <p className="text-3xl font-bold text-foreground">
-                  {riskMetrics.strain.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Unità Arbitrarie</p>
-              </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-fatigue/10 flex items-center justify-center">
-                <Flame className="h-7 w-7 text-chart-fatigue" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Weekly Load */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Carico Settimanale</p>
-                <p className="text-3xl font-bold text-foreground">
-                  {riskMetrics.weeklyLoad.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">UA Totali (7 giorni)</p>
-              </div>
-              <div className="h-14 w-14 rounded-xl bg-chart-load/10 flex items-center justify-center">
-                <Zap className="h-7 w-7 text-chart-load" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ACWR Analysis */}
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              Analisi Trend ACWR
-            </CardTitle>
-
-            {/* Current ACWR Badge */}
-            <div className={cn("flex items-center gap-3 px-4 py-2 rounded-lg", acwrStatus.bgColor)}>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">ACWR Attuale</p>
-                <p className={cn("text-2xl font-bold", acwrStatus.color)}>
-                  {currentAcwr.toFixed(2)}
-                </p>
-              </div>
-              {acwrStatus.status === "optimal" ? (
-                <ShieldCheck className={cn("h-8 w-8", acwrStatus.color)} />
-              ) : (
-                <ShieldAlert className={cn("h-8 w-8", acwrStatus.color)} />
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={acwrTrend} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                <XAxis
-                  dataKey="week"
-                  stroke="var(--muted-foreground)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                {/* Optimal zone reference lines */}
-                <ReferenceLine
-                  y={0.8}
-                  stroke="var(--success)"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.5}
-                  label={{
-                    value: "0.8",
-                    position: "right",
-                    fill: "var(--muted-foreground)",
-                    fontSize: 10,
-                  }}
-                />
-                <ReferenceLine
-                  y={1.3}
-                  stroke="var(--success)"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.5}
-                  label={{
-                    value: "1.3",
-                    position: "right",
-                    fill: "var(--muted-foreground)",
-                    fontSize: 10,
-                  }}
-                />
-                <ReferenceLine
-                  y={1.5}
-                  stroke="var(--destructive)"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.5}
-                  label={{
-                    value: "1.5",
-                    position: "right",
-                    fill: "var(--muted-foreground)",
-                    fontSize: 10,
-                  }}
-                />
-                <ChartTooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const data = payload[0].payload;
-                    const status = getAcwrStatus(data.ratio);
-                    return (
-                      <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-                        <p className="text-sm font-medium text-foreground mb-2">
-                          Settimana del {data.week}
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">
-                            Carico Acuto:{" "}
-                            <span className="font-semibold text-foreground">{data.acute} UA</span>
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Carico Cronico:{" "}
-                            <span className="font-semibold text-foreground">{data.chronic} UA</span>
-                          </p>
-                          <p className={cn("text-sm font-semibold", status.color)}>
-                            ACWR: {data.ratio.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ratio"
-                  stroke="var(--primary)"
-                  strokeWidth={3}
-                  dot={{ fill: "var(--primary)", r: 5 }}
-                  activeDot={{ r: 7, fill: "var(--primary)" }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* ACWR Zone Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-4 border-t border-border/50">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-green-500" />
-              <span className="text-xs text-muted-foreground">Ottimale (0.8-1.3)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-amber-500" />
-              <span className="text-xs text-muted-foreground">Attenzione (&lt;0.8 o 1.3-1.5)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-destructive" />
-              <span className="text-xs text-muted-foreground">Alto Rischio (&gt;1.5)</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <AcwrGauge athleteId={athleteId} />
     </div>
   );
 }

@@ -10,14 +10,18 @@
  *
  * Three visual states driven by live telemetry:
  *   A) Optimized      → emerald halo + readiness chip + weekly progress bar
- *   B) Critical       → destructive halo + classified ACWR badge (spike /
- *      overload / detraining / in range via assessRisks) + pain context tags
+ *   B) Critical       → destructive halo + pain context tags
  *   C) Pending        → muted halo + inline stepper on missing onboarding steps
  *   D) Standard       → fallback (no halo, basic compliance/program rows)
  *
+ * Every state also renders the load lens row (LoadLine): the recent-vs-
+ * habitual load ratio with its descriptive band, or the absence with its
+ * reason — computed ONLY by src/lib/math/acwr.ts, never judged here.
+ *
  * State derivation (priority order, top wins):
  *   1. Pending  — when `missingOnboardingSteps` is non-empty
- *   2. Critical — when ACWR > 1.5 OR pain markers exist
+ *   2. Critical — when pain markers exist (the load ratio is a descriptive
+ *      lens, not a risk verdict: it never makes a card "Critico")
  *   3. Optimized — when readiness ≥ 80 AND adherence ≥ 80
  *   4. Standard — default
  *
@@ -42,14 +46,16 @@ import {
   Clock,
   Dumbbell,
   TrendingUp,
-  TrendingDown,
   CircleAlert,
   ChevronRight,
   Activity,
-  Flame,
-  type LucideIcon,
 } from "lucide-react";
-import { assessRisks } from "@/hooks/useAthletesRiskOverview";
+import {
+  ACWR_BAND_LABELS,
+  ACWR_CAVEAT,
+  acwrAbsenceText,
+  type AcwrComputation,
+} from "@/lib/math/acwr";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -72,8 +78,9 @@ export interface AthleteCardProps {
   readinessScore?: number;
   /** Weekly adherence 0–100. Powers the progress bar in State A. */
   weeklyAdherence?: number;
-  /** Acute:Chronic Workload Ratio. ACWR > 1.5 flags State B. */
-  acwrValue?: number;
+  /** The load lens from src/lib/math/acwr.ts — ratio + band, or the
+   *  absence with its reason. Display-only: no thresholds in the card. */
+  acwr?: AcwrComputation;
   /** Localized pain markers ("Spalla Sx", "Ginocchio Dx"). Triggers State B. */
   painMarkers?: string[];
   /** Missing onboarding steps ("PAR-Q", "Anamnesi"). Triggers State C. */
@@ -86,23 +93,11 @@ export interface AthleteCardProps {
 
 type CardState = "optimized" | "critical" | "pending" | "standard";
 
-type AcwrClass = "high_injury_risk" | "overload_warning" | "detraining_risk" | "in_range";
-
-/** Classify an ACWR value through assessRisks — the risk hook stays the
- *  single owner of the thresholds; none of the numbers are duplicated here. */
-function classifyAcwr(acwr: number): AcwrClass {
-  const type = assessRisks(acwr, null, null).riskFlags[0]?.type;
-  return type === "high_injury_risk" || type === "overload_warning" || type === "detraining_risk"
-    ? type
-    : "in_range";
-}
-
 function deriveState(p: AthleteCardProps): CardState {
   if (p.missingOnboardingSteps && p.missingOnboardingSteps.length > 0) return "pending";
-  if (
-    (typeof p.acwrValue === "number" && classifyAcwr(p.acwrValue) === "high_injury_risk") ||
-    (p.painMarkers && p.painMarkers.length > 0)
-  ) {
+  // Only declared pain makes a card critical: the load ratio is a lens of
+  // awareness, not a risk verdict, so it never drives this state.
+  if (p.painMarkers && p.painMarkers.length > 0) {
     return "critical";
   }
   if (
@@ -130,7 +125,7 @@ export function AthleteCard(props: AthleteCardProps) {
     isActive,
     readinessScore,
     weeklyAdherence,
-    acwrValue,
+    acwr,
     painMarkers,
     missingOnboardingSteps,
     onClick,
@@ -239,7 +234,7 @@ export function AthleteCard(props: AthleteCardProps) {
       </div>
 
       {/* ── BODY (state-driven content) ── */}
-      <div className="px-6 pb-6">
+      <div className="px-6 pb-6 space-y-3">
         {state === "optimized" && (
           <OptimizedBody
             readinessScore={readinessScore}
@@ -248,12 +243,15 @@ export function AthleteCard(props: AthleteCardProps) {
           />
         )}
         {state === "critical" && (
-          <CriticalBody acwrValue={acwrValue} painMarkers={painMarkers} programName={programName} />
+          <CriticalBody painMarkers={painMarkers} programName={programName} />
         )}
         {state === "pending" && <PendingBody missingSteps={missingOnboardingSteps ?? []} />}
         {state === "standard" && (
           <StandardBody lastCheckinText={getLastCheckinText()} programName={programName} />
         )}
+        {/* Load lens — same outcome the athlete detail shows: the ratio
+            with its band, or the absence with its reason. */}
+        <LoadLine acwr={acwr} />
       </div>
     </Card>
   );
@@ -360,109 +358,54 @@ function OptimizedBody({
 }
 
 // ===========================================================================
-// State B — Critical
+// Load lens row — rendered in EVERY state
 // ===========================================================================
 
-/** Per-class visual + copy contract for the ACWR badge. The label must say
- *  what the value IS (spike / overload / detraining / in range): the card can
- *  be Critical because of pain while the ACWR itself is anything — a fixed
- *  "spike" label would reverse the meaning of a low ratio. */
-const ACWR_BADGE: Record<
-  AcwrClass,
-  {
-    label: string;
-    caption: string;
-    icon: LucideIcon;
-    container: string;
-    iconWrap: string;
-    text: string;
-  }
-> = {
-  high_injury_risk: {
-    label: "ACWR spike",
-    caption: "Acuto:cronico fuori soglia",
-    icon: Flame,
-    container: "bg-error-container/40 border-destructive/30",
-    iconWrap: "bg-destructive/15 text-destructive",
-    text: "text-destructive",
-  },
-  overload_warning: {
-    label: "ACWR sovraccarico",
-    caption: "Acuto:cronico vicino alla soglia",
-    icon: TrendingUp,
-    container: "bg-amber-500/10 border-amber-500/30",
-    iconWrap: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-    text: "text-amber-700 dark:text-amber-400",
-  },
-  detraining_risk: {
-    label: "ACWR detraining",
-    caption: "Carico acuto sotto il cronico",
-    icon: TrendingDown,
-    container: "bg-sky-500/10 border-sky-500/30",
-    iconWrap: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
-    text: "text-sky-700 dark:text-sky-400",
-  },
-  in_range: {
-    label: "ACWR nella norma",
-    caption: "Acuto:cronico in zona ottimale",
-    icon: CheckCircle2,
-    container: "bg-emerald-500/10 border-emerald-500/30",
-    iconWrap: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-    text: "text-emerald-700 dark:text-emerald-400",
-  },
-};
-
-function AcwrBadge({ acwrValue }: { acwrValue: number }) {
-  const badge = ACWR_BADGE[classifyAcwr(acwrValue)];
-  const Icon = badge.icon;
+/** The recent-vs-habitual load lens. Purely descriptive: the words come
+ *  from the acwr module (single owner) — the ratio with its band and the
+ *  caveat, or the absence with its reason and the real numbers. Neutral
+ *  tokens on purpose: a description never wears alarm colours. */
+function LoadLine({ acwr }: { acwr: AcwrComputation | undefined }) {
+  if (!acwr) return null;
   return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-2 rounded-2xl border px-3 py-2",
-        badge.container,
-      )}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <div
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-full flex-shrink-0",
-            badge.iconWrap,
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </div>
-        <div className="min-w-0">
-          <p className={cn("text-3xs font-bold uppercase tracking-wider", badge.text)}>
-            {badge.label}
-          </p>
-          <p className="text-xs text-on-surface-variant truncate">{badge.caption}</p>
-        </div>
-      </div>
-      <span
-        className={cn(
-          "inline-flex items-center rounded-full font-bold px-3 py-1 text-sm tabular-nums flex-shrink-0 bg-surface-container-lowest/60",
-          badge.text,
+    <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low/60 px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wider text-on-surface-variant">
+          <Activity className="h-3 w-3" />
+          Carico recente vs abituale
+        </span>
+        {acwr.available === true && (
+          <span className="inline-flex items-center rounded-full bg-surface-container-lowest/60 px-2.5 py-0.5 text-sm font-bold tabular-nums text-on-surface flex-shrink-0">
+            {acwr.ratio.toFixed(2)}
+          </span>
         )}
-      >
-        {acwrValue.toFixed(2)}
-      </span>
+      </div>
+      {acwr.available === true && (
+        <>
+          <p className="text-xs text-on-surface mt-1">{ACWR_BAND_LABELS[acwr.band]}</p>
+          <p className="text-3xs text-on-surface-variant mt-0.5">{ACWR_CAVEAT}</p>
+        </>
+      )}
+      {acwr.available === false && (
+        <p className="text-xs text-on-surface-variant mt-1">{acwrAbsenceText(acwr)}</p>
+      )}
     </div>
   );
 }
 
+// ===========================================================================
+// State B — Critical
+// ===========================================================================
+
 function CriticalBody({
-  acwrValue,
   painMarkers,
   programName,
 }: {
-  acwrValue: number | undefined;
   painMarkers: string[] | undefined;
   programName: string | null;
 }) {
   return (
     <div className="space-y-3">
-      {typeof acwrValue === "number" && <AcwrBadge acwrValue={acwrValue} />}
-
       {/* Localized pain markers */}
       {painMarkers && painMarkers.length > 0 && (
         <div>
