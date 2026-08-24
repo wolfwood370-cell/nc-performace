@@ -148,3 +148,23 @@ card roster, OverviewTab, AcwrGauge/tab avanzata e nel details dell'alert dashbo
 - **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/acwr-unico) coi 2 check obbligatori verdi.
 - **L'ultimo miglio a occhio (post-merge, 2 schermate):** roster `/coach/athletes` e dettaglio atleta (tab Overview e tab Statistiche avanzate) per lo STESSO atleta → entrambe mostrano **l'assenza con lo stesso motivo** («Nessuna seduta con RPE di sessione registrato…», coi conteggi veri) — perché oggi nessuna riga ha `srpe`: è l'esito ratificato il 24/08, non un bug. Nessuna parola di rischio, nessuna fiamma, nessun «Critico» da carico (il «Critico» resta SOLO per dolore dichiarato).
 - **La prossima fetta** (già nella spec §5): far raccogliere al prodotto l'sRPE nella sua colonna, sotto la sua scala — senza, questa lente resta legittimamente vuota. In quella sede: decidere l'allargamento del fetch (v. §8.5).
+
+---
+
+## Appendice 24/08 (sera) — varco `verify:css` di nuovo verde senza rimettere interfaccia
+
+**Commit:** `dbd3735` (solo `scripts/verify-css-tokens.mjs`; `src/index.css` NON toccato — v. sotto) + questo commit docs.
+
+**Cosa è cambiato nello script.** Il check 2 ora parte dall'**uso reale**: una voce di `EXPECTED` si verifica solo se la classe compare nei sorgenti; se non compare degrada a **nota** non bloccante («non più usata nei sorgenti: voce da togliere da EXPECTED»), mai a rosso. La mappa torna a rispondere alla sola domanda utile — «se questa classe è usata, legge la variabile giusta?» — e smette di essere una fotografia dell'interfaccia trasformata in requisito (un varco che punisce le cancellazioni insegna a non cancellare). Il **check 5** (derivato dai sorgenti) è intatto. Il riepilogo finale conta le voci verificate (`N/M in uso e verificate`).
+
+**Le sei voci tolte, col loro ex-utilizzatore (cancellato di proposito dalla fetta):**
+`bg-error-container/40` → contenitore del badge «ACWR spike» (`AthleteCard.tsx:385` su main) · `bg-chart-fatigue/10` e `text-chart-fatigue` → card monotonia del monitor mock (`AthleteDetail.tsx:896-897` su main) · `bg-chart-load/10` e `text-chart-load` → card carico settimanale dello stesso monitor (`:914-915`) · `bg-chart-acwr-low` → barra-zone della vecchia gauge (`AcwrGauge.tsx:107` su main). Motivi scritti in un commento accanto alla mappa.
+
+**Esito su `--chart-acwr-low` (index.css:145 e :220): RESTA, con motivo misurato.** Zero lettori nei sorgenti (misura: grep su `chart-acwr-low` in src/** = solo le due dichiarazioni + `tailwind.config.ts:193`), MA la variabile vive **in coppia** con la voce-colore di `tailwind.config.ts:193`, fuori dal perimetro di questo commit: togliere solo la metà css lascerebbe una trappola silenziosa — una futura `bg-chart-acwr-low` verrebbe emessa (il config c'è) leggendo una var inesistente = elemento senza colore, la classe di difetto che il varco combatte, e il check 5 non la vedrebbe (controlla l'emissione, non la variabile). È inoltre la stessa posizione in cui restano `--chart-fatigue`/`--chart-load` (coppie intatte senza utilizzatori-classe). La coppia config+css si rimuove INSIEME in una fetta che possa toccare il config.
+
+**Acceptance:**
+
+1. `npm run build && npm run verify:css` sul tip → **verde**: «✓ 20/20 classi attese in uso e verificate, 18 variabili in forma a canali e non riscritte a runtime, 11 utility chart-* derivate dai sorgenti tutte emesse, 18 usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime.» (exit 0).
+2. **Prova rossa:** `text-chart-fantasma` inserita temporaneamente in `AthleteCard.tsx:375` → `verify:css` **fallisce nominandola**: «✗ 1 controlli falliti … text-chart-fantasma — scritta in src/components/coach/AthleteCard.tsx:375 ma nessuna regola emessa: la classe non esiste» (exit 1). Ripristino per copia + `cmp` byte-identico → verde (exit 0).
+3. **Perimetro:** `git status -s` dopo il fix = solo `scripts/verify-css-tokens.mjs`; `index.css` non toccato (decisione sopra).
+4. **Altri cancelli:** `tsc --noEmit` exit 0 · `vitest run` **386/386 su 35 file** exit 0 · eslint **81 errori** (= baseline, non sopra).
