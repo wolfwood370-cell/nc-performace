@@ -191,13 +191,19 @@ function bulletPresentation(bullet: TriageBullet): {
         ),
       };
     case "feedback":
+      // "Allenamenti", not "check-in": the count measures completed workout
+      // logs awaiting coach feedback — a check-in is daily_readiness.
       return {
         icon: CheckSquare,
         iconWrap: "bg-white/20",
         iconColor: "text-white",
         text: (
           <>
-            Hai <strong>{bullet.count} check-in</strong> in attesa di revisione.
+            Hai{" "}
+            <strong>
+              {bullet.count} {bullet.count === 1 ? "allenamento" : "allenamenti"}
+            </strong>{" "}
+            da rivedere.
           </>
         ),
       };
@@ -235,8 +241,15 @@ const FEED_ICONS = [Dumbbell, Timer, Activity];
 export default function CoachHome() {
   const navigate = useNavigate();
   const { profile, loading: authLoading } = useAuth();
-  const { urgentAlerts, feedbackItems, todaySchedule, businessMetrics, isLoading } =
-    useCoachDashboardMetrics();
+  const {
+    urgentAlerts,
+    feedbackItems,
+    todaySchedule,
+    businessMetrics,
+    completedTodayCount,
+    pendingReviewCount,
+    isLoading,
+  } = useCoachDashboardMetrics();
   const {
     alerts: systemAlerts,
     isLoading: alertsLoading,
@@ -266,13 +279,10 @@ export default function CoachHome() {
     [urgentAlerts],
   );
 
-  // Pulse: completed/scheduled today
-  const completedToday = feedbackItems.length;
+  // Pulse — only measured quantities: workouts completed today (from
+  // workout_logs), today's still-pending schedule, and the review queue.
+  // No invented denominator, no "in progress" state nobody measures.
   const scheduledToday = todaySchedule.length;
-  const totalToday = Math.max(scheduledToday, completedToday);
-  const pulseFrac = totalToday > 0 ? Math.min(1, completedToday / totalToday) : 0;
-  const pulseInProgress = Math.max(0, Math.min(scheduledToday - completedToday, scheduledToday));
-  const pulseToStart = Math.max(0, scheduledToday - pulseInProgress - completedToday);
 
   // AI Copilot bullets — derived from live data, max 3 lines so the widget
   // visually matches the Stitch reference (which shows 3 bullets). The
@@ -287,7 +297,7 @@ export default function CoachHome() {
           athleteName: a.athleteName,
           description: a.details || a.value,
         })),
-        feedbackCount: feedbackItems.length,
+        feedbackCount: pendingReviewCount,
         unreadSystemAlerts: unreadCount,
         channelAnswered: alertsAnswered,
         channelFetching: alertsFetching,
@@ -295,7 +305,7 @@ export default function CoachHome() {
       }).map(bulletPresentation),
     [
       triageAlerts,
-      feedbackItems.length,
+      pendingReviewCount,
       unreadCount,
       alertsFetching,
       alertsAnswered,
@@ -392,11 +402,9 @@ export default function CoachHome() {
 
           {/* ═══ 4. Attività Oggi (Pulse) ═══ */}
           <PulseWidget
-            completed={completedToday}
-            total={totalToday}
-            fraction={pulseFrac}
-            inProgress={pulseInProgress}
-            toStart={pulseToStart}
+            completedToday={completedTodayCount}
+            toDoToday={scheduledToday}
+            toReview={pendingReviewCount}
             isLoading={isLoading}
           />
 
@@ -566,25 +574,23 @@ function TriageWidget({
 // ===========================================================================
 // 4. Attività Oggi — circular gauge (md:col-span-1)
 // ===========================================================================
+/**
+ * Only measured quantities are shown, each under the label of what it
+ * counts. No progress arc: the day has no measured denominator (the old
+ * "N/M · In corso · Da iniziare" trio mixed a review-queue count with an
+ * invented max() total and an identically-zero formula).
+ */
 function PulseWidget({
-  completed,
-  total,
-  fraction,
-  inProgress,
-  toStart,
+  completedToday,
+  toDoToday,
+  toReview,
   isLoading,
 }: {
-  completed: number;
-  total: number;
-  fraction: number;
-  inProgress: number;
-  toStart: number;
+  completedToday: number;
+  toDoToday: number;
+  toReview: number;
   isLoading: boolean;
 }) {
-  // r=45 → circumference 2πr ≈ 283; dashoffset moves the cap.
-  const circumference = 283;
-  const dashOffset = circumference * (1 - fraction);
-
   return (
     <div
       className={cn(
@@ -601,7 +607,7 @@ function PulseWidget({
       ) : (
         <>
           <div className="relative w-48 h-48 flex items-center justify-center mb-6">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
               <circle
                 cx="50"
                 cy="50"
@@ -611,39 +617,27 @@ function PulseWidget({
                 strokeWidth="10"
                 className="text-surface-container-highest"
               />
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="10"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                className="text-primary"
-                style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
-              />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="font-display text-5xl font-bold text-primary tracking-tighter">
-                {completed}
-                <span className="text-2xl text-on-surface-variant font-normal">/{total}</span>
+                {completedToday}
               </span>
-              <span className="text-sm font-semibold text-on-surface mt-1">Completati</span>
+              <span className="text-sm font-semibold text-on-surface mt-1">Completati oggi</span>
             </div>
           </div>
 
           <div className="flex w-full justify-around mt-2">
             <div className="flex flex-col items-center">
               <span className="font-display text-2xl font-semibold text-on-surface">
-                {inProgress}
+                {toDoToday}
               </span>
-              <span className="text-xs text-on-surface-variant">In corso</span>
+              <span className="text-xs text-on-surface-variant">Da fare oggi</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="font-display text-2xl font-semibold text-on-surface">{toStart}</span>
-              <span className="text-xs text-on-surface-variant">Da iniziare</span>
+              <span className="font-display text-2xl font-semibold text-on-surface">
+                {toReview}
+              </span>
+              <span className="text-xs text-on-surface-variant">Da rivedere</span>
             </div>
           </div>
         </>

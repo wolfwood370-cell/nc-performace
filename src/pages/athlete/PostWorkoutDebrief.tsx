@@ -60,16 +60,17 @@ const RPE_LABELS: Record<Rpe, string> = {
 // SessionStatsCard — live stats derived from the `exercise_logs` rows
 // for the current session.
 //
-// `totalSetsCompleted` = number of rows in the session-sets query.
-// `totalVolumeKg`     = Σ weight × reps across every set. This is the
-//                       canonical "tonnage" stat coaches use to gauge
-//                       cumulative work; rounded for display tidiness.
+// `rows === undefined` (query loading, or disabled with no session) is NOT
+// a measured zero: it renders "—". A loaded empty array IS a real zero.
+// "Serie Registrate", not "Completate": the query counts every logged row
+// with no is_completed filter.
+// `totalVolumeKg` = Σ weight × reps across every set — the canonical
+// "tonnage" stat; rounded for display tidiness.
 // =============================================================================
 function SessionStatsCard() {
   const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const sessionSets = useSessionSetsQuery(activeSessionId);
   const rows = sessionSets.data;
-  const totalSetsCompleted = rows ? rows.length : 0;
   let totalVolumeKg = 0;
   if (rows) {
     for (const row of rows) {
@@ -94,16 +95,16 @@ function SessionStatsCard() {
         <div>
           <p className="text-sm text-on-surface-variant mb-1">Volume Totale</p>
           <p className="font-display text-2xl font-semibold tabular-nums text-on-surface">
-            {totalVolumeKg.toLocaleString("it-IT")} kg
+            {rows ? `${totalVolumeKg.toLocaleString("it-IT")} kg` : "—"}
           </p>
         </div>
         <div>
-          <p className="text-sm text-on-surface-variant mb-1">Serie Completate</p>
+          <p className="text-sm text-on-surface-variant mb-1">Serie Registrate</p>
           <p
             aria-live="polite"
             className="font-display text-2xl font-semibold tabular-nums text-brand-container"
           >
-            {totalSetsCompleted}
+            {rows ? rows.length : "—"}
           </p>
         </div>
       </div>

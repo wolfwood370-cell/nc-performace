@@ -2837,56 +2837,14 @@ export default function AthleteDetail() {
     return neurotype ? types[neurotype] || neurotype : null;
   };
 
-  // Calculate readiness score (based on available data)
+  // Readiness shown to the coach is ONLY the measured value: the athlete's
+  // subjective_readiness through the single shared 1-10 → 0-100 conversion
+  // (same scale the risk overview reads). The old fallback heuristic
+  // (base 70 ± sleep/HRV/HR adjustments) fabricated a plausible-looking
+  // score when the answer was simply "not measured" — absent stays absent.
   const calculateReadinessScore = () => {
-    if (!todayMetrics) return null;
-
-    // Use subjective_readiness if available, otherwise calculate from metrics.
-    // Single shared conversion point (1-10 → 0-100): the same scale the
-    // risk overview reads — two screens, one conversion.
-    if (todayMetrics.subjective_readiness != null) {
-      return subjectiveReadinessToScore(todayMetrics.subjective_readiness);
-    }
-
-    // Simple formula based on available metrics
-    let score = 70; // Base score
-
-    if (todayMetrics.sleep_hours) {
-      if (todayMetrics.sleep_hours >= 7) score += 10;
-      else if (todayMetrics.sleep_hours < 5) score -= 20;
-    }
-
-    if (todayMetrics.hrv_rmssd) {
-      // Higher HRV is generally better
-      if (todayMetrics.hrv_rmssd > 50) score += 10;
-      else if (todayMetrics.hrv_rmssd < 30) score -= 10;
-    }
-
-    if (todayMetrics.resting_hr) {
-      // Lower resting HR is generally better for athletes
-      if (todayMetrics.resting_hr < 55) score += 5;
-      else if (todayMetrics.resting_hr > 70) score -= 10;
-    }
-
-    return Math.max(0, Math.min(100, Math.round(score)));
-  };
-
-  // Calculate TDEE (simplified estimation)
-  const calculateTDEE = () => {
-    const onboarding = profile?.onboarding_data as Record<string, unknown> | null;
-    const weight = weightTrend?.length
-      ? weightTrend[weightTrend.length - 1].weight_kg
-      : (onboarding?.weight as number);
-    const height = onboarding?.height as number;
-
-    if (!weight) return null;
-
-    // Simplified Harris-Benedict for male (we'd need gender for accuracy)
-    // BMR = 88.362 + (13.397 × weight) + (4.799 × height) - (5.677 × age)
-    const baseBMR = 88 + 13.4 * weight + (height ? 4.8 * height : 800) - 5.7 * 30; // assuming 30 years
-    const activityMultiplier = 1.55; // Moderately active
-
-    return Math.round(baseBMR * activityMultiplier);
+    if (todayMetrics?.subjective_readiness == null) return null;
+    return subjectiveReadinessToScore(todayMetrics.subjective_readiness);
   };
 
   // Weekly compliance calculation
@@ -2919,7 +2877,7 @@ export default function AthleteDetail() {
     const pastDays = days.filter((d) => d.status !== "future").length;
     const adherence = pastDays > 0 ? Math.round((completedDays / Math.max(pastDays, 1)) * 100) : 0;
 
-    return { days, adherence, completedDays };
+    return { days, adherence, completedDays, pastDays };
   };
 
   // Get pain status
@@ -2945,7 +2903,6 @@ export default function AthleteDetail() {
   };
 
   const readinessScore = calculateReadinessScore();
-  const tdeeValue = calculateTDEE();
   const weeklyCompliance = getWeeklyCompliance();
   const painStatus = getPainStatus();
 
@@ -3341,7 +3298,6 @@ export default function AthleteDetail() {
               readinessColors={readinessColors}
               acwrLoading={acwrLoading}
               acwrData={acwrData}
-              tdeeValue={tdeeValue}
               weightTrend={weightTrend}
               weeklyCompliance={weeklyCompliance}
               painStatus={painStatus}

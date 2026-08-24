@@ -102,6 +102,21 @@ function metricsFromRow(row: DailyReadinessRow): Record<MetricKey, number | null
  *  nothing sore, so high is good. */
 const LOW_IS_GOOD_METRICS: ReadonlySet<MetricKey> = new Set(["Stress", "Fatica"]);
 
+/** Display label per metric KEY. The key is a persisted identifier
+ *  (Zustand store → localStorage): what the athlete READS can be renamed,
+ *  what the store SAVES must not. "Soreness" is the one whose label lied:
+ *  the aggregate is 10 = nothing sore, so the label must name the measured
+ *  quantity (muscular recovery), not its inverse — "Soreness 10" read as
+ *  maximum soreness while meaning the opposite. */
+const METRIC_LABELS: Record<MetricKey, string> = {
+  Sonno: "Sonno",
+  Stress: "Stress",
+  Fatica: "Fatica",
+  Umore: "Umore",
+  Digestione: "Digestione",
+  Soreness: "Recupero muscolare",
+};
+
 /** Normalised "goodness" of one answer — same linear mapping the
  *  composite score uses, so ranking and score agree on direction. */
 function metricGoodness(metric: MetricKey, value: number): number {
@@ -191,7 +206,7 @@ function MetricValueRow({ metric, value }: { metric: MetricKey; value: number | 
   return (
     <div className="flex items-center justify-between">
       <span className="font-sans text-[11px] font-semibold tracking-wider uppercase text-on-surface-variant">
-        {metric}
+        {METRIC_LABELS[metric]}
       </span>
       <span className="font-display text-xs font-bold tabular-nums text-on-surface">
         {displayValue}
@@ -644,12 +659,12 @@ function MetricsSettingsDialog({
                     : "bg-surface-container/30 cursor-not-allowed opacity-60",
                 )}
               >
-                <span className="font-sans text-sm text-on-surface">{key}</span>
+                <span className="font-sans text-sm text-on-surface">{METRIC_LABELS[key]}</span>
                 <Checkbox
                   checked={checked}
                   disabled={!draftPinned}
                   onCheckedChange={(v) => toggleMetric(key, v === true)}
-                  aria-label={`Metrica ${key}`}
+                  aria-label={`Metrica ${METRIC_LABELS[key]}`}
                 />
               </label>
             );

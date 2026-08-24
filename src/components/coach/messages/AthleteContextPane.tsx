@@ -8,12 +8,14 @@
  *     + ambient shadow is owned by the PARENT (CoachMessages 3-column
  *     layout). On mobile we still render a self-contained card with the
  *     same shape so the slide-in feels intentional.
- *   - Three primary "biometric tiles" matching the Stitch spec:
- *       A) Active Periodization — text block ("Mesociclo Ipertrofia ·
- *          Blocco 1")
- *       B) Internal Training Load — ACWR pill (emerald success tint)
- *       C) Wearable Recovery Context — circular SVG ring vector with
- *          live readiness score (fallback "78% — Buona" mock)
+ *   - Three primary "biometric tiles" (layout from the Stitch spec, values
+ *     honest — absent data renders as absent, never as a mock number):
+ *       A) Active Periodization — not wired to a source on this surface
+ *          yet → renders "—"
+ *       B) Internal Training Load — ACWR is not computed on this surface
+ *          yet → renders "—" (no judgment badge on a missing value)
+ *       C) Recovery Context — circular SVG ring with the live check-in
+ *          readiness score; without a check-in the ring stays empty
  *   - Three additional live tiles preserved from the previous version
  *     (Upcoming workouts · Last workout · Weekly compliance) so we
  *     don't sacrifice information density.
@@ -28,7 +30,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, addDays, isBefore } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   X,
@@ -111,10 +113,12 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
 
       const total = weekWorkouts?.length || 0;
       const completed = weekWorkouts?.filter((w) => w.status === "completed").length || 0;
+      // Date-only comparison: a workout scheduled for TODAY is still doable,
+      // not "missed" — comparing against the clock overcounted it all day.
+      const todayIso = format(today, "yyyy-MM-dd");
       const missed =
-        weekWorkouts?.filter(
-          (w) => w.status === "scheduled" && isBefore(new Date(w.scheduled_date), today),
-        ).length || 0;
+        weekWorkouts?.filter((w) => w.status === "scheduled" && w.scheduled_date < todayIso)
+          .length || 0;
 
       // Narrow the loosely-typed embedded relation locally.
       const titleOf = (row: { workout?: { title?: string | null } | null } | null): string =>
@@ -159,30 +163,10 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
   // ── Derived biometric values ───────────────────────────────────────────
   // Latest readiness score — daily_readiness.score is on a 0–100 scale
   // already (the athlete-side form clamps 1–10 then scales for storage).
-  // Fallback to the 78% mock from the Stitch reference if no data yet.
+  // No fallback: an absent check-in renders as absent, never as a number.
+  // No qualitative label either — a score→label mapping is not a validated
+  // method (same decision as the Training Hub glance card).
   const latestReadiness = readinessData?.[0]?.score ?? null;
-  const readinessPct = latestReadiness ?? 78;
-  const readinessLabel =
-    readinessPct >= 80
-      ? "Ottima"
-      : readinessPct >= 60
-        ? "Buona"
-        : readinessPct >= 40
-          ? "Media"
-          : "Bassa";
-  const readinessTone =
-    readinessPct >= 80
-      ? "text-emerald-600"
-      : readinessPct >= 60
-        ? "text-primary"
-        : readinessPct >= 40
-          ? "text-tertiary-container"
-          : "text-destructive";
-
-  // ACWR — proxy mock until aggregated via useAthletesRiskOverview here.
-  // Stable green pill when in optimal range (0.8–1.3), warning when above.
-  const acwrValue = 1.24;
-  const acwrInOptimal = acwrValue >= 0.8 && acwrValue <= 1.3;
 
   const initials =
     athleteProfile?.full_name
@@ -192,9 +176,10 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
       .toUpperCase()
       .slice(0, 2) || "U";
 
-  // SVG circular ring math (r=42, circumference 2πr ≈ 264)
+  // SVG circular ring math (r=42, circumference 2πr ≈ 264). The progress
+  // arc is only drawn when a real score exists.
   const RING_CIRC = 264;
-  const ringDash = (readinessPct / 100) * RING_CIRC;
+  const ringDash = latestReadiness != null ? (latestReadiness / 100) * RING_CIRC : 0;
 
   return (
     <div
@@ -255,13 +240,9 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                     Periodizzazione Attiva
                   </p>
                 </div>
-                {/* TODO: wire da training_phases (currentPhase) quando
-                    AthleteContextPane riceverà la prop o useCoachData
-                    sarà accessibile qui. */}
-                <p className="font-display text-base font-bold text-on-surface leading-snug">
-                  Mesociclo Ipertrofia
-                </p>
-                <p className="text-xs text-on-surface-variant mt-0.5">Blocco 1 · Settimana 3/4</p>
+                {/* This pane has no wired periodization source yet: the
+                    absent phase renders as absent — never as mock copy. */}
+                <p className="font-display text-base font-bold text-on-surface leading-snug">—</p>
               </section>
 
               {/* ═══ Block B — Internal Training Load (ACWR) ═══ */}
@@ -272,40 +253,34 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                     Carico Interno
                   </p>
                 </div>
+                {/* ACWR is not computed on this surface yet (the roster hook
+                    aggregates it elsewhere): the absent value renders as
+                    absent, with no judgment badge on top of a missing number.
+                    Wiring the real aggregation here is a future slice. */}
                 <div className="flex items-end justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs text-on-surface-variant mb-1">ACWR (acuto:cronico)</p>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold tabular-nums",
-                        acwrInOptimal
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                          : "bg-tertiary-container/10 text-tertiary-container",
-                      )}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
-                      {acwrValue.toFixed(2)}
+                    <span className="inline-flex items-center rounded-full px-3 py-1 text-sm font-bold tabular-nums bg-surface-container-highest text-on-surface-variant">
+                      —
                     </span>
                   </div>
-                  <span className="text-3xs font-bold text-on-surface-variant">
-                    {acwrInOptimal ? "Zona Ottimale" : "Attenzione"}
-                  </span>
                 </div>
               </section>
 
-              {/* ═══ Block C — Wearable Recovery Context ═══ */}
+              {/* ═══ Block C — Recovery Context (check-in readiness) ═══ */}
               <section
                 className={cn(TILE, "flex flex-col items-center text-center")}
-                aria-label="Recupero da wearable"
+                aria-label="Prontezza da check-in"
               >
                 <div className="flex items-center gap-2 self-start mb-3">
                   <HeartPulse className="h-3.5 w-3.5 text-primary" />
                   <p className="text-3xs font-bold uppercase tracking-wider text-on-surface-variant">
-                    Morning Readiness · Oura
+                    Prontezza · Check-in
                   </p>
                 </div>
                 {/* SVG circular ring — custom vector, no charts lib needed.
-                    Track + progress arc, primary stroke, rounded caps. */}
+                    The progress arc only exists when a real score does: an
+                    empty ring is the honest render of a missing check-in. */}
                 <div className="relative w-32 h-32">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                     <circle
@@ -317,32 +292,37 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                       strokeWidth="8"
                       className="text-surface-container-highest"
                     />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={`${ringDash} ${RING_CIRC}`}
-                      className="text-primary"
-                      style={{ transition: "stroke-dasharray 0.6s ease-out" }}
-                    />
+                    {latestReadiness != null && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={`${ringDash} ${RING_CIRC}`}
+                        className="text-primary"
+                        style={{ transition: "stroke-dasharray 0.6s ease-out" }}
+                      />
+                    )}
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-display text-2xl font-bold text-primary tabular-nums leading-none">
-                      {Math.round(readinessPct)}%
-                    </span>
-                    <span className={cn("text-xs font-bold mt-0.5", readinessTone)}>
-                      {readinessLabel}
-                    </span>
+                    {latestReadiness != null ? (
+                      <span className="font-display text-2xl font-bold text-primary tabular-nums leading-none">
+                        {Math.round(latestReadiness)}%
+                      </span>
+                    ) : (
+                      <span className="font-display text-2xl font-bold text-on-surface-variant leading-none">
+                        —
+                      </span>
+                    )}
                   </div>
                 </div>
                 <p className="text-3xs text-on-surface-variant mt-3">
                   {latestReadiness != null
                     ? `Ultimo check-in: ${format(new Date(readinessData?.[0]?.date ?? new Date()), "d MMM", { locale: it })}`
-                    : "Dato mock (in attesa di integrazione Oura)"}
+                    : "Nessun check-in registrato"}
                 </p>
               </section>
 
@@ -451,31 +431,40 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                     Compliance Settimanale
                   </p>
                 </div>
+                {/* No `?? 0` fallbacks: an errored/absent query must render
+                    as absence — "0/0 · 0 fatti" would read as a measured
+                    empty week. */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-on-surface-variant">Completati</span>
                     <span className="font-bold text-on-surface tabular-nums">
-                      {workoutData?.compliance.completed ?? 0}/{workoutData?.compliance.total ?? 0}
+                      {workoutData
+                        ? `${workoutData.compliance.completed}/${workoutData.compliance.total}`
+                        : "—"}
                     </span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all duration-500"
-                      style={{ width: `${workoutData?.compliance.percentage ?? 0}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 text-3xs">
-                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {workoutData?.compliance.completed ?? 0} fatti
-                    </span>
-                    {(workoutData?.compliance.missed ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-destructive font-bold">
-                        <AlertTriangle className="h-3 w-3" />
-                        {workoutData?.compliance.missed} saltati
+                  {workoutData && (
+                    <div className="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${workoutData.compliance.percentage}%` }}
+                      />
+                    </div>
+                  )}
+                  {workoutData && (
+                    <div className="flex items-center gap-3 text-3xs">
+                      <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {workoutData.compliance.completed} fatti
                       </span>
-                    )}
-                  </div>
+                      {workoutData.compliance.missed > 0 && (
+                        <span className="flex items-center gap-1 text-destructive font-bold">
+                          <AlertTriangle className="h-3 w-3" />
+                          {workoutData.compliance.missed} saltati
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </section>
             </>

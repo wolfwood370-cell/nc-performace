@@ -7,7 +7,7 @@
  * (4037-line monolith). This is PR1 of the tab-by-tab refactor.
  *
  * The component is "fat" — receives all derived data (readiness,
- * ACWR, TDEE, weight trend, compliance, pain status) via props so
+ * ACWR, weight trend, compliance, pain status) via props so
  * the parent stays the single source of truth for hook composition.
  * No queries or mutations live here.
  */
@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis } from "recharts";
-import { Zap, Flame, Target, Heart, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Zap, Scale, Target, Heart, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AiInsightCard } from "@/components/coach/analytics/AiInsightCard";
 
@@ -52,7 +52,11 @@ interface ComplianceDay {
 
 interface WeeklyCompliance {
   days: ComplianceDay[];
+  /** Share (0-100) of ELAPSED week days with a completed workout — a
+   *  days-trained ratio, not adherence to a plan (no plan is consulted). */
   adherence: number;
+  completedDays: number;
+  pastDays: number;
 }
 
 /**
@@ -76,7 +80,6 @@ export interface OverviewTabProps {
   readinessColors: ReadinessColors;
   acwrLoading: boolean;
   acwrData: AcwrData | null;
-  tdeeValue: number | null;
   weightTrend: WeightTrendPoint[] | undefined;
   weeklyCompliance: WeeklyCompliance;
   painStatus: PainStatus;
@@ -92,7 +95,6 @@ export function OverviewTab({
   readinessColors,
   acwrLoading,
   acwrData,
-  tdeeValue,
   weightTrend,
   weeklyCompliance,
   painStatus,
@@ -122,16 +124,20 @@ export function OverviewTab({
                     strokeWidth="8"
                     className="text-muted/30"
                   />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(readinessScore || 0) * 2.64} 264`}
-                    className={readinessColors.stroke}
-                  />
+                  {/* Arc only when a measured score exists: a 0-length arc
+                      would claim a measured zero next to the "—" text. */}
+                  {readinessScore != null && (
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${readinessScore * 2.64} 264`}
+                      className={readinessColors.stroke}
+                    />
+                  )}
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className={cn("text-2xl font-bold tabular-nums", readinessColors.text)}>
@@ -193,24 +199,20 @@ export function OverviewTab({
           </CardContent>
         </Card>
 
-        {/* Card 2: Metabolism / TDEE */}
+        {/* Card 2: Weight trend. The old "Est. TDEE kcal/day" stat was a
+            fabricated measure (fixed age 30, male-only formula, constant
+            800 replacing a missing height, hardcoded activity 1.55): the
+            product does not measure TDEE — removed, the weight series is
+            what is real here. */}
         <Card className="md:col-span-1 lg:col-span-2 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Flame className="h-4 w-4 text-orange-500" />
-              Metabolism (TDEE Tracker)
+              <Scale className="h-4 w-4 text-primary" />
+              Peso (30 giorni)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Est. TDEE</p>
-                <p className="text-3xl font-bold text-foreground tabular-nums">
-                  {tdeeValue ? tdeeValue.toLocaleString() : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">kcal/day</p>
-              </div>
-
               <div className="flex-1 h-20">
                 {!weightTrend || weightTrend.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-muted-foreground text-xs">
@@ -274,12 +276,15 @@ export function OverviewTab({
           </CardContent>
         </Card>
 
-        {/* Card 3: Weekly Compliance */}
+        {/* Card 3: workouts of the week. "Allenamenti", not "Compliance":
+            no plan is consulted, so a past day without a log is simply a
+            day without a workout — never a red "missed" verdict (that
+            judgment needs the plan, which is another slice). */}
         <Card className="md:col-span-1 lg:col-span-2 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              Compliance Settimanale
+              Allenamenti della settimana
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -293,50 +298,38 @@ export function OverviewTab({
                     className={cn(
                       "w-8 h-8 rounded-full flex items-center justify-center transition-all",
                       day.status === "completed" && "bg-success text-success-foreground",
-                      day.status === "rest" && "bg-muted text-muted-foreground",
-                      day.status === "missed" &&
-                        "bg-destructive/20 text-destructive border-2 border-destructive/50",
+                      (day.status === "rest" || day.status === "missed") &&
+                        "bg-muted text-muted-foreground",
                       day.status === "future" &&
                         "bg-muted/30 text-muted-foreground/50 border border-dashed border-muted-foreground/30",
                       day.isToday && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                     )}
                   >
                     {day.status === "completed" && <CheckCircle2 className="h-4 w-4" />}
-                    {day.status === "missed" && <XCircle className="h-4 w-4" />}
-                    {day.status === "rest" && <span className="text-xs">—</span>}
+                    {(day.status === "rest" || day.status === "missed") && (
+                      <span className="text-xs">—</span>
+                    )}
                     {day.status === "future" && <span className="text-xs">•</span>}
                   </div>
                 </div>
               ))}
             </div>
 
+            {/* "Giorni con allenamento", not "Aderenza": the ratio counts
+                elapsed calendar days with a completed workout — no plan is
+                consulted, so a planned rest day is not a miss and no
+                red/green adherence judgment applies to this quantity. */}
             <div className="flex items-center justify-between pt-3 border-t border-border/50">
-              <span className="text-sm text-muted-foreground">Aderenza Settimanale</span>
+              <span className="text-sm text-muted-foreground">Giorni con allenamento</span>
               <div className="flex items-center gap-2">
                 <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      weeklyCompliance.adherence >= 80 && "bg-success",
-                      weeklyCompliance.adherence >= 50 &&
-                        weeklyCompliance.adherence < 80 &&
-                        "bg-warning",
-                      weeklyCompliance.adherence < 50 && "bg-destructive",
-                    )}
+                    className="h-full rounded-full transition-all bg-primary"
                     style={{ width: `${weeklyCompliance.adherence}%` }}
                   />
                 </div>
-                <span
-                  className={cn(
-                    "text-lg font-bold tabular-nums",
-                    weeklyCompliance.adherence >= 80 && "text-success",
-                    weeklyCompliance.adherence >= 50 &&
-                      weeklyCompliance.adherence < 80 &&
-                      "text-warning",
-                    weeklyCompliance.adherence < 50 && "text-destructive",
-                  )}
-                >
-                  {weeklyCompliance.adherence}%
+                <span className="text-lg font-bold tabular-nums text-foreground">
+                  {weeklyCompliance.completedDays}/{weeklyCompliance.pastDays}
                 </span>
               </div>
             </div>

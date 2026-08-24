@@ -10,7 +10,8 @@
  *
  * Three visual states driven by live telemetry:
  *   A) Optimized      → emerald halo + readiness chip + weekly progress bar
- *   B) Critical       → destructive halo + bold ACWR pill + pain context tags
+ *   B) Critical       → destructive halo + classified ACWR badge (spike /
+ *      overload / detraining / in range via assessRisks) + pain context tags
  *   C) Pending        → muted halo + inline stepper on missing onboarding steps
  *   D) Standard       → fallback (no halo, basic compliance/program rows)
  *
@@ -24,7 +25,7 @@
  * only pass the base set continue to render the Standard variant unchanged.
  *
  * onClick + routing (`navigate(`/coach/athlete/${id}`)`) and the original
- * data props (avatarUrl, lastActivityDate, programName, isActive) are
+ * data props (avatarUrl, lastCheckinDate, programName, isActive) are
  * preserved 1:1 — no fetch logic in this component.
  */
 import { useNavigate } from "react-router-dom";
@@ -41,11 +42,14 @@ import {
   Clock,
   Dumbbell,
   TrendingUp,
+  TrendingDown,
   CircleAlert,
   ChevronRight,
   Activity,
   Flame,
+  type LucideIcon,
 } from "lucide-react";
+import { assessRisks } from "@/hooks/useAthletesRiskOverview";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -55,7 +59,10 @@ export interface AthleteCardProps {
   athleteName: string;
   avatarUrl: string | null;
   avatarInitials: string;
-  lastActivityDate: string | null;
+  /** Date of the athlete's latest readiness check-in — that is what the
+   *  roster actually measures (workout logs do NOT feed this). The label
+   *  in StandardBody says "Ultimo check-in" for the same reason. */
+  lastCheckinDate: string | null;
   programName: string | null;
   /** Active in the last 3 days. Drives the status dot fallback for Standard. */
   isActive: boolean;
@@ -79,10 +86,21 @@ export interface AthleteCardProps {
 
 type CardState = "optimized" | "critical" | "pending" | "standard";
 
+type AcwrClass = "high_injury_risk" | "overload_warning" | "detraining_risk" | "in_range";
+
+/** Classify an ACWR value through assessRisks — the risk hook stays the
+ *  single owner of the thresholds; none of the numbers are duplicated here. */
+function classifyAcwr(acwr: number): AcwrClass {
+  const type = assessRisks(acwr, null, null).riskFlags[0]?.type;
+  return type === "high_injury_risk" || type === "overload_warning" || type === "detraining_risk"
+    ? type
+    : "in_range";
+}
+
 function deriveState(p: AthleteCardProps): CardState {
   if (p.missingOnboardingSteps && p.missingOnboardingSteps.length > 0) return "pending";
   if (
-    (typeof p.acwrValue === "number" && p.acwrValue > 1.5) ||
+    (typeof p.acwrValue === "number" && classifyAcwr(p.acwrValue) === "high_injury_risk") ||
     (p.painMarkers && p.painMarkers.length > 0)
   ) {
     return "critical";
@@ -107,7 +125,7 @@ export function AthleteCard(props: AthleteCardProps) {
     athleteName,
     avatarUrl,
     avatarInitials,
-    lastActivityDate,
+    lastCheckinDate,
     programName,
     isActive,
     readinessScore,
@@ -128,10 +146,10 @@ export function AthleteCard(props: AthleteCardProps) {
     navigate(`/coach/athlete/${athleteId}`);
   };
 
-  const getLastActiveText = () => {
-    if (!lastActivityDate) return "Mai attivo";
+  const getLastCheckinText = () => {
+    if (!lastCheckinDate) return "Nessun check-in";
     try {
-      return formatDistanceToNow(new Date(lastActivityDate), { addSuffix: true, locale: it });
+      return formatDistanceToNow(new Date(lastCheckinDate), { addSuffix: true, locale: it });
     } catch {
       return "Data sconosciuta";
     }
@@ -234,7 +252,7 @@ export function AthleteCard(props: AthleteCardProps) {
         )}
         {state === "pending" && <PendingBody missingSteps={missingOnboardingSteps ?? []} />}
         {state === "standard" && (
-          <StandardBody lastActiveText={getLastActiveText()} programName={programName} />
+          <StandardBody lastCheckinText={getLastCheckinText()} programName={programName} />
         )}
       </div>
     </Card>
@@ -344,6 +362,94 @@ function OptimizedBody({
 // ===========================================================================
 // State B — Critical
 // ===========================================================================
+
+/** Per-class visual + copy contract for the ACWR badge. The label must say
+ *  what the value IS (spike / overload / detraining / in range): the card can
+ *  be Critical because of pain while the ACWR itself is anything — a fixed
+ *  "spike" label would reverse the meaning of a low ratio. */
+const ACWR_BADGE: Record<
+  AcwrClass,
+  {
+    label: string;
+    caption: string;
+    icon: LucideIcon;
+    container: string;
+    iconWrap: string;
+    text: string;
+  }
+> = {
+  high_injury_risk: {
+    label: "ACWR spike",
+    caption: "Acuto:cronico fuori soglia",
+    icon: Flame,
+    container: "bg-error-container/40 border-destructive/30",
+    iconWrap: "bg-destructive/15 text-destructive",
+    text: "text-destructive",
+  },
+  overload_warning: {
+    label: "ACWR sovraccarico",
+    caption: "Acuto:cronico vicino alla soglia",
+    icon: TrendingUp,
+    container: "bg-amber-500/10 border-amber-500/30",
+    iconWrap: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    text: "text-amber-700 dark:text-amber-400",
+  },
+  detraining_risk: {
+    label: "ACWR detraining",
+    caption: "Carico acuto sotto il cronico",
+    icon: TrendingDown,
+    container: "bg-sky-500/10 border-sky-500/30",
+    iconWrap: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+    text: "text-sky-700 dark:text-sky-400",
+  },
+  in_range: {
+    label: "ACWR nella norma",
+    caption: "Acuto:cronico in zona ottimale",
+    icon: CheckCircle2,
+    container: "bg-emerald-500/10 border-emerald-500/30",
+    iconWrap: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+    text: "text-emerald-700 dark:text-emerald-400",
+  },
+};
+
+function AcwrBadge({ acwrValue }: { acwrValue: number }) {
+  const badge = ACWR_BADGE[classifyAcwr(acwrValue)];
+  const Icon = badge.icon;
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2 rounded-2xl border px-3 py-2",
+        badge.container,
+      )}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <div
+          className={cn(
+            "flex h-7 w-7 items-center justify-center rounded-full flex-shrink-0",
+            badge.iconWrap,
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0">
+          <p className={cn("text-3xs font-bold uppercase tracking-wider", badge.text)}>
+            {badge.label}
+          </p>
+          <p className="text-xs text-on-surface-variant truncate">{badge.caption}</p>
+        </div>
+      </div>
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full font-bold px-3 py-1 text-sm tabular-nums flex-shrink-0 bg-surface-container-lowest/60",
+          badge.text,
+        )}
+      >
+        {acwrValue.toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
 function CriticalBody({
   acwrValue,
   painMarkers,
@@ -355,25 +461,7 @@ function CriticalBody({
 }) {
   return (
     <div className="space-y-3">
-      {/* ACWR badge — bold, attention-grabbing */}
-      {typeof acwrValue === "number" && (
-        <div className="flex items-center justify-between gap-2 rounded-2xl bg-error-container/40 border border-destructive/30 px-3 py-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-destructive/15 flex-shrink-0">
-              <Flame className="h-3.5 w-3.5 text-destructive" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-3xs font-bold uppercase tracking-wider text-destructive">
-                ACWR spike
-              </p>
-              <p className="text-xs text-on-surface-variant truncate">Acuto:cronico fuori soglia</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center rounded-full bg-destructive/10 text-destructive font-bold px-3 py-1 text-sm tabular-nums flex-shrink-0">
-            {acwrValue.toFixed(2)}
-          </span>
-        </div>
-      )}
+      {typeof acwrValue === "number" && <AcwrBadge acwrValue={acwrValue} />}
 
       {/* Localized pain markers */}
       {painMarkers && painMarkers.length > 0 && (
@@ -453,10 +541,10 @@ function PendingBody({ missingSteps }: { missingSteps: string[] }) {
 // State D — Standard (fallback)
 // ===========================================================================
 function StandardBody({
-  lastActiveText,
+  lastCheckinText,
   programName,
 }: {
-  lastActiveText: string;
+  lastCheckinText: string;
   programName: string | null;
 }) {
   return (
@@ -464,9 +552,9 @@ function StandardBody({
       <div className="flex items-center justify-between text-xs">
         <span className="inline-flex items-center gap-1.5 text-on-surface-variant">
           <Clock className="h-3.5 w-3.5" />
-          Ultima attività
+          Ultimo check-in
         </span>
-        <span className="text-on-surface font-medium tabular-nums">{lastActiveText}</span>
+        <span className="text-on-surface font-medium tabular-nums">{lastCheckinText}</span>
       </div>
       <div className="flex items-center justify-between text-xs">
         <span className="inline-flex items-center gap-1.5 text-on-surface-variant">
