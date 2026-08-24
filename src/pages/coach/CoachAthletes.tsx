@@ -33,7 +33,7 @@
  *   - archived  → settings.archived === true; azione «Ripristina» via RPC
  *
  * AthleteCard mapping:
- *   - acwrValue: trigger State Critical quando ACWR > 1.5
+ *   - acwr: la lente del carico dal modulo unico (descrittiva, mai Critical)
  *   - readinessScore: già 0-100 dal hook rischio (conversione unica in readinessMath) — passthrough
  *   - painMarkers: riskFlags selezionati per type === "pain_reported" (mai per label)
  *   - missingOnboardingSteps: ["Primo check-in"] quando nessun check-in esiste → State C
