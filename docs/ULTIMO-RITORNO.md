@@ -1,130 +1,135 @@
-# ULTIMO RITORNO — fetta rpe-sessione (B-22)
+# ULTIMO RITORNO — fetta watchdog-srpe
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/rpe-sessione` · 2026-08-25 · base `origin/main` = `bac852f` · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rpe-sessione) — dal 20/08 il classificatore nega le credenziali all'agente).
+> Fetta: `claude/watchdog-srpe` · 2026-08-25 · base `origin/main` = `ce8d48f` · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/watchdog-srpe) — dal 20/08 il classificatore nega le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/rpe-sessione`, da `bac852f`, 3 commit di codice + il commit dei documenti (tip del ramo):
-`b0571eb` (modulo unico `src/lib/effort/sessionRpe.ts` + 5 test: la scala di Foster coi vuoti) ·
-`31f8e0d` (il debrief scrive `srpe`, smette di scrivere `rpe_global`, parla la scala di sessione;
-boundary test col seam SOTTO l'hook, 7 test) · `6f42dfd` (i quattro lettori passano a `srpe`,
-l'assenza è «—»; test su due superfici coach, 4 test).
+`claude/watchdog-srpe`, da `ce8d48f`, 2 commit di codice + il commit dei documenti (tip del ramo):
+`4b4fc42` (migration proposta: watchdog su `srpe`, RULE 2 rimossa, messaggio italiano) ·
+`c4ccec1` (le due edge mediano `srpe`, una parola per file).
 
 ## 2. Manifesto
 
-**NUOVI:** `src/lib/effort/sessionRpe.ts` · `src/lib/effort/__tests__/sessionRpe.test.ts` ·
-`src/pages/athlete/__tests__/PostWorkoutDebrief.boundary.test.ts` ·
-`src/components/coach/__tests__/ReviewWorkoutItem.render.test.ts`.
+**NUOVI:** `supabase/migrations/20260825103000_riallinea_watchdog_srpe.sql` — **FILE, non applicato**:
+l'apply è di Nicolò/Cowork via connettore (metodologia 03 §0.2; qui il file nasce PRIMA
+dell'apply perché la fetta è nata da un debito trovato in review, non da un DDL già applicato —
+l'ordine invertito è dichiarato).
 
-**MODIFICATI (dichiarati dal prompt):** `PostWorkoutDebrief.tsx` · `useAthleteWorkoutHooks.ts` ·
-`useAthleteAnalytics.ts` · `AthleteContextPane.tsx` · `useCoachDashboardMetrics.ts` ·
-`AthleteViewerDialog.tsx` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` · questo file.
+**MODIFICATI:** `supabase/functions/analyze-athlete-week/index.ts` (riga della `.map`) ·
+`supabase/functions/generate-batch-checkins/index.ts` (idem) · `docs/HANDOFF.md` ·
+`docs/auto-miglioramento.md` · questo file (commit docs separato e dichiarato: il blocco finale
+DEVE stare sul ramo, e il perimetro-codice resta i tre file).
 
-**MODIFICATI (fatti cadere dalla misura, motivi in §8):**
-`src/components/coach/analytics/VolumeIntensityChart.tsx` (consumatore di `avgRpe`, ora
-nullable: media sui soli punti dichiarati, «—» senza dichiarazioni) ·
-`src/pages/coach/CoachHome.tsx` (1 riga: il feed rinomina `rpeGlobal` → `sessionRpe`) ·
-`src/components/coach/messages/__tests__/AthleteContextPane.render.test.ts` (esteso con i due
-stati del badge RPE).
-
-**NEL PERIMETRO MA NON TOCCATI:** `supabase/**` · `types.ts` · **`src/lib/math/acwr.ts`**
-(di C-09: legge già `srpe`, intonso — `git diff` lo conferma) · `pain_reported`/`low_recovery` ·
-`computeCheckinScore` · `useOfflineSync.ts` (modulo scollegato: importato da NESSUN file, il suo
-passaggio `srpe` inerte resta com'è) · `package.json` (audit-gate non dovuto).
+**NEL PERIMETRO MA NON TOCCATI:** tutto `src/**` (zero modifiche FE — i 5 cancelli lo provano
+numero per numero) · le altre migration (storia immutabile) · il trigger
+`trg_watchdog_workout_alert` (resta puntato alla funzione) · i tipi di `coach_alerts`
+(`risk_alert` resta `risk_alert`) · `deno.lock` (creato da un run e RIMOSSO: i run vanno con
+`--no-lock`, lezione del log).
 
 ## 3. Le due prove dei permessi (repo di scarto in scratchpad)
 
 - `git reset --hard HEAD` → **RIFIUTATO** («Permission to use Bash with command … has been denied») · `git rebase HEAD~1` → **RIFIUTATO**.
 - Vicini passati: `git status -sb` → `## master` · `git log --oneline -1` → `cbfde72 commit di prova`.
 
-## 4. DOVE FINISCE IL NUMERO — dal tocco alla colonna
+## 4. IL CORPO DELLA FUNZIONE, INTERO — e il registro dei cambi
 
-1. **Il tocco.** La pill è un toggle: `PostWorkoutDebrief.tsx:146` `onChange(value === n ? null : n)` — secondo tocco = revoca (fetta rpe-si-puo-togliere, preservata).
-2. **Lo stato.** `PostWorkoutDebrief.tsx:196` `useState<SessionRpe | null>(null)` — parte VUOTO, nessuna preselezione (CORE §0.8).
-3. **Il payload del salvataggio.** `PostWorkoutDebrief.tsx:230` `srpe: rpe` dentro `finishSession.mutate({…})` — `rpe_global` non compare più nel payload.
-4. **La UPDATE.** `useAthleteWorkoutHooks.ts:163` `srpe: input.srpe ?? null` nel literal `TablesUpdate<"workout_logs">`, eseguita a `:169` `.update(update).eq("id", session_id)` — la stessa UPDATE che già girava, con la colonna giusta al posto di quella sbagliata.
-5. **La colonna.** `workout_logs.srpe` (`smallint CHECK 1..10`) — il nome e il CHECK descrivono ciò che contiene: la CR-10 di sessione.
+Il `CREATE OR REPLACE` completo è in
+`supabase/migrations/20260825103000_riallinea_watchdog_srpe.sql` (86 righe, di cui ~30 di
+motivazione in commento). Corpo:
 
-Le parole sopra la scala vengono TUTTE da `src/lib/effort/sessionRpe.ts`: titolo e domanda
-(`:52-53`), definizione «valutazione globale, non la media delle serie» (`:56-57`), avvertenza
-sulla finestra di normalizzazione (`:60-61`), ancore coi vuoti (`:36-48`). Sui gradini 6, 8 e 9 la
-didascalia è **il numero nudo** (`PostWorkoutDebrief.tsx:171-174`): i vuoti sono il progetto
-della scala category-ratio, non una lacuna.
+```sql
+CREATE OR REPLACE FUNCTION public.watchdog_workout_alert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_coach_id UUID;
+  v_athlete_name TEXT;
+  v_workout_title TEXT;
+  v_severity TEXT;
+  v_message TEXT;
+  v_link TEXT;
+BEGIN
+  IF NEW.status != 'completed' THEN
+    RETURN NEW;
+  END IF;
 
-## 5. CHI LEGGEVA `rpe_global` E COSA LEGGE ADESSO
+  SELECT p.coach_id, p.full_name INTO v_coach_id, v_athlete_name
+  FROM profiles p WHERE p.id = NEW.athlete_id;
 
-| superficie                                                  | prima                                                | adesso                                                                                                                                 |
-| ----------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `useAthleteAnalytics.ts:245`                                | `rpe_global ?? 7` — **un 7 fabbricato**              | media per-serie, altrimenti `srpe`, altrimenti **null** (il grafico salta il punto e l'header media i soli dichiarati, «—» se nessuno) |
-| `AthleteContextPane.tsx:387-401`                            | giudizio su `rpe_global > 8`, badge nascosto se null | badge sempre leggibile da `srpe`: «RPE —» senza dichiarazione, evidenza >8 solo col valore                                             |
-| `useCoachDashboardMetrics.ts:258-275`                       | allerta `rpe_spike` su `rpe_global > 9`              | `srpe > 9`; senza valore nessuna allerta (l'assenza non diventa un numero)                                                             |
-| `useCoachDashboardMetrics.ts:393` + `CoachHome.tsx:695`     | il feed portava `rpeGlobal`                          | campo `sessionRpe` da `srpe`; la pill di CoachHome non rende nulla su null (già così)                                                  |
-| `AthleteViewerDialog.tsx`                                   | doppio badge «RPE {rpe_global}» + «sRPE {srpe}»      | UN badge «RPE sessione {srpe}», «RPE sessione —» se nullo                                                                              |
-| `PostWorkoutDebrief` + `useAthleteWorkoutHooks` (scrittori) | scrivevano `rpe_global`                              | scrivono `srpe`; `rpe_global` esce da payload e select                                                                                 |
+  IF v_coach_id IS NULL THEN
+    RETURN NEW;
+  END IF;
 
-`rpe_global` in `src/` di produzione sopravvive SOLO nei commenti che documentano il cambio
-(grep in §6.4) — più il modulo scollegato `useOfflineSync.ts` e le fixture dei test acwr (che
-provano proprio che `rpe_global` NON muove il carico).
+  SELECT w.title INTO v_workout_title
+  FROM workouts w WHERE w.id = NEW.workout_id;
 
-## 6. Acceptance — comando e output
+  v_link := '/coach/athlete/' || NEW.athlete_id;
 
-1. 🔴 **Prova rossa sul cablaggio** → §7.A: tocco 8 → UPDATE con `srpe = 8` e `rpe_global` assente dal payload; il rosso nomina le due colonne e i due valori.
-2. 🔴 **Non risposto resta NULL** → boundary test «scala non toccata → srpe = NULL» verde, controllo positivo nello stesso file (tocco → valore; secondo tocco → di nuovo NULL). Prova rossa in §7.B.
-3. **Ancore di sessione, vuoti vuoti:** `sessionRpe.test.ts` («i vuoti a 6, 8 e 9 NON portano parola» · «nessuna stringa della scala contiene "rep"») + al FORM vero (`PostWorkoutDebrief.boundary.test.ts`: per OGNI valore selezionato il testo della sezione non matcha `/rep/i`; su 6/8/9 la didascalia è il numero nudo). Run: 402/402 verdi.
-4. **Nessuno sforzo inventato:** `grep -rnE "(rpe|srpe|Rpe)[a-zA-Z_.]*\s*\?\?\s*[0-9]" src --include="*.ts" --include="*.tsx" | grep -v __tests__` → 3 righe: un COMMENTO che documenta il vecchio `?? 7` e **due prescrizioni del builder coach** (`ExerciseLibraryDrawer.tsx:29` `default_rpe ?? 8`, `useProgramBuilderStore.ts:314` `rpe_target ?? 8`) — semi di TARGET prescritti, non letture di sforzo dichiarato: fuori dal criterio, dichiarate qui.
-5. **Una scala sola a valle:** `ReviewWorkoutItem.render.test.ts` (nullo → «RPE sessione —», 8 → «RPE sessione 8», doppio badge morto) + `AthleteContextPane.render.test.ts` (nullo → «RPE —», 9 → «RPE 9»). Due superfici coach, entrambe verdi.
-6. **I CINQUE gate sul tip:** `npx tsc --noEmit -p tsconfig.app.json` → exit 0 · `npx vitest run` → **402 passed (402) su 38 file** exit 0 (baseline misurata su `bac852f` nel worktree pulito: **386/35 esatta**; +16: 5 modulo, 7 confine, 3 review-item, 1 pane) · `npx eslint .` → **81 errori** (= baseline, non sopra) · `npm run build` → exit 0 · `npm run verify:css` → «✓ 20/20 classi attese in uso e verificate …» exit 0. Ri-verificati da `code-test-verifier` in contesto proprio.
-7. **Perimetro:** `git diff origin/main..HEAD --stat` → 13 file di codice (+ i 3 docs nel commit finale), tutti nel §2.
+  -- RULE 1: session RPE >= 9 — reads srpe …
+  IF NEW.srpe IS NOT NULL AND NEW.srpe >= 9 THEN
+    v_severity := CASE WHEN NEW.srpe >= 10 THEN 'high' ELSE 'medium' END;
+    v_message := COALESCE(v_athlete_name, 'Atleta') || ' ha registrato RPE di sessione ' || NEW.srpe || ' su "' || COALESCE(v_workout_title, 'Allenamento') || '"';
 
-## 7. Le due prove rosse (sul tip, ripristino per copia + `cmp` byte-identico)
+    INSERT INTO coach_alerts (coach_id, athlete_id, workout_log_id, type, severity, message, link)
+    VALUES (v_coach_id, NEW.athlete_id, NEW.id, 'risk_alert', v_severity, v_message, v_link);
+  END IF;
 
-**A — cablaggio** (riscrittura `rpe_global: input.srpe ?? null` reintrodotta nel literal della UPDATE, `useAthleteWorkoutHooks.ts:164`):
+  -- RULE 2 stood here … REMOVED (motivo nel commento del file)
 
-```
-FAIL … l'atleta sceglie 8 → la UPDATE porta srpe = 8 e rpe_global NON viene scritta
-AssertionError: colonne di sforzo nel payload UPDATE: expected { srpe: 8, rpe_global: 8 }
-to deeply equal { srpe: 8, rpe_global: undefined }
--   "rpe_global": undefined,    +   "rpe_global": 8,
-```
-
-Il seam è il CLIENT, sotto l'hook: la mutation gira per davvero, quindi il rosso scatta anche se
-la colonna sbagliata rientra un gradino sotto il componente. Ripristino: `cp` + `cmp` →
-`CMP_IDENTICO`, suite verde.
-
-**B — preselezione** (`useState<SessionRpe | null>(7)` reintrodotto nel debrief):
-
-```
-FAIL … scala non toccata → srpe = NULL
-AssertionError: non risposto resta NULL: expected 7 to be null
-FAIL … selezionare e RIMUOVERE (secondo tocco) torna a NULL
-AssertionError: dichiarazione revocata: expected 7 to be null
+  RETURN NEW;
+END;
+$$;
 ```
 
-Ripristino: `cp` + `cmp` → `CMP_IDENTICO`, suite completa exit 0 (402/402).
+**Cosa è cambiato (tre punti, nient'altro):**
 
-## 8. Non fatto / divergenze (file:riga)
+1. RULE 1: `NEW.rpe_global` → `NEW.srpe` (condizione E severità, stessa forma: `>= 9`, `high` da 10, `medium` a 9).
+2. Il messaggio di RULE 1: da «… recorded RPE N on "…"» a «… ha registrato RPE di sessione N su "…"» — italiano, e nomina la grandezza; i ripieghi `'Athlete'`/`'Workout'` diventano `'Atleta'`/`'Allenamento'` (sono DENTRO la riga riscritta).
+3. RULE 2 (`NEW.srpe > 800` → alert `high` «extreme session load»): **RIMOSSA**, col motivo in commento SQL nel punto esatto in cui stava — presumeva che `srpe` fosse il carico, il `CHECK (srpe >= 1 AND srpe <= 10)` la rendeva irraggiungibile per costruzione; una soglia irraggiungibile che dichiara di misurare il carico legge come copertura. L'allarme sul carico estremo nascerà da `srpe × durata` (modulo unico del carico).
 
-1. **`VolumeIntensityChart.tsx`** — fuori dal manifesto del prompt, trascinato dalla misura: consuma `avgRpe`, che senza il 7 fabbricato diventa nullable → media sui soli punti dichiarati, «—» quando nessuno dichiara, tooltip null-safe. Senza questo tocco il grafico avrebbe sommato null.
-2. **`CoachHome.tsx:695`** — 1 riga: il feed della dashboard consuma il campo rinominato (`rpeGlobal` → `sessionRpe`). La sua `rpePill` già rende nulla su null.
-3. **`ReviewWorkoutItem` ora è un named export** (`AthleteViewerDialog.tsx`): serviva a testare la superficie senza montare l'intero dialog. Solo visibilità, zero comportamento.
-4. **I vuoti a 6/8/9 NON riempiti** — nessuna divergenza da segnalare: le ancore ratificate bastano; la didascalia mostra il numero nudo e il test lo inchioda. (Se in collaudo il numero nudo sembrasse povero, la risposta è di Nicolò, non una parola inventata.)
-5. **Prescrizioni con default** (`ExerciseLibraryDrawer.tsx:29` `default_rpe ?? 8`, `useProgramBuilderStore.ts:314` `rpe_target ?? 8`): TARGET del builder coach, non letture di sforzo dichiarato — fuori dal criterio 4, dichiarate e non toccate.
-6. **`useOfflineSync.ts`** — importato da nessun file (modulo scollegato, PWA rimossa): il suo payload `srpe` inerte resta lì; la pulizia è della fetta-moduli-WIP, non di questa.
-7. **La riga storica** con due anni di valori di sessione in `rpe_global` resta al suo posto: le superfici ora leggono `srpe`, quindi per le sedute vecchie mostrano «—». Se e come migrare quei valori (`UPDATE … SET srpe = rpe_global WHERE …`) è una decisione di schema/dati di Nicolò e Cowork — vietata qui (nessuna migrazione, nessuna scrittura di massa).
-8. **`duration_minutes`/`total_load_au`** — fuori fetta, restano datate (spec §1.6): NON alimentate, sarebbero una seconda casa per il carico che C-09 ha appena unificato.
-9. **Il momento della domanda** — si chiede subito (ratifica Nicolò 24/08); la divergenza dal protocollo della letteratura (30 min) e del corso (5-10 min) è dichiarata NEL MODULO (`sessionRpe.ts`, commento di testa): l'sRPE raccolto è confrontabile con sé stesso nel tempo, non con le soglie della letteratura — un motivo in più perché il rapporto acuto:cronico resti una lente.
-10. **La Lezione 8 del corso** (`repos/nc-education`) resta disallineata dalla scala della sua stessa fonte («6 Moderato», «8-9 Alto» dove Foster mette i vuoti): repo diverso, resta a Nicolò (ratifica: il prodotto segue Foster).
-11. **La traduzione italiana delle ancore è dichiarata come proposta**: se Nicolò detta altre parole, si cambiano NEL MODULO e vivono ovunque insieme.
-12. 🔴 **DEBITO LATO SERVER, trovato dalla passata indipendente e NON riparabile qui (`supabase/**` vietato): il trigger watchdog smette di escalare.** `supabase/migrations/20260213073401_….sql:81-86` scrive `coach_alerts` (`risk_alert`) su `NEW.rpe_global >= 9` — e da questa fetta nessuno scrive più `rpe_global`, quindi quella regola non scatterà MAI più; la sua regola gemella su `NEW.srpe > 800` (`:90`) è **irraggiungibile** col CHECK `srpe 1..10` (fu scritta pensando al CARICO srpe×durata, non alla scala). Netto: **zero `risk_alert` da allenamento** finché il trigger non viene riallineato a `srpe >= 9` con una migration di corsia Cowork. È il canale di escalation CORE §0 reso leggibile da `CoachAlertsPanel`: un canale che si spegne in silenzio è esattamente il fallimento che questa fetta combatte — per questo sta scritto qui in rosso, primo punto di §9.
-13. **Stesso debito, due edge function:** `supabase/functions/analyze-athlete-week/index.ts:165` e `generate-batch-checkins/index.ts:190` mediano ancora `rpe_global` → d'ora in poi «N/D»/«N/A» stabile (nessun NaN: i filtri reggono). Entrambe le query **già selezionano `srpe`**: il fix è una parola per file, corsia `supabase/functions/**` (fuori da questa fetta FE).
+**Cosa è rimasto identico (riga per riga rispetto alla versione installata):** `SECURITY DEFINER` ·
+`SET search_path TO 'public', 'pg_temp'` (la forma INSTALLATA — ⚠️ il file storico
+`20260213073401:50` portava solo `'public'`: l'hardening è arrivato via connettore senza mirror,
+e questa migration lo CONSERVA, non lo regredisce) · il blocco `DECLARE` (6 variabili, inclusa
+`v_severity` ancora usata da RULE 1) · la guardia `status != 'completed'` · la risoluzione
+`coach_id`/`full_name` da `profiles` · l'uscita a coach `NULL` · il titolo da `workouts` ·
+`v_link` · l'`INSERT` su `coach_alerts` (stesse colonne, stesso `type='risk_alert'`) ·
+`RETURN NEW` · il trigger (non ricreato: il `REPLACE` della funzione basta, `AFTER INSERT OR
+UPDATE` resta).
 
-## 9. Resta a Nicolò
+**Limite dichiarato della misura:** l'MCP Supabase di questa sessione è senza token (noto dal
+log), quindi il corpo vivo l'ho ricostruito da: file storico del repo + i fatti-vivi che il
+mandato incolla dalla misura `pg_get_functiondef` di Cowork del 25/08 (le due regole, il
+`search_path` a due schemi, gli elementi da preservare). L'unica divergenza vivo↔file nominata è
+il `search_path`, e l'ho conservata. **Cowork, sul ritorno: diff `pg_get_functiondef` vivo ↔
+questo file prima dell'apply** — se il vivo porta altro drift non nominato, vince il vivo.
 
-- 🔴 **PRIMA COSA, con Cowork (corsia `supabase/**`, vietata a questa fetta):** riallineare a `srpe` i tre inseguitori lato server di §8.12-13 — il trigger watchdog (`rpe_global >= 9` → `srpe >= 9`, e decidere la sorte della regola morta `srpe > 800`) e le due edge (`analyze-athlete-week:165`, `generate-batch-checkins:190`, una parola ciascuna). Senza il trigger, il canale `risk_alert` da allenamento resta muto.
-- **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rpe-sessione).
-- **L'ultimo miglio dal debrief:** chiudere una seduta vera → la domanda di sessione con le ancore di Foster (3 = Moderato, vuoto a 6/8/9), la definizione e l'avvertenza sul momento; scegliere un valore → sulla scheda coach (Feedback Coach) compare «RPE sessione N», nel pane della chat «RPE N»; non scegliere → «—» e la colonna resta NULL. E da C-09: appena le sedute con `srpe` copriranno la finestra, la lente del carico comincerà a riempirsi da sola.
-- **La riga storica in `rpe_global`** (§8.7): decidere con Cowork se migrare i valori vecchi in `srpe` o lasciarli alla storia.
-- **La Lezione 8 del corso** da riallineare a Foster (§8.10), e l'eventuale veto sulle parole italiane (§8.11).
+## 5. Acceptance — comando e output
+
+1. **Il diff della funzione** → §4 (corpo intero + registro dei cambi e degli identici).
+2. **Perimetro:** `git diff origin/main..HEAD --stat` → `analyze-athlete-week/index.ts` (7±), `generate-batch-checkins/index.ts` (5±), `20260825103000_riallinea_watchdog_srpe.sql` (+86) — solo i tre; il commit docs (questo file + HANDOFF + RETRO) si aggiunge sopra, dichiarato in §2.
+3. **Deno:** `npx deno test --allow-all --no-check --no-lock supabase/functions/` → **ok | 496 passed | 0 failed** (baseline sul tree pulito: 496 identica; nessun test Deno fissava `rpe_global` nelle due edge).
+4. **I cinque cancelli FE, invariati numero per numero:** `tsc --noEmit` exit 0 · `vitest run` **402 passed (402) su 38 file** exit 0 · `eslint .` **81 errori / 13 warning** · `npm run build` exit 0 · `npm run verify:css` exit 0 («20/20 classi attese in uso e verificate»). Identici alla baseline: zero tocchi FE.
+5. **Il grep del riallineamento:** `grep -rn "rpe_global" supabase/` → nelle **functions** restano solo le 2 select che elencano la colonna (`analyze-athlete-week:81`, `generate-batch-checkins:128`) e i commenti; nelle **migrations** restano la storia immutabile (vecchia definizione `20260213073401`, schema, view) e i commenti della nuova. **Nessuna lettura viva che produca un numero o alzi un allarme nelle edge**; per i lettori residui nel DB → §6.2.
+
+## 6. Non fatto / divergenze (file:riga)
+
+1. **RULE 2 rimossa, non tenuta** — ed è la scelta giusta, nessun ripensamento da segnalare: il `CHECK` la rendeva irraggiungibile e la capacità che fingeva di coprire (carico estremo) appartiene a `srpe × durata`, che oggi vive nel modulo unico del carico.
+2. **Lettori residui di `rpe_global` nel DATA-PLANE, misurati e NON toccati (fuori dai tre punti del mandato):** le view `analytics_athlete_progress` (`20260212035031:25` — `COALESCE(AVG(wl.rpe_global), 0)`, che oltre a leggere la colonna morta fonde assenza e zero) e `analytics_athlete_summary` (`20260214204708:33-46` — `COALESCE(rpe_global, 5)` dentro i calcoli di carico) — **zero consumatori** in `src/**` e `supabase/functions/**` (grep exit 1): oggetti vivi ma morti d'uso, candidati a rimozione nella fetta-schema che deciderà anche `duration_minutes`/`total_load_au`. E il trigger `notify_coach_workout_completed` (`20260215193415:52` — `COALESCE(NEW.rpe_global, NEW.srpe)`, la fusione invertita già datata da C-09): con `rpe_global` ormai NULL degrada **per caso** sulla colonna giusta; resta datato.
+3. **L'ordine §0.2 invertito**: il workflow canonico è Cowork-prepara → Nick-approva → apply → Code-specchia il file; qui il file nasce PRIMA perché la fetta chiude un debito trovato in review. L'apply resta l'ultimo miglio di Nicolò/Cowork, e la version va registrata in `schema_migrations` con lo stesso timestamp del file (lezione grazia-4a).
+4. **`deno.lock`** creato dal primo run di baseline (senza `--no-lock`) e rimosso subito — la lezione del log regge, il run di conferma è passato con `--no-lock`.
+5. **Zero modifiche a `src/`** — il vincolo 1 regge: nessun punto della fetta l'ha richiesto.
+6. **Passata `supabase-rls-auditor` (obbligatoria, contesto proprio): PASS, zero rilievi Alti.** Conferme: `SECURITY DEFINER` + `search_path` a due schemi conservati; niente SQL dinamico (la concatenazione del messaggio alimenta un INSERT parametrizzato); policy `coach_alerts` intatte; rimozione RULE 2 legittima (CHECK confermato in `20260112003407:61`). Registrati e NON riparati (fuori mandato, preesistenti): **Media** — `analyze-athlete-week/index.ts:17-23` valida `athlete_id` solo per truthiness, senza assert-UUID (mitigato da `.eq()` parametrizzato + ownership check `:56`; l'helper `_shared/uuid.ts` citato dalla metodologia §4 non esiste nel repo — nota per la fetta che lo introdurrà); **da Bassa a NOMINATA, col percorso concreto (code-reviewer)** — il trigger è `AFTER INSERT OR UPDATE` senza `WHEN` né dedupe (`20260213073401:101-104`; nessun vincolo unico su `coach_alerts`, censito in `docs/CENSIMENTO-AVVISI-COACH.md:74`): finché RULE 1 leggeva `rpe_global` era inerte, ma attivandola su `srpe` **ogni UPDATE successiva** della riga completed con `srpe>=9` re-inserisce un `risk_alert` identico — e il **feedback del coach è esattamente quella UPDATE** (`src/hooks/useReviewWorkout.ts:23-25`): recensire una seduta a 9+ duplicherebbe l'alert. Il trigger è VIETATO a questa fetta (resta intatto per contratto): la conseguenza va gestita al collaudo (§7) e chiusa in una fetta sua (candidate: `WHEN` su transizione a completed, o dedupe su non-dismesso come già fanno le edge di release); **Bassa** — `rpe_global` resta nelle due select come dato morto (il mandato lo consente esplicitamente; toglierlo è pulizia da fetta-schema).
+
+## 7. Resta a Nicolò
+
+- **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/watchdog-srpe).
+- **Apply della migration** via Cowork col suo benestare (connettore, `apply_migration` + `get_advisors(security)` + **registrazione della version `20260825103000` in `schema_migrations`**), previa **verifica del drift**: diff `pg_get_functiondef('public.watchdog_workout_alert')` vivo ↔ file (§4, limite dichiarato).
+- **Deploy delle due edge**: `npx -y supabase functions deploy analyze-athlete-week --project-ref xgxtplqlewpqjzghvbke` e idem `generate-batch-checkins`. ⚠️ Ordine libero rispetto alla migration (nessuna dipendenza reciproca: le edge leggono una colonna che già esiste).
+- **Collaudo del canale, per la prima volta possibile davvero:** un debrief con RPE di sessione 9 → riga `coach_alerts` (`risk_alert`, `medium`, messaggio italiano) e campanella; con 10 → `high`. Senza dichiarazione → nessun alert. ⚠️ **Aspettati il duplicato di §6.6**: se al collaudo il coach RECENSISCE quella seduta (il feedback è una UPDATE della riga), il trigger ri-scatta e duplica l'alert — è il comportamento ereditato `AFTER INSERT OR UPDATE` senza dedupe, ora raggiungibile per la prima volta. Non è un difetto della migration: è la fetta-dedupe da mettere in coda (candidate in §6.6).
