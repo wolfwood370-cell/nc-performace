@@ -319,10 +319,15 @@ export default function ActiveWorkout() {
   // -- Release document -> today's session ----------------------------------
   // ONE selector door for "what does the athlete do today?": the same
   // sessionForDate the home, the Training Hub and the debrief already use.
-  // The page owns the clock; the selector never reads it.
+  // The page owns the clock; the selector never reads it. The date is
+  // PINNED at mount: the session belongs to the day it started (same
+  // principle as the debrief's naming) — re-reading the clock every
+  // render would swap the sheet under an open drawer at midnight,
+  // silently discarding whatever the athlete had typed.
+  const [sessionDate] = useState(() => localIsoDate(new Date()));
   const releaseQuery = useLatestReleaseQuery();
   const program = releaseQuery.data?.program ?? null;
-  const day = program ? sessionForDate(program, localIsoDate(new Date())) : null;
+  const day = program ? sessionForDate(program, sessionDate) : null;
 
   // -- Real logged sets ------------------------------------------------------
   // Completed counts are derived from exercise_logs rows, never from a

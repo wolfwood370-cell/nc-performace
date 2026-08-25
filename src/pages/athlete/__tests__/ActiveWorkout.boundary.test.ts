@@ -144,6 +144,48 @@ const docFor = (date: string) => ({
           sets: [rawSet(1), rawSet(2), rawSet(3)],
         },
         { item_id: "w1-s1-e2", name: "Plank senza catalogo", sets: [rawSet(1)] },
+        {
+          // AI exercise never linked to the library (aiProgramMapper D11.1):
+          // the NIL sentinel survives the release validators (non-empty) but
+          // resolves to nothing in exercises — must render read-only.
+          item_id: "w1-s1-e3",
+          exercise_id: "00000000-0000-0000-0000-000000000000",
+          name: "Esercizio IA scollegato",
+          sets: [rawSet(1)],
+        },
+      ],
+    },
+  ],
+});
+
+/** Same catalog exercise in TWO slots of the day (coach back-off work):
+ *  rows cannot be attributed to a slot, so both display the day-total. */
+const docWithBackoff = (date: string) => ({
+  version: 2,
+  goal: "forza",
+  rationale: "",
+  name: "Blocco 1",
+  days: [
+    {
+      session_id: "s1",
+      day_index: 0,
+      day_name: "Giorno 1",
+      focus: "Lower Body",
+      date,
+      week_order: 1,
+      exercises: [
+        {
+          item_id: "w1-s1-e1",
+          exercise_id: CATALOG_UUID,
+          name: "Back Squat",
+          sets: [rawSet(1), rawSet(2), rawSet(3)],
+        },
+        {
+          item_id: "w1-s1-e9",
+          exercise_id: CATALOG_UUID,
+          name: "Back Squat (back-off)",
+          sets: [rawSet(1), rawSet(2)],
+        },
       ],
     },
   ],
@@ -400,6 +442,25 @@ describe("i campi partono vuoti e la serie non parte senza peso e ripetizioni", 
     // Nothing was written while the button was disabled.
     expect(h.exerciseLogInserts).toHaveLength(0);
   });
+
+  it("valori che la riga non accetta restano fuori: reps decimali o peso negativo", async () => {
+    await renderPage();
+    await openDrawerFor("Abductor Machine in piedi");
+
+    const { weight, reps } = drawerInputs();
+    await typeInto(weight, "60");
+    await typeInto(reps, "8.5");
+    expect(addSetButton().disabled, "reps è uno SMALLINT: 8.5 non parte").toBe(true);
+
+    await typeInto(reps, "8");
+    await typeInto(weight, "-5");
+    expect(addSetButton().disabled, "il CHECK weight >= 0 non si sfida").toBe(true);
+
+    // Positive control: bodyweight is an EXPLICIT zero, and it logs.
+    await typeInto(weight, "0");
+    expect(addSetButton().disabled, "lo 0 digitato è una risposta valida").toBe(false);
+    expect(h.exerciseLogInserts, "niente scritture mentre era invalido").toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -420,6 +481,47 @@ describe("esercizio senza riferimento di catalogo", () => {
     );
     expect(opener, "nessun bottone di registrazione per la riga senza catalogo").toBeUndefined();
     expect(h.exerciseLogInserts).toHaveLength(0);
+  });
+
+  it("la sentinella NIL (esercizio IA scollegato) è sola consultazione, non un 23503 annunciato", async () => {
+    await renderPage();
+
+    expect(container.textContent, "l'esercizio IA resta in scheda").toContain(
+      "Esercizio IA scollegato",
+    );
+    const opener = buttons().find(
+      (b) =>
+        b.getAttribute("aria-label") ===
+        "Apri il registratore di serie per Esercizio IA scollegato",
+    );
+    expect(
+      opener,
+      "il NIL uuid non deve sembrare registrabile: la FK lo rifiuterebbe a ogni serie",
+    ).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b — same exercise twice in the day: the count tells the day-total truth
+// ---------------------------------------------------------------------------
+
+describe("stesso esercizio in due slot della seduta", () => {
+  it("entrambe le righe mostrano il totale di giornata (X/Y), mai un completamento per slot", async () => {
+    h.releaseDoc = docWithBackoff(localIsoDate(new Date()));
+    h.sessionRows.push({
+      id: "log-a",
+      session_id: "sess-1",
+      exercise_id: CATALOG_UUID,
+      set_number: 1,
+    });
+    await renderPage();
+
+    // 3 + 2 prescribed across the two slots, 1 row logged: the rows cannot
+    // be attributed to a slot, so BOTH display 1/5 — true by construction.
+    const matches = container.textContent?.match(/1\/5 serie/g) ?? [];
+    expect(matches, "il totale di giornata su entrambe le righe").toHaveLength(2);
+    expect(container.textContent, "nessun conteggio per-slot inventato").not.toContain("1/3 serie");
+    expect(container.textContent).not.toContain("1/2 serie");
   });
 });
 

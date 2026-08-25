@@ -19,10 +19,12 @@
 // Mounted by ActiveWorkout (slice A-03), one instance per opened
 // exercise, ALWAYS with the catalog id — see catalogExerciseId below.
 //
-// Inputs use `type="number" inputMode="decimal"` per the project's
-// established mobile-keyboard convention. Both fields must be filled
-// before a set can be logged (CORE §0.8: they start empty, never 0) —
-// bodyweight work is an explicit "0" typed in the weight field.
+// Inputs use `type="number"` per the project's mobile-keyboard
+// convention — `inputMode="decimal"` on weight (NUMERIC(6,2) accepts
+// 80.5), `inputMode="numeric"` on reps (SMALLINT: integers only). Both
+// fields must be filled AND valid for the DB row before a set can be
+// logged (CORE §0.8: they start empty, never 0) — bodyweight work is an
+// explicit "0" typed in the weight field.
 // =============================================================================
 
 import { useRef, useState } from "react";
@@ -94,19 +96,27 @@ export function StandardSetDrawer({
 
   // Disabled until BOTH fields are filled (slice A-03 contract: a set is
   // not logged while either value is still unstated — bodyweight is an
-  // explicit "0" in the weight field, never an inferred one). Also
-  // disabled while another set is mid-flight to avoid duplicate inserts
-  // on rapid taps.
+  // explicit "0" in the weight field, never an inferred one) AND both
+  // parse to values the DB row accepts: weight >= 0 (decimals fine,
+  // NUMERIC(6,2)), reps a non-negative INTEGER (SMALLINT). Refusing here
+  // beats a raw Postgres CHECK message in a toast. Also disabled while
+  // another set is mid-flight to avoid duplicate inserts on rapid taps.
+  const weightValue = Number(weight);
+  const repsValue = Number(reps);
   const canLog =
     weight.trim().length > 0 &&
     reps.trim().length > 0 &&
+    Number.isFinite(weightValue) &&
+    weightValue >= 0 &&
+    Number.isInteger(repsValue) &&
+    repsValue >= 0 &&
     !logSetMutation.isPending &&
     activeSessionId !== null;
 
   const handleLogSet = () => {
     if (!canLog || !activeSessionId) return;
-    const w = Number(weight) || 0;
-    const r = Number(reps) || 0;
+    const w = weightValue;
+    const r = repsValue;
     logSetMutation.mutate(
       {
         session_id: activeSessionId,
@@ -252,6 +262,7 @@ export function StandardSetDrawer({
                 ref={weightInputRef}
                 type="number"
                 inputMode="decimal"
+                min={0}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="0"
@@ -269,7 +280,9 @@ export function StandardSetDrawer({
               </span>
               <input
                 type="number"
-                inputMode="decimal"
+                inputMode="numeric"
+                min={0}
+                step={1}
                 value={reps}
                 onChange={(e) => setReps(e.target.value)}
                 placeholder="0"

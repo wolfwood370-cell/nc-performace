@@ -11,6 +11,8 @@
 // degrades to null, never crashes the page.
 // =============================================================================
 
+import { UNLINKED_EXERCISE_ID } from "./aiProgramMapper";
+
 /** One prescribed set as the athlete observes it (v2 only). Null = the coach
  *  did not write that value: the UI renders no label for it, never a 0. */
 export interface ReleaseSetView {
@@ -85,9 +87,14 @@ function letterCode(index: number): string {
 /** exercises.id carried by the document row (both v1 and v2 writers emit
  *  it), null when absent or malformed. A missing catalog reference
  *  degrades that exercise to read-only — it never drops it from the
- *  athlete's sheet and never falls back to the local item id. */
+ *  athlete's sheet and never falls back to the local item id.
+ *  The NIL-uuid sentinel (AI exercise never linked to the library,
+ *  aiProgramMapper D11.1) is "present but fake": it survives the release
+ *  validators (non-empty is enough for them) yet resolves to nothing in
+ *  exercises — treated as ABSENT here, or the row would look loggable
+ *  and every INSERT would die on the FK. */
 const catalogRef = (v: unknown): string | null =>
-  typeof v === "string" && v.length > 0 ? v : null;
+  typeof v === "string" && v.length > 0 && v !== UNLINKED_EXERCISE_ID ? v : null;
 
 /**
  * program_document (jsonb) -> view model; null on malformed shape.

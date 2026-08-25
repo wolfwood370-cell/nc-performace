@@ -94,6 +94,24 @@ describe("v2 — i due id viaggiano insieme e restano distinguibili", () => {
       ).toBeNull();
     }
   });
+
+  it("la sentinella NIL (esercizio IA mai collegato) è assenza, non un riferimento", () => {
+    // aiProgramMapper D11.1: un esercizio IA non trovato in libreria porta
+    // il NIL uuid — sopravvive ai validatori del rilascio (non-vuoto basta)
+    // ma non risolve in exercises: trattarlo come presente renderebbe la
+    // riga registrabile e ogni INSERT morirebbe sulla FK.
+    const view = parseReleaseDocument(
+      v2Doc({
+        item_id: "w1-s1-e4",
+        exercise_id: "00000000-0000-0000-0000-000000000000",
+        name: "Esercizio IA scollegato",
+        sets: [v2Set],
+      }),
+    )!;
+    const ex = view.days[0].exercises[0];
+    expect(ex.name, "l'esercizio resta in scheda").toBe("Esercizio IA scollegato");
+    expect(ex.catalog_exercise_id, "la sentinella NIL non è un riferimento di catalogo").toBeNull();
+  });
 });
 
 describe("v1 — stesso contratto del documento-motore", () => {

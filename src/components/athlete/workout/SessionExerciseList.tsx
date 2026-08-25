@@ -42,14 +42,18 @@ function countLabel(done: number, prescribed: number): string {
 function ExerciseRow({
   exercise,
   done,
+  prescribed,
   onOpen,
 }: {
   exercise: ReleaseExerciseView;
   done: number;
+  /** Prescribed sets for this CATALOG exercise across the whole day — not
+   *  necessarily this slot's own `sets`: see the aggregation note below. */
+  prescribed: number;
   onOpen: (exercise: ReleaseExerciseView) => void;
 }) {
   const loggable = exercise.catalog_exercise_id !== null;
-  const completed = loggable && done >= exercise.sets && exercise.sets > 0;
+  const completed = loggable && prescribed > 0 && done >= prescribed;
 
   const body = (
     <>
@@ -82,13 +86,13 @@ function ExerciseRow({
       {loggable && (
         <span className="shrink-0 flex items-center gap-2">
           <span
-            aria-label={`${done} serie registrate su ${exercise.sets} prescritte`}
+            aria-label={`${done} serie registrate su ${prescribed} prescritte`}
             className={cn(
               "font-display text-sm font-semibold tabular-nums",
               completed ? "text-brand-container" : "text-on-surface-variant",
             )}
           >
-            {countLabel(done, exercise.sets)}
+            {countLabel(done, prescribed)}
           </span>
           <ChevronRight
             className="h-5 w-5 text-on-surface-variant/60"
@@ -135,6 +139,21 @@ export function SessionExerciseList({
   countsByCatalogId,
   onOpenExercise,
 }: SessionExerciseListProps) {
+  // DECLARED LIMIT — same catalog exercise in more than one slot of the
+  // day (coach back-off work, engine repeats): exercise_logs rows carry NO
+  // item reference, so completed sets cannot be attributed to a specific
+  // slot. Every slot of that exercise therefore shows the DAY-TOTAL count
+  // ("X/Y serie" where Y sums every slot's prescription) — true by
+  // construction, never a per-slot claim the data cannot back. Per-slot
+  // attribution needs schema (flagged as follow-up).
+  const prescribedByCatalogId: Record<string, number> = {};
+  for (const exercise of day.exercises) {
+    if (exercise.catalog_exercise_id !== null) {
+      prescribedByCatalogId[exercise.catalog_exercise_id] =
+        (prescribedByCatalogId[exercise.catalog_exercise_id] ?? 0) + exercise.sets;
+    }
+  }
+
   return (
     <section aria-label="Esercizi della seduta" className="flex flex-col gap-3">
       <header className="px-1">
@@ -154,6 +173,11 @@ export function SessionExerciseList({
               exercise.catalog_exercise_id !== null
                 ? (countsByCatalogId[exercise.catalog_exercise_id] ?? 0)
                 : 0
+            }
+            prescribed={
+              exercise.catalog_exercise_id !== null
+                ? (prescribedByCatalogId[exercise.catalog_exercise_id] ?? exercise.sets)
+                : exercise.sets
             }
             onOpen={onOpenExercise}
           />
