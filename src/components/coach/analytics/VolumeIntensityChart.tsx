@@ -36,13 +36,17 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
 
   const hasData = data && data.length > 0;
 
-  // Calculate averages
+  // Calculate averages. avgRpe can be null per point (nobody declared an
+  // effort for that session): the mean runs over the DECLARED points only,
+  // and with none it reads "—" — absence never becomes a number.
   const avgTonnage = hasData
     ? Math.round(data.reduce((sum, d) => sum + d.totalTonnage, 0) / data.length)
     : 0;
-  const avgRpe = hasData
-    ? (data.reduce((sum, d) => sum + d.avgRpe, 0) / data.length).toFixed(1)
-    : 0;
+  const rpeDeclared = hasData ? data.flatMap((d) => (d.avgRpe != null ? [d.avgRpe] : [])) : [];
+  const avgRpe =
+    rpeDeclared.length > 0
+      ? (rpeDeclared.reduce((sum, v) => sum + v, 0) / rpeDeclared.length).toFixed(1)
+      : "—";
 
   return (
     <Card className="border-0 shadow-sm h-full">
@@ -107,8 +111,8 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
                   borderRadius: "8px",
                   fontSize: "11px",
                 }}
-                formatter={(value: number, name: string) => [
-                  name === "totalTonnage" ? `${(value / 1000).toFixed(1)}t` : value,
+                formatter={(value: number | null, name: string) => [
+                  name === "totalTonnage" ? `${((value ?? 0) / 1000).toFixed(1)}t` : (value ?? "—"),
                   name === "totalTonnage" ? "Tonnellaggio" : "RPE Medio",
                 ]}
               />

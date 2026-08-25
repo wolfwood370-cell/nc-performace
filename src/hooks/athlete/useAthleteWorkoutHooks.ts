@@ -140,13 +140,17 @@ export function useLogSetMutation() {
 export interface FinishSessionInput {
   session_id: string;
   duration_seconds: number;
-  rpe_global?: number | null;
+  /** Session RPE (CR-10 of Foster) → `workout_logs.srpe`, ITS column.
+   *  `rpe_global` is deliberately not part of this payload anymore: the
+   *  two DB CHECKs are identical (1..10), only the column name separates
+   *  the scales — so the code must (B-22). Untouched scale = null. */
+  srpe?: number | null;
   notes?: string | null;
 }
 
 /**
  * Mark a session complete — stamps `completed_at`, persists final
- * duration / RPE / notes, flips status to 'completed'.
+ * duration / session RPE / notes, flips status to 'completed'.
  */
 export function useFinishSessionMutation() {
   const queryClient = useQueryClient();
@@ -156,7 +160,7 @@ export function useFinishSessionMutation() {
       const update: TablesUpdate<"workout_logs"> = {
         completed_at: new Date().toISOString(),
         duration_seconds: input.duration_seconds,
-        rpe_global: input.rpe_global ?? null,
+        srpe: input.srpe ?? null,
         notes: input.notes ?? null,
         status: "completed",
       };

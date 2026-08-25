@@ -31,7 +31,10 @@ import { useReviewWorkout } from "@/hooks/useReviewWorkout";
 interface ReviewWorkoutItemProps {
   logId: string;
   title: string;
-  rpe: number | null;
+  /** Session rating from `workout_logs.srpe` (CR-10). The old second badge
+   *  read `rpe_global` — the session value written for two years to the
+   *  wrong column (B-22): the surface now reads ONE column, and a missing
+   *  value reads "—", never a fallback number. */
   srpe: number | null;
   athleteNotes: string | null;
   existingFeedback: string | null;
@@ -84,10 +87,9 @@ function parseExecutionLog(raw: unknown): ParsedExercise[] | null {
   return parsed.length > 0 ? parsed : null;
 }
 
-function ReviewWorkoutItem({
+export function ReviewWorkoutItem({
   logId,
   title,
-  rpe,
   srpe,
   athleteNotes,
   existingFeedback,
@@ -109,16 +111,9 @@ function ReviewWorkoutItem({
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold truncate">{title}</p>
         <div className="flex items-center gap-1">
-          {rpe != null && (
-            <Badge variant="secondary" className="text-3xs">
-              RPE {rpe}
-            </Badge>
-          )}
-          {srpe != null && (
-            <Badge variant="outline" className="text-3xs">
-              sRPE {srpe}
-            </Badge>
-          )}
+          <Badge variant="secondary" className="text-3xs">
+            RPE sessione {srpe ?? "—"}
+          </Badge>
           {reviewed && (
             <Badge variant="default" className="text-3xs bg-success text-success-foreground">
               Recensito
@@ -265,7 +260,7 @@ export function AthleteViewerDialog({
       const { data } = await supabase
         .from("workout_logs")
         .select(
-          "id, workout_id, rpe_global, srpe, notes, coach_feedback, completed_at, exercises_data, workouts(title)",
+          "id, workout_id, srpe, notes, coach_feedback, completed_at, exercises_data, workouts(title)",
         )
         .eq("athlete_id", athleteId)
         .eq("status", "completed")
@@ -332,9 +327,7 @@ export function AthleteViewerDialog({
         // depending on FK shape). Narrow to the two fields we actually read
         // — `name` and `category` — instead of casting through `any`.
         const lib = h.habits_library as
-          | { name?: string | null; category?: string | null }
-          | null
-          | undefined;
+          { name?: string | null; category?: string | null } | null | undefined;
         return {
           id: h.id,
           name: lib?.name || "Abitudine",
@@ -533,7 +526,6 @@ export function AthleteViewerDialog({
                         key={log.id}
                         logId={log.id}
                         title={(log.workouts as { title?: string } | null)?.title ?? "Allenamento"}
-                        rpe={log.rpe_global}
                         srpe={log.srpe}
                         athleteNotes={log.notes}
                         existingFeedback={log.coach_feedback}

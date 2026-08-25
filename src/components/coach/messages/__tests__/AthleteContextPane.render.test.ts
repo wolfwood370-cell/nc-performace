@@ -28,8 +28,19 @@ const room = {
   ],
 } as unknown as ChatRoom;
 
+type LastCompleted = {
+  id: string;
+  workoutTitle: string;
+  scheduled_date: string;
+  completed_at: string | null;
+  /** Session rating from workout_logs.srpe — B-22: the pane reads THIS
+   *  column, and a missing value reads "—". */
+  srpe: number | null;
+  duration_minutes: number | null;
+} | null;
+
 type WorkoutData = {
-  lastCompleted: null;
+  lastCompleted: LastCompleted;
   upcoming: never[];
   compliance: { total: number; completed: number; missed: number; percentage: number };
 } | null;
@@ -97,6 +108,28 @@ describe("col dato: il numero c'è ed è quello della riga", () => {
     const htmlB = renderPane([{ date: "2026-08-22", score: 41 }], emptyWorkouts);
     expect(htmlB).toContain("41%");
     expect(htmlB).not.toContain("62%");
+  });
+
+  it("l'ultimo allenamento legge srpe: nullo → 'RPE —', col valore → quel valore", () => {
+    const conSeduta = (srpe: number | null): WorkoutData => ({
+      lastCompleted: {
+        id: "w1",
+        workoutTitle: "Panca Piana",
+        scheduled_date: "2026-08-20",
+        completed_at: "2026-08-20T18:00:00",
+        srpe,
+        duration_minutes: null,
+      },
+      upcoming: [],
+      compliance: { total: 1, completed: 1, missed: 0, percentage: 100 },
+    });
+
+    const senzaRating = renderPane([], conSeduta(null));
+    expect(senzaRating, "assenza leggibile, mai un ripiego").toContain("RPE —");
+
+    const conRating = renderPane([], conSeduta(9));
+    expect(conRating).toContain("RPE 9");
+    expect(conRating).not.toContain("RPE —");
   });
 
   it("compliance reale → '2/3' e '2 fatti', '1 saltati'", () => {

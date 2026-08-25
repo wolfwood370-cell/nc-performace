@@ -39,7 +39,9 @@ interface FeedbackItem {
   completedAt: string;
   hasVideo: boolean;
   hasNotes: boolean;
-  rpeGlobal: number | null;
+  /** Session rating from `workout_logs.srpe` (CR-10). Null = not declared
+   *  — the consumer renders no pill, never a fallback number. */
+  sessionRpe: number | null;
 }
 
 interface TodayScheduleItem {
@@ -185,7 +187,7 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
       const { data, error } = await supabase
         .from("workout_logs")
         .select(
-          "id, athlete_id, workout_id, completed_at, duration_seconds, rpe_global, srpe, notes, coach_feedback, status, scheduled_date",
+          "id, athlete_id, workout_id, completed_at, duration_seconds, srpe, notes, coach_feedback, status, scheduled_date",
         )
         .in("athlete_id", athleteIds)
         .gte("created_at", twentyEightDaysAgo);
@@ -255,9 +257,12 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
         }
       });
 
-      // RULE 2: RPE Spike (rpe_global > 9)
+      // RULE 2: RPE Spike — on the SESSION rating in ITS column (srpe,
+      // CR-10 of Foster). The old read of rpe_global judged a number whose
+      // scale was not the one it believed (B-22). No value → no alert:
+      // absence never becomes a number.
       const recentHighRpeLogs = athleteLogs.filter(
-        (log) => log.rpe_global !== null && log.rpe_global > 9 && log.completed_at,
+        (log) => log.srpe !== null && log.srpe > 9 && log.completed_at,
       );
       recentHighRpeLogs.slice(0, 1).forEach((log) => {
         alerts.push({
@@ -268,7 +273,7 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
           avatarInitials: initials,
           alertType: "rpe_spike",
           severity: "warning",
-          value: `RPE ${log.rpe_global}`,
+          value: `RPE ${log.srpe}`,
           details: "High intensity session - check recovery status",
           timestamp: log.completed_at ?? undefined,
         });
@@ -390,7 +395,7 @@ export function useCoachDashboardMetrics(): CoachDashboardMetrics {
           completedAt: log.completed_at!,
           hasVideo: false, // workout_logs doesn't have video_url currently
           hasNotes: !!log.notes,
-          rpeGlobal: log.rpe_global,
+          sessionRpe: log.srpe,
         };
       })
       .slice(0, 10);

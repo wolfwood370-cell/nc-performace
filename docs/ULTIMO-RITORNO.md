@@ -1,170 +1,130 @@
-# ULTIMO RITORNO — fetta acwr-unico (C-09)
+# ULTIMO RITORNO — fetta rpe-sessione (B-22)
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/acwr-unico` · 2026-08-24 · base `origin/main` = `ed4386f` · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/acwr-unico) — dal 20/08 il classificatore nega le credenziali all'agente).
+> Fetta: `claude/rpe-sessione` · 2026-08-25 · base `origin/main` = `bac852f` · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rpe-sessione) — dal 20/08 il classificatore nega le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/acwr-unico`, da `ed4386f`, 9 commit di codice + il commit dei documenti (tip del ramo):
-`7761d95` (modulo unico `src/lib/math/acwr.ts` + 15 test unit) · `ea08b8d` (roster: adapter puro,
-bandiere informative, Critico solo dal dolore, LoadLine nella card) · `1ea4354` (dettaglio atleta:
-hook su sRPE, AcwrGauge = card-lente, OverviewTab descrittivo, −494 righe di mock in AthleteDetail) ·
-`0fa4138` (dashboard: adapter puro, RULE 5 → riga info descrittiva — poi RIMOSSA in `f599746`, v. §8.11) ·
-`46286ba` (calendario: chip «Seduta saltata», non più «Spike ACWR») · `bd750ba` (test di parità
-cross-superficie) · `ae05cc4` (commenti stantii e vocabolario morto allineati) · `f599746` (chiusura
-dei 3 rilievi della passata indipendente: finestra di fetch del modulo, dashboard fuori dal carico) ·
-`831295a` (etichette Recente/Abituale dalle costanti).
+`claude/rpe-sessione`, da `bac852f`, 3 commit di codice + il commit dei documenti (tip del ramo):
+`b0571eb` (modulo unico `src/lib/effort/sessionRpe.ts` + 5 test: la scala di Foster coi vuoti) ·
+`31f8e0d` (il debrief scrive `srpe`, smette di scrivere `rpe_global`, parla la scala di sessione;
+boundary test col seam SOTTO l'hook, 7 test) · `6f42dfd` (i quattro lettori passano a `srpe`,
+l'assenza è «—»; test su due superfici coach, 4 test).
 
 ## 2. Manifesto
 
-**NUOVI:** `src/lib/math/acwr.ts` (modulo puro, unico proprietario di finestra · formula · dato
-mancante · fasce descrittive · testi utente) · `src/lib/math/__tests__/acwr.test.ts` (15 test) ·
-`src/hooks/__tests__/acwrSurfaces.parity.test.ts` (6 test, la prova del meccanismo).
+**NUOVI:** `src/lib/effort/sessionRpe.ts` · `src/lib/effort/__tests__/sessionRpe.test.ts` ·
+`src/pages/athlete/__tests__/PostWorkoutDebrief.boundary.test.ts` ·
+`src/components/coach/__tests__/ReviewWorkoutItem.render.test.ts`.
 
-**MODIFICATI (dichiarati dal prompt):** `src/hooks/useAthletesRiskOverview.ts` ·
-`src/hooks/useAthleteAcwrData.ts` · `src/hooks/useCoachDashboardMetrics.ts` ·
-`src/components/coach/analytics/AcwrGauge.tsx` · `src/pages/coach/AthleteDetail.tsx` ·
-`src/pages/coach/athlete-detail/OverviewTab.tsx` · `src/components/coach/AthleteCard.tsx` ·
-`src/pages/coach/CoachAthletes.tsx` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` · questo file.
+**MODIFICATI (dichiarati dal prompt):** `PostWorkoutDebrief.tsx` · `useAthleteWorkoutHooks.ts` ·
+`useAthleteAnalytics.ts` · `AthleteContextPane.tsx` · `useCoachDashboardMetrics.ts` ·
+`AthleteViewerDialog.tsx` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` · questo file.
 
-**MODIFICATI (fatti cadere dalla misura, dichiarati in §8):**
-`src/components/coach/calendar/CalendarGrid.tsx` (chip «⚠️ Spike ACWR» su workout saltato) ·
-`src/utils/translations.ts` (1 riga RIMOSSA: la voce morta `high_acwr` non ha più un tipo da etichettare) ·
-`src/hooks/__tests__/athletesRiskOverview.pain.test.ts` e
-`src/components/coach/__tests__/AthleteCard.acwr.render.test.ts` (la nuova firma di `assessRisks`
-e la LoadLine li rompevano: adattati al contratto nuovo, invarianti dolore ri-asseriti) ·
-`src/components/coach/__tests__/painMarkers.chip.render.test.ts` (2 righe: fixture usava il tipo
-rimosso `high_injury_risk`).
+**MODIFICATI (fatti cadere dalla misura, motivi in §8):**
+`src/components/coach/analytics/VolumeIntensityChart.tsx` (consumatore di `avgRpe`, ora
+nullable: media sui soli punti dichiarati, «—» senza dichiarazioni) ·
+`src/pages/coach/CoachHome.tsx` (1 riga: il feed rinomina `rpeGlobal` → `sessionRpe`) ·
+`src/components/coach/messages/__tests__/AthleteContextPane.render.test.ts` (esteso con i due
+stati del badge RPE).
 
-**NEL PERIMETRO MA NON TOCCATI:** `supabase/**` · `src/integrations/supabase/types.ts` ·
-`computeCheckinScore` / `readinessMath.ts` · `sessionForDate` · `localIsoDate` · le bandiere
-`pain_reported` e `low_recovery` (condizioni, label, level identici — ri-asseriti dai test) ·
-`package.json` (audit-gate non dovuto) · `CoachHome.tsx` (passthrough puro: zero riferimenti ACWR,
-le stringhe pulite arrivano dall'hook) · `MasterCopilot.tsx:18` («Spiegami il concetto di ACWR» è
-una domanda educativa, non un verdetto).
+**NEL PERIMETRO MA NON TOCCATI:** `supabase/**` · `types.ts` · **`src/lib/math/acwr.ts`**
+(di C-09: legge già `srpe`, intonso — `git diff` lo conferma) · `pain_reported`/`low_recovery` ·
+`computeCheckinScore` · `useOfflineSync.ts` (modulo scollegato: importato da NESSUN file, il suo
+passaggio `srpe` inerte resta com'è) · `package.json` (audit-gate non dovuto).
 
-## 3. Le due prove dei permessi (repo di scarto in scratchpad, 1 commit)
+## 3. Le due prove dei permessi (repo di scarto in scratchpad)
 
-- `git reset --hard HEAD` → **RIFIUTATO** («Permission to use Bash with command … has been denied») · `git rebase HEAD~1` → **RIFIUTATO** (stesso esito).
+- `git reset --hard HEAD` → **RIFIUTATO** («Permission to use Bash with command … has been denied») · `git rebase HEAD~1` → **RIFIUTATO**.
 - Vicini passati: `git status -sb` → `## master` · `git log --oneline -1` → `cbfde72 commit di prova`.
 
-## 4. IL CONTEGGIO DELLE IMPLEMENTAZIONI — 5 nel frontend, confermate; 0 oltre le cinque
+## 4. DOVE FINISCE IL NUMERO — dal tocco alla colonna
 
-Sweep indipendente su tutto `src/**` (grep acwr/acute/chronic/0.8/1.3/1.5/srpe/rpe_global/Foster,
-superfici atleta incluse): **le implementazioni con calcolo erano esattamente le 5 del prompt**.
-Per ognuna: cosa faceva del dato mancante e quale scala leggeva —
+1. **Il tocco.** La pill è un toggle: `PostWorkoutDebrief.tsx:146` `onChange(value === n ? null : n)` — secondo tocco = revoca (fetta rpe-si-puo-togliere, preservata).
+2. **Lo stato.** `PostWorkoutDebrief.tsx:196` `useState<SessionRpe | null>(null)` — parte VUOTO, nessuna preselezione (CORE §0.8).
+3. **Il payload del salvataggio.** `PostWorkoutDebrief.tsx:230` `srpe: rpe` dentro `finishSession.mutate({…})` — `rpe_global` non compare più nel payload.
+4. **La UPDATE.** `useAthleteWorkoutHooks.ts:163` `srpe: input.srpe ?? null` nel literal `TablesUpdate<"workout_logs">`, eseguita a `:169` `.update(update).eq("id", session_id)` — la stessa UPDATE che già girava, con la colonna giusta al posto di quella sbagliata.
+5. **La colonna.** `workout_logs.srpe` (`smallint CHECK 1..10`) — il nome e il CHECK descrivono ciò che contiene: la CR-10 di sessione.
 
-| #   | dove                                                            | scala letta                                            | dato mancante                                                                            | adesso                                                                                                                                                                                                                                  |
-| --- | --------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `useAthletesRiskOverview.ts:105-139` + `assessRisks:141-202`    | `srpe ?? rpe_global ?? 0`                              | pesava **0**                                                                             | adapter `riskOverviewAcwr` → modulo; la query non seleziona più `rpe_global`                                                                                                                                                            |
-| 2   | `useAthleteAcwrData.ts:60-124`                                  | **solo `rpe_global`** (srpe nemmeno in select)         | seduta **esclusa**; `<0.8` etichettato «Warning»                                         | select su `srpe`, adapter `athleteAcwrFromLogs` → modulo                                                                                                                                                                                |
-| 3   | `AthleteDetail.tsx:643-661` (`getAcwrStatus`) + mock `:534-631` | ratio da `generateAcwrTrendData()` = **Math.random()** | — (inventava tutto)                                                                      | mock e monitor RIMOSSI (−494 righe); la tab rende `AcwrGauge` (stesso hook, stessa cache)                                                                                                                                               |
-| 4   | `useCoachDashboardMetrics.ts:96-131, 345-359`                   | `srpe ?? rpe_global ?? 5`                              | inventava **RPE 5 × 30 min**; guardia a conteggio ≥7 log                                 | **RIMOSSA del tutto** (`f599746`): la dashboard non calcola né mostra più il carico — l'alert era irraggiungibile (CoachHome rende solo critical/warning) e il suo fetch (`created_at`, righe non completate) non combaciava col roster |
-| 5   | `AcwrGauge.tsx:27-69`                                           | leggeva la #2                                          | `ratio ?? 0` + parole proprie («Alto Rischio», «Zona Attenzione», «servono 2 settimane») | card-lente: parole SOLO dal modulo, assenza col motivo                                                                                                                                                                                  |
+Le parole sopra la scala vengono TUTTE da `src/lib/effort/sessionRpe.ts`: titolo e domanda
+(`:52-53`), definizione «valutazione globale, non la media delle serie» (`:56-57`), avvertenza
+sulla finestra di normalizzazione (`:60-61`), ancore coi vuoti (`:36-48`). Sui gradini 6, 8 e 9 la
+didascalia è **il numero nudo** (`PostWorkoutDebrief.tsx:171-174`): i vuoti sono il progetto
+della scala category-ratio, non una lacuna.
 
-Fuori dal conteggio, censite e dichiarate: **CalendarGrid.tsx:225** («⚠️ Spike ACWR» per un workout
-saltato — verdetto finto su proxy, riparato in `46286ba`) · view DB `analytics_athlete_summary`
-(`types.ts:3373-3386`, `current_acwr` server-side **mai letta dal FE** — nominale, non toccata) ·
-le due migration server-side del prompt (fusione invertita `20260215193415…sql:52` e
-`total_load_au` generata e mai letta `20260112003407…sql:63`) — **fuori perimetro, restano datate**.
+## 5. CHI LEGGEVA `rpe_global` E COSA LEGGE ADESSO
 
-## 5. Acceptance — comando e output
+| superficie                                                  | prima                                                | adesso                                                                                                                                 |
+| ----------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `useAthleteAnalytics.ts:245`                                | `rpe_global ?? 7` — **un 7 fabbricato**              | media per-serie, altrimenti `srpe`, altrimenti **null** (il grafico salta il punto e l'header media i soli dichiarati, «—» se nessuno) |
+| `AthleteContextPane.tsx:387-401`                            | giudizio su `rpe_global > 8`, badge nascosto se null | badge sempre leggibile da `srpe`: «RPE —» senza dichiarazione, evidenza >8 solo col valore                                             |
+| `useCoachDashboardMetrics.ts:258-275`                       | allerta `rpe_spike` su `rpe_global > 9`              | `srpe > 9`; senza valore nessuna allerta (l'assenza non diventa un numero)                                                             |
+| `useCoachDashboardMetrics.ts:393` + `CoachHome.tsx:695`     | il feed portava `rpeGlobal`                          | campo `sessionRpe` da `srpe`; la pill di CoachHome non rende nulla su null (già così)                                                  |
+| `AthleteViewerDialog.tsx`                                   | doppio badge «RPE {rpe_global}» + «sRPE {srpe}»      | UN badge «RPE sessione {srpe}», «RPE sessione —» se nullo                                                                              |
+| `PostWorkoutDebrief` + `useAthleteWorkoutHooks` (scrittori) | scrivevano `rpe_global`                              | scrivono `srpe`; `rpe_global` esce da payload e select                                                                                 |
 
-1. **Un solo proprietario.**
-   `grep -rniE "(ratio|acwr|acute|chronic)[^\"']*(0\.8|1\.3|1\.5)|(0\.8|1\.3|1\.5)[^\"']*(ratio|acwr)" src --include="*.ts" --include="*.tsx" | grep -v "lib/math/acwr" | grep -v __tests__`
-   → 7 righe, **nessuna è una soglia su un rapporto di carico**: 2 nutrition (`StrategyContent.tsx:428` carbs×0.8, `:646` kcal/7), 3 classi CSS (`gap-1.5`…), 2 commenti che DOCUMENTANO la rimozione (`useAthletesRiskOverview.ts:12`, `CoachAthletes.tsx` header). Media-7 su media-28: `grep -rnE "/ ?7[^0-9a-zA-Z]|/ ?28[^0-9a-zA-Z]" src/hooks src/pages/coach src/components/coach …` → solo `StrategyContent.tsx:646` (calorie).
-2. **Prova rossa sul meccanismo** → §6, rosso che nomina le due superfici e i due valori.
-3. **La finestra minima uccide il numero.** Test `acwrSurfaces.parity.test.ts`: «prima seduta utilizzabile a 15 giorni → nessuna superficie mostra un rapporto» (reason `storia_troppo_corta`, 15/28) ✓ · controllo positivo «con una seduta a 30 giorni → tutte lo mostrano, uguale» ✓ (output verboso nel run del 24/08, 6/6 verdi). Prova rossa dedicata in §6.
-4. **La scala non si sostituisce.** Stesso file, per ENTRAMBE le superfici del carico (roster e dettaglio; la terza non mostra più il carico — §8.11): «aggiungere una seduta con solo rpe_global non cambia l'esito (prima cambiava in tre modi diversi)» ✓ (ratio/fascia identici, `senzaSrpe` +1) · «cambiare il rpe_global di una seduta già utilizzabile non muove il numero» ✓. In più il dettaglio non SELEZIONA nemmeno `rpe_global`: la sostituzione è impossibile per costruzione.
-5. **Nessuna parola di rischio sopravvive.**
-   `grep -rniE "Alto Rischio|ACWR spike|Spike ACWR|Zona Attenzione|High Injury|High Risk|Overload Warning|Detraining Risk|ACWR sovraccarico|ACWR detraining|ACWR nella norma|ACWR Elevato|injury risk" src --include="*.ts" --include="*.tsx" | grep -v __tests__`
-   → **4 righe, tutte COMMENTI in domini non-carico** (`ProgrammedExerciseCard.tsx:202` e `fmsRiskEngine.ts:286` = FMS, `readinessMath.ts:329` = readiness/file vietato, `movement.ts:22` = screening): sulle superfici del carico, zero. In più il render-test della card asserisce `not.toMatch(PAROLE_DI_RISCHIO)` su tre stati.
-6. **Gate.** `npx tsc --noEmit -p tsconfig.app.json` → verde · `npx vitest run` → **386 passed (386) su 35 file** (baseline misurata su `ed4386f` nel worktree pulito: **360/33 esatta**; +16 modulo, +6 parità, +3 card, +1 pain) · `npx eslint .` → **81 errori** (= baseline, non sopra) e 13 warning · `package.json` non toccato → audit-gate non dovuto. Ri-verificati anche da `code-test-verifier` in contesto proprio.
-7. **Perimetro.** `git diff origin/main..HEAD --stat` → 16 file (997+/1068−, netto −71), SOLO i dichiarati del §2: gli extra sono i 5 fatti cadere dalla misura, ognuno con motivo in §8.
+`rpe_global` in `src/` di produzione sopravvive SOLO nei commenti che documentano il cambio
+(grep in §6.4) — più il modulo scollegato `useOfflineSync.ts` e le fixture dei test acwr (che
+provano proprio che `rpe_global` NON muove il carico).
 
-## 6. Le due prove rosse (rosso incollato, ripristino per copia + `cmp` byte-identico)
+## 6. Acceptance — comando e output
 
-**A — meccanismo** (reintrodotta la fabbrica di carico `srpe??5`/`duration??1800` nell'adapter del
-dettaglio; eseguita sul TIP del ramo, dopo la chiusura dei rilievi):
+1. 🔴 **Prova rossa sul cablaggio** → §7.A: tocco 8 → UPDATE con `srpe = 8` e `rpe_global` assente dal payload; il rosso nomina le due colonne e i due valori.
+2. 🔴 **Non risposto resta NULL** → boundary test «scala non toccata → srpe = NULL» verde, controllo positivo nello stesso file (tocco → valore; secondo tocco → di nuovo NULL). Prova rossa in §7.B.
+3. **Ancore di sessione, vuoti vuoti:** `sessionRpe.test.ts` («i vuoti a 6, 8 e 9 NON portano parola» · «nessuna stringa della scala contiene "rep"») + al FORM vero (`PostWorkoutDebrief.boundary.test.ts`: per OGNI valore selezionato il testo della sezione non matcha `/rep/i`; su 6/8/9 la didascalia è il numero nudo). Run: 402/402 verdi.
+4. **Nessuno sforzo inventato:** `grep -rnE "(rpe|srpe|Rpe)[a-zA-Z_.]*\s*\?\?\s*[0-9]" src --include="*.ts" --include="*.tsx" | grep -v __tests__` → 3 righe: un COMMENTO che documenta il vecchio `?? 7` e **due prescrizioni del builder coach** (`ExerciseLibraryDrawer.tsx:29` `default_rpe ?? 8`, `useProgramBuilderStore.ts:314` `rpe_target ?? 8`) — semi di TARGET prescritti, non letture di sforzo dichiarato: fuori dal criterio, dichiarate qui.
+5. **Una scala sola a valle:** `ReviewWorkoutItem.render.test.ts` (nullo → «RPE sessione —», 8 → «RPE sessione 8», doppio badge morto) + `AthleteContextPane.render.test.ts` (nullo → «RPE —», 9 → «RPE 9»). Due superfici coach, entrambe verdi.
+6. **I CINQUE gate sul tip:** `npx tsc --noEmit -p tsconfig.app.json` → exit 0 · `npx vitest run` → **402 passed (402) su 38 file** exit 0 (baseline misurata su `bac852f` nel worktree pulito: **386/35 esatta**; +16: 5 modulo, 7 confine, 3 review-item, 1 pane) · `npx eslint .` → **81 errori** (= baseline, non sopra) · `npm run build` → exit 0 · `npm run verify:css` → «✓ 20/20 classi attese in uso e verificate …» exit 0. Ri-verificati da `code-test-verifier` in contesto proprio.
+7. **Perimetro:** `git diff origin/main..HEAD --stat` → 13 file di codice (+ i 3 docs nel commit finale), tutti nel §2.
 
-```
-AssertionError: parità violata: roster (useAthletesRiskOverview.riskOverviewAcwr) → ratio 1.55 (sopra)
-· dettaglio (useAthleteAcwrData.athleteAcwrFromLogs) → ratio 1.98 (sopra)
-- "acuteLoad": 51,   + "acuteLoad": 80,
-AssertionError: parità violata: roster → assenza (nessuna_seduta_utilizzabile, 0/28gg, 2 escluse)
-· dettaglio → assenza (storia_troppo_corta, 15/28gg, 0 escluse)
-AssertionError: dettaglio: il ratio è cambiato (1.98 → 2.41)
-```
+## 7. Le due prove rosse (sul tip, ripristino per copia + `cmp` byte-identico)
 
-Ripristino: `cp` dal backup + `cmp` → `CMP_IDENTICO`, `vitest run` sul file → exit 0.
-
-**B — finestra minima** (cancello del modulo indebolito: `daysCovered < 0`; eseguita sul TIP):
+**A — cablaggio** (riscrittura `rpe_global: input.srpe ?? null` reintrodotta nel literal della UPDATE, `useAthleteWorkoutHooks.ts:164`):
 
 ```
-FAIL acwrSurfaces.parity.test.ts > prima seduta utilizzabile a 15 giorni → nessuna superficie mostra
-un rapporto — AssertionError: expected true to be false
-FAIL acwr.test.ts > prima seduta utilizzabile a 15 giorni → assenza 'storia troppo corta' 15/28
-(+ altri 2 rossi della stessa famiglia nel test unit)
+FAIL … l'atleta sceglie 8 → la UPDATE porta srpe = 8 e rpe_global NON viene scritta
+AssertionError: colonne di sforzo nel payload UPDATE: expected { srpe: 8, rpe_global: 8 }
+to deeply equal { srpe: 8, rpe_global: undefined }
+-   "rpe_global": undefined,    +   "rpe_global": 8,
 ```
 
-Ripristino: `cp` dal backup + `cmp` → `CMP_IDENTICO`, suite completa → exit 0 (386/386).
+Il seam è il CLIENT, sotto l'hook: la mutation gira per davvero, quindi il rosso scatta anche se
+la colonna sbagliata rientra un gradino sotto il componente. Ripristino: `cp` + `cmp` →
+`CMP_IDENTICO`, suite verde.
 
-## 7. Ogni parola di rischio rimossa — dove stava, cosa c'è adesso
+**B — preselezione** (`useState<SessionRpe | null>(7)` reintrodotto nel debrief):
 
-| dove stava                                   | parola                                                                                                                                                                                        | adesso                                                                                                                                |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `useAthletesRiskOverview.ts:151/159/167`     | «High Injury Risk» · «Overload Warning» · «Detraining Risk» (+ details inglesi «injury risk zone»)                                                                                            | bandiere informative con le parole del modulo: «Carico recente sopra/sotto l'abituale», details = caveat                              |
-| `useAthleteAcwrData.ts:117-123`              | «Optimal» · «Warning» (anche sotto 0.8) · «High Risk»                                                                                                                                         | il modulo: fascia descrittiva o assenza col motivo                                                                                    |
-| `AcwrGauge.tsx:48-70,95`                     | «Alto Rischio» · «Zona Attenzione» · «Zona Ottimale» · zone success/warning/destructive · «Servono almeno 2 settimane di log» (conteggio inventato)                                           | numero + fascia + caveat con token neutri; assenza = `acwrAbsenceText` coi numeri veri                                                |
-| `AthleteDetail.tsx:676-679,843-846,928-1052` | «Monitor Sicurezza Allenamento» · «metriche rischio infortunio» · «Alto Rischio/Moderato/Sicuro» (monotonia su mock) · «Sovraccarico (>600)» · «Overreaching» · legenda «Alto Rischio (>1.5)» | l'intera sezione mock è rimossa; la tab rende la card-lente                                                                           |
-| `AthleteCard.tsx:382-407`                    | «ACWR spike» · «ACWR sovraccarico» · «ACWR detraining» · «ACWR nella norma» + Flame + amber/sky                                                                                               | LoadLine neutra: fascia del modulo + ratio + caveat, o assenza col motivo                                                             |
-| `useCoachDashboardMetrics.ts:357`            | «High injury risk - acute load exceeds chronic capacity» (severity critical/warning)                                                                                                          | l'intera RULE 5 è RIMOSSA: la dashboard non mostra più il carico (e l'alert non alimenta più churnRisk né esclude da healthyAthletes) |
-| `CalendarGrid.tsx:225`                       | «⚠️ Spike ACWR» (per un workout SALTATO)                                                                                                                                                      | «Seduta saltata»                                                                                                                      |
-| `CoachAthletes.tsx:518`                      | «Nessun atleta presenta flag di rischio moderato o alto.»                                                                                                                                     | «Nessun atleta con dolore dichiarato o recupero basso.»                                                                               |
-| `translations.ts:46` (mappa morta)           | «ACWR Elevato»                                                                                                                                                                                | `load_above_habitual: "Carico recente sopra l'abituale"`                                                                              |
+```
+FAIL … scala non toccata → srpe = NULL
+AssertionError: non risposto resta NULL: expected 7 to be null
+FAIL … selezionare e RIMUOVERE (secondo tocco) torna a NULL
+AssertionError: dichiarazione revocata: expected 7 to be null
+```
 
-Il caveat («Lente di consapevolezza, non una previsione di infortunio.») sta accanto al numero su
-card roster, OverviewTab, AcwrGauge/tab avanzata e nel details dell'alert dashboard.
+Ripristino: `cp` + `cmp` → `CMP_IDENTICO`, suite completa exit 0 (402/402).
 
 ## 8. Non fatto / divergenze (file:riga)
 
-1. **`CalendarGrid.tsx:225`** — fuori dal manifesto file del prompt, dentro il criterio («da nessuna parte compare una parola di rischio»): chip «⚠️ Spike ACWR» acceso da `status==='missed'` senza alcun calcolo. Riparato con la parola vera (`46286ba`).
-2. **`translations.ts:46`** — voce morta (`ALERT_TYPE_LABELS` non ha importatori) che etichettava il tipo rinominato: 1 riga aggiornata. Le ALTRE voci morte della stessa mappa (`injury_risk: "Rischio Infortunio"`, `high_strain: "Strain Elevato"`) restano: mappa morta da rimuovere in una fetta di pulizia (chip flaggata).
-3. **`high_injury_risk` non esiste più** (tipo rimosso da `RiskType`): era la gradazione >1.5, cioè una soglia che può vivere solo nel modulo — e il modulo, per mandato, non ce l'ha. L'informazione confluisce nella fascia «sopra l'abituale» (`overload_warning` informativa). Se Nicolò vuole tre bandiere distinte, è una parola sua, non una soglia mia.
-4. **Fascia ≠ tre bandiere:** i confini descrittivi del modulo sono 0.8/1.3 — gli stessi numeri che le cinque implementazioni già usavano, ora senza parole di rischio e in UN posto solo (dichiarati `ACWR_BAND_LOW/HIGH` in `acwr.ts:26-27`).
-5. **Finestra minima vs finestra di fetch — RISOLTA in `f599746` (rilievo n.1 della passata indipendente):** i fetch a 28 giorni-ISTANTE rendevano il cancello dei 28 giorni raggiungibile solo sul bordo, con esito dipendente dall'ora di mount e finestre diverse fra roster e dettaglio. Ora il bound lo emette il modulo — `acwrLookbackStartIso(todayIso)` = confine di GIORNO a `ACWR_LOOKBACK_DAYS` (42, `constants.ts:14`, la costante dichiarata per il lookback ACWR e finora importata da nessuno) — usato da entrambe le query del carico: le sedute a 29-42 giorni aprono la finestra minima in modo stabile e le due superfici fetchano lo stesso universo dato lo stesso «oggi». La regola dei 28 giorni resta nel modulo su `ACWR_BASELINE_DAYS`, come da mandato. Nessuna query nuova: è il bound di due query esistenti. Decisione: usare la costante nel ruolo che il suo commento dichiara non è ricrearla.
-6. **Numero minimo di sedute: NON introdotto** (il vecchio `logs.length < 7` della dashboard è stato rimosso, non sostituito). Non mi è sembrato servisse: la finestra-data risponde a «esiste un carico abituale?».
-7. **Convenzione-giorno, wrinkle preesistente e dichiarato:** «oggi» è il giorno LOCALE (stessa convenzione su tutte e tre le superfici → la parità regge), il giorno della seduta è il prefisso del timestamp come serializzato (UTC). A cavallo di mezzanotte una seduta può cadere nel giorno accanto: preesistente, uguale per tutte le superfici, da sanare in un'eventuale fetta-fusi (la storia DST di `cucitura` insegna a non toccarlo di sponda).
-8. **Realtime rotto preesistente** (`useRealtimeAnalytics.ts:43` invalida `["athlete-acwr"]` ma la chiave è `["athlete-acwr-data"]`, che con `staleTime: Infinity` non si aggiorna mai live) — fuori perimetro, chip flaggata.
-9. **Commenti con parole di rischio in domini non-carico** (FMS `fmsRiskEngine.ts:286`, `ProgrammedExerciseCard.tsx:202`; readiness `readinessMath.ts:329`; screening `movement.ts:22`): non toccati — file vietati o domini d'altra fetta.
-10. **`generateMockProgressPhotos` (`AthleteDetail.tsx:~1174`)** — mock fotografico preesistente nella tab Foto, fuori dal dominio carico: non toccato, già nel backlog delle fonti-da-costruire.
-11. **Passata indipendente (code-reviewer + aura-theme-auditor + code-test-verifier, contesto proprio): 3 rilievi confermati dal reviewer, TUTTI chiusi in `f599746`.** (1) finestra di fetch a istante → v. §8.5; (2) universo-dati della dashboard non allineabile (bound su `created_at`, righe non completate incluse, query condivisa con `pendingReviewCount`/`feedbackItems` quindi non modificabile) e (3) alert info irraggiungibile (`CoachHome.tsx:278` rende solo critical|warning) → risolti insieme RIMUOVENDO la RULE 5: la dashboard non è più una superficie del carico; le superfici della lente sono roster e dettaglio, e il contratto «stesso atleta, stesso oggi, stesso esito» vale su di loro. L'aura-theme-auditor ha trovato UN rilievo, preesistente su main e fuori dal diff (`bg-destructive/8` sul chip dolore, classe non generata): chip flaggata, non toccato qui (adiacente alla bandiera vietata).
-12. **Divergenza residua fra roster e dettaglio, preesistente e chippata:** il dettaglio cachea per sempre (`staleTime: Infinity` + invalidazione realtime su chiave sbagliata, `useRealtimeAnalytics.ts:43`) — a dati nuovi il roster può aggiornarsi prima del dettaglio finché la chip realtime non viene chiusa. È un problema di FRESCHEZZA della cache, non del calcolo: a parità di dati l'esito è identico per costruzione.
+1. **`VolumeIntensityChart.tsx`** — fuori dal manifesto del prompt, trascinato dalla misura: consuma `avgRpe`, che senza il 7 fabbricato diventa nullable → media sui soli punti dichiarati, «—» quando nessuno dichiara, tooltip null-safe. Senza questo tocco il grafico avrebbe sommato null.
+2. **`CoachHome.tsx:695`** — 1 riga: il feed della dashboard consuma il campo rinominato (`rpeGlobal` → `sessionRpe`). La sua `rpePill` già rende nulla su null.
+3. **`ReviewWorkoutItem` ora è un named export** (`AthleteViewerDialog.tsx`): serviva a testare la superficie senza montare l'intero dialog. Solo visibilità, zero comportamento.
+4. **I vuoti a 6/8/9 NON riempiti** — nessuna divergenza da segnalare: le ancore ratificate bastano; la didascalia mostra il numero nudo e il test lo inchioda. (Se in collaudo il numero nudo sembrasse povero, la risposta è di Nicolò, non una parola inventata.)
+5. **Prescrizioni con default** (`ExerciseLibraryDrawer.tsx:29` `default_rpe ?? 8`, `useProgramBuilderStore.ts:314` `rpe_target ?? 8`): TARGET del builder coach, non letture di sforzo dichiarato — fuori dal criterio 4, dichiarate e non toccate.
+6. **`useOfflineSync.ts`** — importato da nessun file (modulo scollegato, PWA rimossa): il suo payload `srpe` inerte resta lì; la pulizia è della fetta-moduli-WIP, non di questa.
+7. **La riga storica** con due anni di valori di sessione in `rpe_global` resta al suo posto: le superfici ora leggono `srpe`, quindi per le sedute vecchie mostrano «—». Se e come migrare quei valori (`UPDATE … SET srpe = rpe_global WHERE …`) è una decisione di schema/dati di Nicolò e Cowork — vietata qui (nessuna migrazione, nessuna scrittura di massa).
+8. **`duration_minutes`/`total_load_au`** — fuori fetta, restano datate (spec §1.6): NON alimentate, sarebbero una seconda casa per il carico che C-09 ha appena unificato.
+9. **Il momento della domanda** — si chiede subito (ratifica Nicolò 24/08); la divergenza dal protocollo della letteratura (30 min) e del corso (5-10 min) è dichiarata NEL MODULO (`sessionRpe.ts`, commento di testa): l'sRPE raccolto è confrontabile con sé stesso nel tempo, non con le soglie della letteratura — un motivo in più perché il rapporto acuto:cronico resti una lente.
+10. **La Lezione 8 del corso** (`repos/nc-education`) resta disallineata dalla scala della sua stessa fonte («6 Moderato», «8-9 Alto» dove Foster mette i vuoti): repo diverso, resta a Nicolò (ratifica: il prodotto segue Foster).
+11. **La traduzione italiana delle ancore è dichiarata come proposta**: se Nicolò detta altre parole, si cambiano NEL MODULO e vivono ovunque insieme.
+12. 🔴 **DEBITO LATO SERVER, trovato dalla passata indipendente e NON riparabile qui (`supabase/**` vietato): il trigger watchdog smette di escalare.** `supabase/migrations/20260213073401_….sql:81-86` scrive `coach_alerts` (`risk_alert`) su `NEW.rpe_global >= 9` — e da questa fetta nessuno scrive più `rpe_global`, quindi quella regola non scatterà MAI più; la sua regola gemella su `NEW.srpe > 800` (`:90`) è **irraggiungibile** col CHECK `srpe 1..10` (fu scritta pensando al CARICO srpe×durata, non alla scala). Netto: **zero `risk_alert` da allenamento** finché il trigger non viene riallineato a `srpe >= 9` con una migration di corsia Cowork. È il canale di escalation CORE §0 reso leggibile da `CoachAlertsPanel`: un canale che si spegne in silenzio è esattamente il fallimento che questa fetta combatte — per questo sta scritto qui in rosso, primo punto di §9.
+13. **Stesso debito, due edge function:** `supabase/functions/analyze-athlete-week/index.ts:165` e `generate-batch-checkins/index.ts:190` mediano ancora `rpe_global` → d'ora in poi «N/D»/«N/A» stabile (nessun NaN: i filtri reggono). Entrambe le query **già selezionano `srpe`**: il fix è una parola per file, corsia `supabase/functions/**` (fuori da questa fetta FE).
 
 ## 9. Resta a Nicolò
 
-- **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/acwr-unico) coi 2 check obbligatori verdi.
-- **L'ultimo miglio a occhio (post-merge, 2 schermate):** roster `/coach/athletes` e dettaglio atleta (tab Overview e tab Statistiche avanzate) per lo STESSO atleta → entrambe mostrano **l'assenza con lo stesso motivo** («Nessuna seduta con RPE di sessione registrato…», coi conteggi veri) — perché oggi nessuna riga ha `srpe`: è l'esito ratificato il 24/08, non un bug. Nessuna parola di rischio, nessuna fiamma, nessun «Critico» da carico (il «Critico» resta SOLO per dolore dichiarato).
-- **La prossima fetta** (già nella spec §5): far raccogliere al prodotto l'sRPE nella sua colonna, sotto la sua scala — senza, questa lente resta legittimamente vuota. In quella sede: decidere l'allargamento del fetch (v. §8.5).
-
----
-
-## Appendice 24/08 (sera) — varco `verify:css` di nuovo verde senza rimettere interfaccia
-
-**Commit:** `dbd3735` (solo `scripts/verify-css-tokens.mjs`; `src/index.css` NON toccato — v. sotto) + questo commit docs.
-
-**Cosa è cambiato nello script.** Il check 2 ora parte dall'**uso reale**: una voce di `EXPECTED` si verifica solo se la classe compare nei sorgenti; se non compare degrada a **nota** non bloccante («non più usata nei sorgenti: voce da togliere da EXPECTED»), mai a rosso. La mappa torna a rispondere alla sola domanda utile — «se questa classe è usata, legge la variabile giusta?» — e smette di essere una fotografia dell'interfaccia trasformata in requisito (un varco che punisce le cancellazioni insegna a non cancellare). Il **check 5** (derivato dai sorgenti) è intatto. Il riepilogo finale conta le voci verificate (`N/M in uso e verificate`).
-
-**Le sei voci tolte, col loro ex-utilizzatore (cancellato di proposito dalla fetta):**
-`bg-error-container/40` → contenitore del badge «ACWR spike» (`AthleteCard.tsx:385` su main) · `bg-chart-fatigue/10` e `text-chart-fatigue` → card monotonia del monitor mock (`AthleteDetail.tsx:896-897` su main) · `bg-chart-load/10` e `text-chart-load` → card carico settimanale dello stesso monitor (`:914-915`) · `bg-chart-acwr-low` → barra-zone della vecchia gauge (`AcwrGauge.tsx:107` su main). Motivi scritti in un commento accanto alla mappa.
-
-**Esito su `--chart-acwr-low` (index.css:145 e :220): RESTA, con motivo misurato.** Zero lettori nei sorgenti (misura: grep su `chart-acwr-low` in src/** = solo le due dichiarazioni + `tailwind.config.ts:193`), MA la variabile vive **in coppia** con la voce-colore di `tailwind.config.ts:193`, fuori dal perimetro di questo commit: togliere solo la metà css lascerebbe una trappola silenziosa — una futura `bg-chart-acwr-low` verrebbe emessa (il config c'è) leggendo una var inesistente = elemento senza colore, la classe di difetto che il varco combatte, e il check 5 non la vedrebbe (controlla l'emissione, non la variabile). È inoltre la stessa posizione in cui restano `--chart-fatigue`/`--chart-load` (coppie intatte senza utilizzatori-classe). La coppia config+css si rimuove INSIEME in una fetta che possa toccare il config.
-
-**Acceptance:**
-
-1. `npm run build && npm run verify:css` sul tip → **verde**: «✓ 20/20 classi attese in uso e verificate, 18 variabili in forma a canali e non riscritte a runtime, 11 utility chart-* derivate dai sorgenti tutte emesse, 18 usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime.» (exit 0).
-2. **Prova rossa:** `text-chart-fantasma` inserita temporaneamente in `AthleteCard.tsx:375` → `verify:css` **fallisce nominandola**: «✗ 1 controlli falliti … text-chart-fantasma — scritta in src/components/coach/AthleteCard.tsx:375 ma nessuna regola emessa: la classe non esiste» (exit 1). Ripristino per copia + `cmp` byte-identico → verde (exit 0).
-3. **Perimetro:** `git status -s` dopo il fix = solo `scripts/verify-css-tokens.mjs`; `index.css` non toccato (decisione sopra).
-4. **Altri cancelli:** `tsc --noEmit` exit 0 · `vitest run` **386/386 su 35 file** exit 0 · eslint **81 errori** (= baseline, non sopra).
+- 🔴 **PRIMA COSA, con Cowork (corsia `supabase/**`, vietata a questa fetta):** riallineare a `srpe` i tre inseguitori lato server di §8.12-13 — il trigger watchdog (`rpe_global >= 9` → `srpe >= 9`, e decidere la sorte della regola morta `srpe > 800`) e le due edge (`analyze-athlete-week:165`, `generate-batch-checkins:190`, una parola ciascuna). Senza il trigger, il canale `risk_alert` da allenamento resta muto.
+- **Merge della PR** dal [link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rpe-sessione).
+- **L'ultimo miglio dal debrief:** chiudere una seduta vera → la domanda di sessione con le ancore di Foster (3 = Moderato, vuoto a 6/8/9), la definizione e l'avvertenza sul momento; scegliere un valore → sulla scheda coach (Feedback Coach) compare «RPE sessione N», nel pane della chat «RPE N»; non scegliere → «—» e la colonna resta NULL. E da C-09: appena le sedute con `srpe` copriranno la finestra, la lente del carico comincerà a riempirsi da sola.
+- **La riga storica in `rpe_global`** (§8.7): decidere con Cowork se migrare i valori vecchi in `srpe` o lasciarli alla storia.
+- **La Lezione 8 del corso** da riallineare a Foster (§8.10), e l'eventuale veto sulle parole italiane (§8.11).
