@@ -16,13 +16,13 @@
 //
 // Every prop describing the exercise must carry REAL data: there are no
 // mock defaults. Blocks whose value is missing simply don't render.
-// NOTE: this component currently has no call-site — ActiveWorkout lost
-// its mock exercise cards (the only trigger) and will re-wire the drawer
-// when the release document actually reaches that page.
+// Mounted by ActiveWorkout (slice A-03), one instance per opened
+// exercise, ALWAYS with the catalog id — see catalogExerciseId below.
 //
 // Inputs use `type="number" inputMode="decimal"` per the project's
-// established mobile-keyboard convention. Empty / NaN inputs land as 0
-// in the row — honest about what the user actually typed.
+// established mobile-keyboard convention. Both fields must be filled
+// before a set can be logged (CORE §0.8: they start empty, never 0) —
+// bodyweight work is an explicit "0" typed in the weight field.
 // =============================================================================
 
 import { useRef, useState } from "react";
@@ -45,10 +45,13 @@ interface StandardSetDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   /**
-   * Unique identifier of the exercise being logged. Required so each
-   * commit lands on the right `exercise_logs` row.
+   * CATALOG id of the exercise being logged (exercises.id) — the only
+   * value the exercise_logs FK accepts. NEVER the release document's
+   * builder-local item id ("w1-s1-e1"): that resolves to nothing in the
+   * exercises table and every INSERT would be rejected. Callers with no
+   * catalog reference must not mount this drawer at all.
    */
-  exerciseId: string;
+  catalogExerciseId: string;
   /** Real exercise title, e.g. "A1. Barbell Back Squat". No default. */
   exerciseName: string;
   /** Optional sub-line (phase / protocol descriptor). Hidden if absent. */
@@ -62,7 +65,7 @@ interface StandardSetDrawerProps {
 export function StandardSetDrawer({
   isOpen,
   onClose,
-  exerciseId,
+  catalogExerciseId,
   exerciseName,
   meta,
   previousReference,
@@ -84,18 +87,19 @@ export function StandardSetDrawer({
   const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
   const sessionSets = useSessionSetsQuery(activeSessionId);
   const completedSets = sessionSets.data
-    ? sessionSets.data.filter((row) => row.exercise_id === exerciseId)
+    ? sessionSets.data.filter((row) => row.exercise_id === catalogExerciseId)
     : EMPTY_SETS;
 
   const logSetMutation = useLogSetMutation();
 
-  // Disabled until at least one of the fields is populated. We don't
-  // require both — coaches sometimes log "BW × N" (bodyweight) which
-  // is weight=0, reps=N. Same for "single rep max" tests where reps=1
-  // is intentional. Also disabled while another set is mid-flight to
-  // avoid duplicate inserts on rapid taps.
+  // Disabled until BOTH fields are filled (slice A-03 contract: a set is
+  // not logged while either value is still unstated — bodyweight is an
+  // explicit "0" in the weight field, never an inferred one). Also
+  // disabled while another set is mid-flight to avoid duplicate inserts
+  // on rapid taps.
   const canLog =
-    (weight.trim().length > 0 || reps.trim().length > 0) &&
+    weight.trim().length > 0 &&
+    reps.trim().length > 0 &&
     !logSetMutation.isPending &&
     activeSessionId !== null;
 
@@ -106,7 +110,7 @@ export function StandardSetDrawer({
     logSetMutation.mutate(
       {
         session_id: activeSessionId,
-        exercise_id: exerciseId,
+        exercise_id: catalogExerciseId,
         set_number: completedSets.length + 1,
         weight: w,
         reps: r,

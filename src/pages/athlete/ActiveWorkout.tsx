@@ -9,9 +9,15 @@
 //     modal) and the centered live MM:SS timer. The red dot pulses only
 //     while a session actually exists and is running (isLive), never as
 //     decoration.
-//   - <EmptySessionNotice> — explicit empty state: this page has no real
-//     source for the session's exercises yet (no route state, no release
-//     query), and says so instead of rendering an invented workout.
+//   - <SessionExerciseList> — the exercises the coach prescribed for
+//     today, read from the release document through the SAME selector
+//     door as the home and the Training Hub (sessionForDate); per-exercise
+//     completed counts come from real exercise_logs rows.
+//   - <StandardSetDrawer> — the set logger, opened per exercise with the
+//     CATALOG id (the only id the exercise_logs FK accepts — never the
+//     builder-local item id).
+//   - <SessionStateCard> — explicit non-session states (loading, rest
+//     day, no program, unreadable document), never an invented workout.
 //   - <SessionStartFailedNotice> — explicit failure state when the
 //     workout_logs INSERT did not happen: nothing done here would be
 //     saved, so the page says so and offers a retry.
@@ -25,11 +31,11 @@
 // lifecycle (useStartSessionMutation on mount — the hook resolves the
 // athlete's identity inside mutationFn via supabase.auth.getSession(),
 // so the INSERT never depends on render-time auth state; on failure the
-// page shows the explicit error state with a retry), and the
-// exit/debrief flows. The mock exercise list, per-set "coach
-// prescription" targets, pre-completed warm-up phase and the hardcoded
-// session progress bar have been removed: they return only when the
-// release document is actually wired in.
+// page shows the explicit error state with a retry), the exit/debrief
+// flows, and — since slice A-03 — the exercise list itself: the release
+// document is wired in, set counts are derived from exercise_logs rows
+// (useSessionSetsQuery), and each set is written through
+// useLogSetMutation when the athlete confirms it in the drawer.
 //
 // Timer: pure useEffect + setInterval, paused via local boolean.
 // Cleanup on unmount via the effect's return.
@@ -41,15 +47,22 @@
 // "stack-pushed full-screen flow" pages.
 // =============================================================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dumbbell, Pause, Play, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMMSS } from "@/lib/time/duration";
 import { ExitWorkoutDialog } from "@/components/athlete/ExitWorkoutDialog";
+import { SessionExerciseList } from "@/components/athlete/workout/SessionExerciseList";
+import { StandardSetDrawer } from "@/components/athlete/drawers/StandardSetDrawer";
 import { useAthleteWorkoutStore } from "@/stores/useAthleteWorkoutStore";
-import { useStartSessionMutation } from "@/hooks/athlete/useAthleteWorkoutHooks";
+import {
+  useSessionSetsQuery,
+  useStartSessionMutation,
+} from "@/hooks/athlete/useAthleteWorkoutHooks";
+import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
+import { formatReleaseSetLine, localIsoDate, sessionForDate } from "@/lib/program/releaseView";
 
 // =============================================================================
 // GlobalTimerHUD — sticky top header with the live MM:SS timer. The
@@ -124,14 +137,23 @@ function GlobalTimerHUD({
 }
 
 // =============================================================================
-// EmptySessionNotice — explicit empty state for the exercise area. The
-// page cannot know which exercises belong to this session (nothing real
-// reaches it), so it says exactly that and points to what does work.
+// SessionStateCard — the explicit non-session states of the exercise
+// area (loading / rest day / no program / unreadable document). One shape,
+// four truths: the page says exactly which one holds instead of rendering
+// an invented workout. The timer still works in every one of them.
 // =============================================================================
-function EmptySessionNotice() {
+function SessionStateCard({
+  ariaLabel,
+  title,
+  body,
+}: {
+  ariaLabel: string;
+  title: string;
+  body: string;
+}) {
   return (
     <section
-      aria-label="Esercizi non collegati"
+      aria-label={ariaLabel}
       className={cn(
         "rounded-3xl p-6",
         "bg-white border border-[#c0c7d0]/30",
@@ -144,14 +166,8 @@ function EmptySessionNotice() {
       >
         <Dumbbell className="h-6 w-6" strokeWidth={1.75} />
       </span>
-      <h2 className="font-display text-base font-bold tracking-tight text-on-surface">
-        Esercizi non collegati
-      </h2>
-      <p className="font-sans text-sm text-on-surface-variant max-w-prose">
-        Questa schermata non è ancora collegata agli esercizi del tuo programma. Se hai un programma
-        attivo, trovi il dettaglio della seduta nella scheda Allenamento. Qui puoi cronometrare la
-        sessione e chiuderla quando hai finito.
-      </p>
+      <h2 className="font-display text-base font-bold tracking-tight text-on-surface">{title}</h2>
+      <p className="font-sans text-sm text-on-surface-variant max-w-prose">{body}</p>
     </section>
   );
 }
@@ -300,6 +316,44 @@ export default function ActiveWorkout() {
   // not depend on when any render-time auth state finishes populating.
   const startSessionMutation = useStartSessionMutation();
 
+  // -- Release document -> today's session ----------------------------------
+  // ONE selector door for "what does the athlete do today?": the same
+  // sessionForDate the home, the Training Hub and the debrief already use.
+  // The page owns the clock; the selector never reads it.
+  const releaseQuery = useLatestReleaseQuery();
+  const program = releaseQuery.data?.program ?? null;
+  const day = program ? sessionForDate(program, localIsoDate(new Date())) : null;
+
+  // -- Real logged sets ------------------------------------------------------
+  // Completed counts are derived from exercise_logs rows, never from a
+  // local tally: keys are CATALOG ids (rows carry exercises.id), so an
+  // exercise without a catalog reference simply has no count.
+  const activeSessionId = useAthleteWorkoutStore((s) => s.activeSessionId);
+  const sessionSets = useSessionSetsQuery(activeSessionId);
+  const countsByCatalogId = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const row of sessionSets.data ?? []) {
+      counts[row.exercise_id] = (counts[row.exercise_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [sessionSets.data]);
+
+  // -- Drawer selection ------------------------------------------------------
+  // Only the LOCAL item id is stored; the exercise is re-derived from the
+  // day each render so the completed count and the current-set
+  // prescription stay live as rows land. The drawer is mounted only for
+  // exercises WITH a catalog reference (the list never fires onOpen for
+  // read-only rows), and conditional mounting resets its inputs to empty
+  // on every open (CORE §0.8).
+  const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
+  const openExercise = day?.exercises.find((e) => e.id === openExerciseId) ?? null;
+  const openCatalogId = openExercise?.catalog_exercise_id ?? null;
+  const openDone = openCatalogId !== null ? (countsByCatalogId[openCatalogId] ?? 0) : 0;
+  // Prescription of the NEXT set to log. Beyond the prescribed count the
+  // athlete may still log extra sets: the meta falls back to the compact
+  // scheme — nothing is invented for a set the coach never wrote.
+  const openCurrentSet = openExercise?.sets_detail?.[openDone] ?? null;
+
   // -- Local UI state -------------------------------------------------------
   // `isPaused` is page-local: pause halts the visible timer without ending
   // the session (the store stays `isSessionActive=true`). Dialog visibility
@@ -404,13 +458,50 @@ export default function ActiveWorkout() {
         />
 
         <main className="flex-1 overflow-y-auto px-5 py-6 max-w-3xl mx-auto w-full flex flex-col gap-6">
+          {/* Data-first ladder: a day already parsed renders even through a
+              failing refetch; emptiness is asserted only where the query
+              settled without a session (never while it is still loading). */}
           {hasStartFailed ? (
             <SessionStartFailedNotice
               onRetry={startSession}
               isRetrying={startSessionMutation.isPending}
             />
+          ) : day ? (
+            <SessionExerciseList
+              day={day}
+              countsByCatalogId={countsByCatalogId}
+              onOpenExercise={(exercise) => setOpenExerciseId(exercise.id)}
+            />
+          ) : releaseQuery.isPending ? (
+            <SessionStateCard
+              ariaLabel="Caricamento seduta"
+              title="Caricamento della seduta…"
+              body="Sto recuperando il tuo programma."
+            />
+          ) : releaseQuery.isError && !releaseQuery.data ? (
+            <SessionStateCard
+              ariaLabel="Errore di caricamento"
+              title="Errore di caricamento"
+              body="Non riesco a leggere il tuo programma. Controlla la connessione e riapri la seduta."
+            />
+          ) : program ? (
+            <SessionStateCard
+              ariaLabel="Nessuna seduta oggi"
+              title="Nessuna seduta oggi"
+              body="Il tuo programma non prevede una seduta per oggi. Puoi comunque cronometrare una sessione libera e chiuderla quando hai finito."
+            />
+          ) : releaseQuery.data ? (
+            <SessionStateCard
+              ariaLabel="Programma non disponibile"
+              title="Programma non disponibile"
+              body="Il programma non è leggibile su questo dispositivo: contatta il tuo coach."
+            />
           ) : (
-            <EmptySessionNotice />
+            <SessionStateCard
+              ariaLabel="Nessun programma attivo"
+              title="Nessun programma attivo"
+              body="Quando il tuo programma sarà rilasciato, gli esercizi della seduta compariranno qui. Puoi comunque cronometrare una sessione libera."
+            />
           )}
         </main>
 
@@ -420,6 +511,25 @@ export default function ActiveWorkout() {
           onFinishRequest={openExitDialog}
         />
       </div>
+
+      {/* Set logger — mounted per exercise, ONLY with a catalog id: the
+          value handed to catalogExerciseId is what reaches the INSERT.
+          Declared BEFORE ExitWorkoutDialog so the friction modal wins the
+          z-[60] tie by JSX order (DrawerShell's own convention). */}
+      {openExercise && openCatalogId !== null && (
+        <StandardSetDrawer
+          isOpen
+          onClose={() => setOpenExerciseId(null)}
+          catalogExerciseId={openCatalogId}
+          exerciseName={`${openExercise.code}. ${openExercise.name}`}
+          meta={
+            openCurrentSet
+              ? `Serie ${formatReleaseSetLine(openCurrentSet)}`
+              : openExercise.scheme || undefined
+          }
+          restSeconds={openCurrentSet?.rest_seconds}
+        />
+      )}
 
       {/* Friction modal — sits at z-[60] above the workout overlay. */}
       <ExitWorkoutDialog
