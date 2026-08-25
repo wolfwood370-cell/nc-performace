@@ -125,7 +125,21 @@ export function useLogSetMutation() {
         queryKey: sessionSetsKey(row.session_id),
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, input) => {
+      // Unique violation of (session_id, exercise_id, set_number): the DB
+      // already guards the double tap — the row exists, this attempt was
+      // rightly rejected. Say so in the athlete's words (never a raw
+      // Postgres message) and refetch the rows so the stale count that
+      // produced the duplicate set_number resyncs itself.
+      if ((error as { code?: string }).code === "23505") {
+        toast.error("Serie già registrata", {
+          description: "Questa serie risultava già salvata: il conteggio è stato aggiornato.",
+        });
+        queryClient.invalidateQueries({
+          queryKey: sessionSetsKey(input.session_id),
+        });
+        return;
+      }
       toast.error("Salvataggio serie fallito", {
         description: error.message,
       });
