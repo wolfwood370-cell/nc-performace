@@ -25,8 +25,15 @@ export interface ReleaseSetView {
 }
 
 export interface ReleaseExerciseView {
-  /** Stable item id from the release document (flows into logs later). */
+  /** LOCAL item id from the release document (builder-scoped, e.g.
+   *  "w1-s1-e1"): render keys and in-page selection ONLY. It resolves to
+   *  nothing in the exercises table — never write it to the database. */
   id: string;
+  /** Catalog reference: exercises.id read from the document's exercise_id.
+   *  The ONLY id exercise_logs accepts (FK exercise_id -> exercises.id).
+   *  Null = the document row carries no catalog reference: the exercise
+   *  renders read-only and set logging is disabled, never guessed. */
+  catalog_exercise_id: string | null;
   /** Letter code "A1", "B2"... positional, display-only. */
   code: string;
   name: string;
@@ -75,6 +82,13 @@ function letterCode(index: number): string {
   return `${String.fromCharCode(65 + (index % 26))}1`;
 }
 
+/** exercises.id carried by the document row (both v1 and v2 writers emit
+ *  it), null when absent or malformed. A missing catalog reference
+ *  degrades that exercise to read-only — it never drops it from the
+ *  athlete's sheet and never falls back to the local item id. */
+const catalogRef = (v: unknown): string | null =>
+  typeof v === "string" && v.length > 0 ? v : null;
+
 /**
  * program_document (jsonb) -> view model; null on malformed shape.
  * Dispatches on doc.version: 1 -> the untouched v1 path below, 2 -> the coach
@@ -103,6 +117,7 @@ export function parseReleaseDocument(doc: unknown): ReleaseProgramView | null {
       const schemeBase = schemeParts.join(" × ");
       exercises.push({
         id: typeof ex.item_id === "string" ? ex.item_id : `e${i + 1}`,
+        catalog_exercise_id: catalogRef(ex.exercise_id),
         code: letterCode(i),
         name: ex.name,
         scheme: load ? (schemeBase ? `${schemeBase} · ${load}` : load) : schemeBase,
@@ -232,6 +247,7 @@ function parseReleaseDocumentV2(doc: Record<string, unknown>): ReleaseProgramVie
       const first = sets_detail[0];
       exercises.push({
         id: typeof ex.item_id === "string" ? ex.item_id : `e${i + 1}`,
+        catalog_exercise_id: catalogRef(ex.exercise_id),
         code: letterCode(i),
         name: ex.name,
         scheme,
