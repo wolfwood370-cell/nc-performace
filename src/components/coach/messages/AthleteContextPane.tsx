@@ -86,9 +86,7 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
 
       const { data: lastCompleted } = await supabase
         .from("workout_logs")
-        .select(
-          "id, scheduled_date, completed_at, rpe_global, duration_minutes, workout:workouts(title)",
-        )
+        .select("id, scheduled_date, completed_at, srpe, duration_minutes, workout:workouts(title)")
         .eq("athlete_id", athleteId)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
@@ -384,21 +382,24 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                       <span className="text-sm font-semibold text-on-surface truncate">
                         {workoutData.lastCompleted.workoutTitle}
                       </span>
-                      {workoutData.lastCompleted.rpe_global != null && (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-3xs font-bold tabular-nums shrink-0",
-                            workoutData.lastCompleted.rpe_global > 8
-                              ? "bg-destructive/10 text-destructive"
-                              : "bg-secondary text-secondary-foreground",
-                          )}
-                        >
-                          {workoutData.lastCompleted.rpe_global > 8 && (
+                      {/* Session rating from ITS column (srpe, CR-10).
+                          Not declared → "—": absence stays readable, never
+                          a fallback number (B-22). */}
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-3xs font-bold tabular-nums shrink-0",
+                          workoutData.lastCompleted.srpe != null &&
+                            workoutData.lastCompleted.srpe > 8
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-secondary text-secondary-foreground",
+                        )}
+                      >
+                        {workoutData.lastCompleted.srpe != null &&
+                          workoutData.lastCompleted.srpe > 8 && (
                             <AlertTriangle className="h-2.5 w-2.5" />
                           )}
-                          RPE {workoutData.lastCompleted.rpe_global}
-                        </span>
-                      )}
+                        RPE {workoutData.lastCompleted.srpe ?? "—"}
+                      </span>
                     </div>
                     <div className="flex items-center gap-4 text-3xs text-on-surface-variant">
                       <span className="flex items-center gap-1">

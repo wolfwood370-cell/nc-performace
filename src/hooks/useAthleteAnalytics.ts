@@ -21,7 +21,11 @@ interface VolumeIntensityDataPoint {
   date: string;
   dateFormatted: string;
   totalTonnage: number;
-  avgRpe: number;
+  /** Mean of the per-set RPEs; falls back to the SESSION rating (`srpe`,
+   *  its own scale, declared by the athlete) when no set carries one.
+   *  `null` = nobody declared anything — the chart shows a gap, never a
+   *  fabricated number (the old `rpe_global ?? 7` invented a 7). */
+  avgRpe: number | null;
 }
 
 interface SetData {
@@ -201,7 +205,7 @@ export function useAthleteVolumeIntensity(athleteId: string | undefined) {
           `
           id,
           completed_at,
-          rpe_global,
+          srpe,
           workout_exercises (
             sets_data
           )
@@ -241,15 +245,16 @@ export function useAthleteVolumeIntensity(athleteId: string | undefined) {
           }
         });
 
-        // Use session RPE if no set RPE available
-        const avgRpe = rpeCount > 0 ? totalRpe / rpeCount : (log.rpe_global ?? 7);
+        // Session RPE (srpe) if no set carries one; declared by nobody →
+        // null, never an invented default.
+        const avgRpe = rpeCount > 0 ? totalRpe / rpeCount : log.srpe;
 
         const date = new Date(log.completed_at);
         dataPoints.push({
           date: log.completed_at,
           dateFormatted: format(date, "dd/MM"),
           totalTonnage: Math.round(totalTonnage),
-          avgRpe: Math.round(avgRpe * 10) / 10,
+          avgRpe: avgRpe == null ? null : Math.round(avgRpe * 10) / 10,
         });
       });
 

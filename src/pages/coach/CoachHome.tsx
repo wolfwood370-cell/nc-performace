@@ -692,7 +692,7 @@ function RecentFeedWidget({
           <div className="space-y-3">
             {items.map((item, idx) => {
               const Icon = FEED_ICONS[idx % FEED_ICONS.length];
-              const pill = rpePill(item.rpeGlobal);
+              const pill = rpePill(item.sessionRpe);
               return (
                 <div
                   key={item.id}
