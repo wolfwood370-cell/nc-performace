@@ -11,9 +11,11 @@
 //   - Session stats (total volume, total sets).
 //   - Session RPE: 1..10 horizontal scale, no preselection — the scale
 //     starts empty and a value exists only if the athlete declares it.
-//     The selected number becomes the focal pill (brand-filled,
-//     scale-110, shadow). The descriptive text below updates from
-//     RPE_LABELS.
+//     Values, anchors (with Foster's deliberate gaps at 6/8/9), the
+//     definition and the timing advisory all come from the single home
+//     src/lib/effort/sessionRpe.ts — no scale words live in this file.
+//     The chosen value is written to workout_logs.srpe (the session
+//     column, CR-10); rpe_global is NOT written anymore.
 //   - Free-form coach notes textarea, bound to local state.
 //   - Sticky bottom CTA "Salva e Torna alla Home".
 //
@@ -36,25 +38,15 @@ import {
 } from "@/hooks/athlete/useAthleteWorkoutHooks";
 import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
 import { localIsoDate, sessionForDate, sessionTitle } from "@/lib/program/releaseView";
-
-// =============================================================================
-// Constants — RPE label dictionary.
-// =============================================================================
-const RPE_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-type Rpe = (typeof RPE_VALUES)[number];
-
-const RPE_LABELS: Record<Rpe, string> = {
-  1: "Riposo · nessuno sforzo",
-  2: "Molto leggero",
-  3: "Leggero",
-  4: "Comodo · attivo",
-  5: "Medio · respirabile",
-  6: "Impegnativo · respira più forte",
-  7: "Difficile · 3 reps massimo in più",
-  8: "Duro · 2 reps massimo in più",
-  9: "Molto duro · 1 rep massimo in più",
-  10: "Massimale · nessuna rep in tank",
-};
+import {
+  SESSION_RPE_ANCHORS,
+  SESSION_RPE_DEFINITION,
+  SESSION_RPE_QUESTION,
+  SESSION_RPE_TIMING,
+  SESSION_RPE_TITLE,
+  SESSION_RPE_VALUES,
+  type SessionRpe,
+} from "@/lib/effort/sessionRpe";
 
 // =============================================================================
 // SessionStatsCard — live stats derived from the `exercise_logs` rows
@@ -124,18 +116,18 @@ function RpeSelector({
   value,
   onChange,
 }: {
-  value: Rpe | null;
-  onChange: (next: Rpe | null) => void;
+  value: SessionRpe | null;
+  onChange: (next: SessionRpe | null) => void;
 }) {
   return (
     <section aria-label="Sforzo percepito della sessione">
       <div className="mb-4">
         <h3 className="font-display text-xl font-semibold text-on-surface mb-1">
-          RPE della Sessione
+          {SESSION_RPE_TITLE}
         </h3>
-        <p className="text-sm text-on-surface-variant">
-          Quanto è stato impegnativo l'allenamento complessivo?
-        </p>
+        <p className="text-sm text-on-surface-variant">{SESSION_RPE_QUESTION}</p>
+        <p className="text-xs text-on-surface-variant mt-1">{SESSION_RPE_DEFINITION}</p>
+        <p className="text-xs text-on-surface-variant/80 mt-1 italic">{SESSION_RPE_TIMING}</p>
       </div>
 
       <div
@@ -143,7 +135,7 @@ function RpeSelector({
         aria-label="Scala RPE da 1 a 10"
         className="flex flex-wrap justify-center gap-2 pb-1"
       >
-        {RPE_VALUES.map((n) => {
+        {SESSION_RPE_VALUES.map((n) => {
           const isActive = value === n;
           return (
             <button
@@ -176,10 +168,14 @@ function RpeSelector({
       >
         {value === null ? (
           "Seleziona un valore"
+        ) : SESSION_RPE_ANCHORS[value] === null ? (
+          // Deliberate gap of the category-ratio scale: the number stands
+          // alone, no invented word between the anchored steps.
+          <span className="font-display text-base font-bold">{value}</span>
         ) : (
           <>
             <span className="font-display text-base font-bold mr-1">{value}</span>—{" "}
-            {RPE_LABELS[value]}
+            {SESSION_RPE_ANCHORS[value]}
           </>
         )}
       </p>
@@ -197,7 +193,7 @@ export default function PostWorkoutDebrief() {
   const elapsedTime = useAthleteWorkoutStore((s) => s.elapsedTime);
   const startedAt = useAthleteWorkoutStore((s) => s.startedAt);
   const finishSession = useFinishSessionMutation();
-  const [rpe, setRpe] = useState<Rpe | null>(null);
+  const [rpe, setRpe] = useState<SessionRpe | null>(null);
   const [notes, setNotes] = useState("");
 
   // The session's NAME is the released session of the day the workout
@@ -229,7 +225,9 @@ export default function PostWorkoutDebrief() {
       {
         session_id: activeSessionId,
         duration_seconds: elapsedTime,
-        rpe_global: rpe,
+        // Session rating → its own column (CR-10 of Foster). Untouched
+        // scale = null: the athlete may close without declaring (CORE §0.8).
+        srpe: rpe,
         notes: notes.trim() || null,
       },
       {
