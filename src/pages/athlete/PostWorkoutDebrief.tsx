@@ -25,7 +25,7 @@
 // useFinishSessionMutation) and routes to /athlete.
 // =============================================================================
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, CheckCircle2, MoreVertical, X } from "lucide-react";
 import { toast } from "sonner";
@@ -40,13 +40,18 @@ import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
 import { localIsoDate, sessionForDate, sessionTitle } from "@/lib/program/releaseView";
 import {
   SESSION_RPE_ANCHORS,
+  SESSION_RPE_CLEAR_LABEL,
   SESSION_RPE_DEFINITION,
+  SESSION_RPE_EMPTY_PROMPT,
   SESSION_RPE_QUESTION,
+  SESSION_RPE_SECTION_LABEL,
+  SESSION_RPE_SLIDER_LABEL,
   SESSION_RPE_TIMING,
   SESSION_RPE_TITLE,
-  SESSION_RPE_VALUES,
+  SESSION_RPE_UNANSWERED,
   type SessionRpe,
 } from "@/lib/effort/sessionRpe";
+import { SessionRpeGuide } from "@/components/athlete/SessionRpeGuide";
 
 // =============================================================================
 // SessionStatsCard — live stats derived from the `exercise_logs` rows
@@ -104,13 +109,26 @@ function SessionStatsCard() {
   );
 }
 
+/** Thumb diameter in px (h-9 w-9): ONE constant shared by the thumb's
+ *  `left` calc and the pointer mapping, so they cannot diverge. */
+const RPE_THUMB_PX = 36;
+
 // =============================================================================
-// RpeSelector — horizontal 1..10 toggle group + active-state description.
-// Tapping the active pill clears it back to null ("not declared"): the RPE
-// is an optional athlete declaration, so the pills are toggle buttons
-// (aria-pressed) in a role="group" — deliberately NOT a radiogroup, whose
-// forced-choice semantics (see intake OptionButtons) would make "none
-// selected" a malformed state instead of a legitimate one.
+// RpeSelector — stepped 1..10 slider with NO resting thumb.
+//
+// A native <input type="range"> always has a thumb somewhere, and a thumb
+// resting on a value IS a preselected answer (CORE §0.8) — so the control
+// is custom: while value === null the track is empty (no thumb, no fill,
+// no aria-valuenow) and the state reads "non risposto". The value is born
+// only from a gesture:
+//   - pointer: press/drag on the track (nearest integer step);
+//   - keyboard: from empty, ANY arrow starts at 1 (the bottom of the
+//     scale, then the athlete climbs); Home/End jump to 1/10;
+//   - revocation: the "Rimuovi risposta" button, or Delete/Backspace on
+//     the slider, returns to null.
+// One word at a time: below the number only the chosen value's anchor.
+// Colour: ONE hue (brand), light→dark with the value — more effort, never
+// "worse". No severity tokens by design.
 // =============================================================================
 function RpeSelector({
   value,
@@ -119,8 +137,69 @@ function RpeSelector({
   value: SessionRpe | null;
   onChange: (next: SessionRpe | null) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const valueFromPointer = (clientX: number): SessionRpe | null => {
+    const el = trackRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    // The thumb's CENTRE travels the inset span [18px, width-18px] (see
+    // the `left` calc below): the pointer must map on that SAME span, or
+    // the value read under the finger differs from the value shown at the
+    // edges on narrow screens (review finding, 25/08).
+    const span = rect.width - RPE_THUMB_PX;
+    if (span <= 0) return null;
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left - RPE_THUMB_PX / 2) / span));
+    return Math.min(10, Math.max(1, Math.round(1 + frac * 9))) as SessionRpe;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const next = valueFromPointer(e.clientX);
+    if (next !== null) onChange(next);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.buttons !== 1) return;
+    const next = valueFromPointer(e.clientX);
+    if (next !== null) onChange(next);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    let next: SessionRpe | null;
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowUp":
+        next = value === null ? 1 : (Math.min(10, value + 1) as SessionRpe);
+        break;
+      case "ArrowLeft":
+      case "ArrowDown":
+        next = value === null ? 1 : (Math.max(1, value - 1) as SessionRpe);
+        break;
+      case "Home":
+        next = 1;
+        break;
+      case "End":
+        next = 10;
+        break;
+      case "Delete":
+      case "Backspace":
+        next = null;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    onChange(next);
+  };
+
+  // Thumb/fill geometry: 1 sits at the left edge, 10 at the right.
+  const frazione = value === null ? 0 : (value - 1) / 9;
+  // ONE hue, light→dark: the brand fill deepens with the value.
+  const intensita = value === null ? 0 : 0.3 + 0.07 * value;
+
   return (
-    <section aria-label="Sforzo percepito della sessione">
+    <section aria-label={SESSION_RPE_SECTION_LABEL}>
       <div className="mb-4">
         <h3 className="font-display text-xl font-semibold text-on-surface mb-1">
           {SESSION_RPE_TITLE}
@@ -128,35 +207,61 @@ function RpeSelector({
         <p className="text-sm text-on-surface-variant">{SESSION_RPE_QUESTION}</p>
         <p className="text-xs text-on-surface-variant mt-1">{SESSION_RPE_DEFINITION}</p>
         <p className="text-xs text-on-surface-variant/80 mt-1 italic">{SESSION_RPE_TIMING}</p>
+        <div className="mt-2">
+          <SessionRpeGuide />
+        </div>
       </div>
 
-      <div
-        role="group"
-        aria-label="Scala RPE da 1 a 10"
-        className="flex flex-wrap justify-center gap-2 pb-1"
-      >
-        {SESSION_RPE_VALUES.map((n) => {
-          const isActive = value === n;
-          return (
-            <button
-              key={n}
-              aria-pressed={isActive}
-              aria-label={`RPE ${n}`}
-              type="button"
-              onClick={() => onChange(value === n ? null : n)}
-              className={cn(
-                "w-11 h-11 rounded-xl flex items-center justify-center",
-                "font-display font-semibold tabular-nums text-sm",
-                "transition-all duration-200 active:scale-95",
-                isActive
-                  ? "bg-brand-container text-white shadow-[0_8px_18px_rgba(34,111,163,0.35)]"
-                  : "bg-surface-container text-on-surface-variant hover:bg-surface-variant/60",
-              )}
-            >
-              {n}
-            </button>
-          );
-        })}
+      {/* The slider proper. aria-valuenow exists ONLY once a value does. */}
+      <div className="px-1">
+        <div
+          ref={trackRef}
+          role="slider"
+          tabIndex={0}
+          aria-label={SESSION_RPE_SLIDER_LABEL}
+          aria-valuemin={1}
+          aria-valuemax={10}
+          aria-valuenow={value ?? undefined}
+          aria-valuetext={
+            value === null ? SESSION_RPE_UNANSWERED : `${value} — ${SESSION_RPE_ANCHORS[value]}`
+          }
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onKeyDown={handleKeyDown}
+          className={cn(
+            "relative h-11 rounded-full cursor-pointer select-none touch-none",
+            "bg-surface-container",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-container focus-visible:ring-offset-2",
+          )}
+        >
+          {value !== null && (
+            <>
+              <div
+                aria-hidden="true"
+                className="absolute inset-y-0 left-0 rounded-full bg-brand-container transition-all duration-150"
+                style={{ width: `max(${frazione * 100}%, 2.75rem)`, opacity: intensita }}
+              />
+              <div
+                aria-hidden="true"
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 h-9 w-9 rounded-full",
+                  "bg-white border-2 border-brand-container",
+                  "shadow-[0_4px_12px_rgba(34,111,163,0.35)]",
+                  "flex items-center justify-center",
+                  "font-display font-bold tabular-nums text-sm text-brand-container",
+                  "transition-all duration-150",
+                )}
+                style={{ left: `calc(${frazione * 100}% - ${frazione * RPE_THUMB_PX}px)` }}
+              >
+                {value}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex justify-between px-1 mt-1 text-3xs text-on-surface-variant/70 tabular-nums">
+          <span>1</span>
+          <span>10</span>
+        </div>
       </div>
 
       <p
@@ -167,18 +272,26 @@ function RpeSelector({
         )}
       >
         {value === null ? (
-          "Seleziona un valore"
-        ) : SESSION_RPE_ANCHORS[value] === null ? (
-          // Deliberate gap of the category-ratio scale: the number stands
-          // alone, no invented word between the anchored steps.
-          <span className="font-display text-base font-bold">{value}</span>
+          SESSION_RPE_EMPTY_PROMPT
         ) : (
           <>
-            <span className="font-display text-base font-bold mr-1">{value}</span>—{" "}
+            <span className="font-display text-lg font-bold mr-1">{value}</span>—{" "}
             {SESSION_RPE_ANCHORS[value]}
           </>
         )}
       </p>
+
+      {value !== null && (
+        <div className="mt-2 text-center">
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-xs text-on-surface-variant underline underline-offset-2 hover:text-on-surface transition-colors active:scale-95"
+          >
+            {SESSION_RPE_CLEAR_LABEL}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
