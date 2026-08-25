@@ -186,9 +186,9 @@ Deno.serve(async (req) => {
             // AND denominator, or the weekly mean silently drops. Zero valid
             // values → the existing "N/A" sentinel (already guarded by the
             // FE before Number()).
-            const rpeValues = completed
-              .map((l) => l.rpe_global)
-              .filter((r): r is number => r != null);
+            // Reads srpe — the session column the athlete writes since
+            // B-22; rpe_global is legacy and no longer written.
+            const rpeValues = completed.map((l) => l.srpe).filter((r): r is number => r != null);
             const avgRpe =
               rpeValues.length > 0
                 ? (rpeValues.reduce((sum, r) => sum + r, 0) / rpeValues.length).toFixed(1)

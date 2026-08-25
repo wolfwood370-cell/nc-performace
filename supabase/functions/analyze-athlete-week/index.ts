@@ -161,9 +161,9 @@ serve(async (req) => {
     // A missing RPE is an absence, not a 0: it must leave numerator AND
     // denominator, or the weekly mean silently drops. Zero valid values →
     // null, rendered as "N/D" by the template below.
-    const rpeValues = completedWorkouts
-      .map((w) => w.rpe_global)
-      .filter((r): r is number => r != null);
+    // Reads srpe — the session column the athlete writes since B-22;
+    // rpe_global is legacy and no longer written.
+    const rpeValues = completedWorkouts.map((w) => w.srpe).filter((r): r is number => r != null);
     const avgRpe =
       rpeValues.length > 0
         ? Math.round((rpeValues.reduce((s, r) => s + r, 0) / rpeValues.length) * 10) / 10
