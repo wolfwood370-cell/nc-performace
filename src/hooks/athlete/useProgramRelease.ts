@@ -20,7 +20,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { parseReleaseDocument } from "@/lib/program/releaseView";
 import type { ReleaseProgramView } from "@/lib/program/releaseView";
 import { deriveGateStatus } from "@/lib/program/gateStatus";
-import type { AthleteGateStatus } from "@/lib/program/gateStatus";
+import type { AthleteGateStatus, GateStatusProfile } from "@/lib/program/gateStatus";
 import type { ConsentRow } from "../../../supabase/functions/release-autonomous-program/release/consents.ts";
 
 export type { AthleteGateStatus } from "@/lib/program/gateStatus";
@@ -32,15 +32,28 @@ const releaseKey = (athleteId: string | undefined) =>
 const gateStatusKey = (athleteId: string | undefined) =>
   ["program-release", "gate-status", athleteId ?? "anon"] as const;
 
+/**
+ * Derives the component-facing view from the RAW cached row, at READ time,
+ * always with the CURRENT parser. The cache (and the IndexedDB persist that
+ * dehydrates it) only ever holds what the queryFn returned — the Postgres
+ * row — so a deploy can never rehydrate an object whose shape an older
+ * build decided (defect measured 2026-08-25). Module-level on purpose:
+ * `select` needs a stable reference or TanStack re-runs it on every render,
+ * and ActiveWorkout re-renders every second for the timer.
+ */
+const selectLatestRelease = (
+  row: ProgramReleaseRow | null,
+): { release: ProgramReleaseRow; program: ReleaseProgramView | null } | null =>
+  row === null ? null : { release: row, program: parseReleaseDocument(row.program_document) };
+
 /** Latest release for the current athlete (null = none yet). */
 export function useLatestReleaseQuery() {
   const { user } = useAuth();
   return useQuery({
     queryKey: releaseKey(user?.id),
-    queryFn: async (): Promise<{
-      release: ProgramReleaseRow;
-      program: ReleaseProgramView | null;
-    } | null> => {
+    // Returns ONLY what Postgres returned: the persisted cache must never
+    // hold a shape this code decided — that is selectLatestRelease's job.
+    queryFn: async (): Promise<ProgramReleaseRow | null> => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from("program_releases")
@@ -50,19 +63,32 @@ export function useLatestReleaseQuery() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      if (!data) return null;
-      return { release: data, program: parseReleaseDocument(data.program_document) };
+      return data;
     },
+    select: selectLatestRelease,
     enabled: Boolean(user?.id),
   });
 }
+
+/** Raw inputs of the gate mirror, exactly as Postgres returned them — the
+ *  cached (and persisted) shape. Grouping the two result sets is the whole
+ *  container; every DERIVED field stays out (that is selectGateStatus). */
+interface GateStatusSource {
+  profile: GateStatusProfile;
+  consents: ConsentRow[];
+}
+
+/** Same contract as selectLatestRelease: derivation at read time with the
+ *  current code, stable reference so it runs once per data change. */
+const selectGateStatus = (source: GateStatusSource | null): AthleteGateStatus | null =>
+  source === null ? null : deriveGateStatus(source.profile, source.consents);
 
 /** Gate status for the current athlete (profile own-select + consents own-select). */
 export function useAthleteGateStatusQuery() {
   const { user } = useAuth();
   return useQuery({
     queryKey: gateStatusKey(user?.id),
-    queryFn: async (): Promise<AthleteGateStatus | null> => {
+    queryFn: async (): Promise<GateStatusSource | null> => {
       if (!user?.id) return null;
       const [profileRes, consentsRes] = await Promise.all([
         supabase
@@ -79,8 +105,12 @@ export function useAthleteGateStatusQuery() {
       ]);
       if (profileRes.error) throw profileRes.error;
       if (consentsRes.error) throw consentsRes.error;
-      return deriveGateStatus(profileRes.data, (consentsRes.data ?? []) as ConsentRow[]);
+      return {
+        profile: profileRes.data,
+        consents: (consentsRes.data ?? []) as ConsentRow[],
+      };
     },
+    select: selectGateStatus,
     enabled: Boolean(user?.id),
   });
 }
