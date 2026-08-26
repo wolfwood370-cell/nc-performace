@@ -49,6 +49,9 @@ commit di prova`. **Passano.**
 
 ## 4. Da dove viene il buster
 
+> ⚠️ **SUPERATO dall'addendum in coda (§11):** la fonte non è più l'orologio ma l'identità del
+> commit. Questo §4 resta come storia del criterio mal posto; la fonte vigente è in §11.
+
 - **Fonte scelta: l'orologio di build.** `vite.config.ts` genera `ncph-${Date.now().toString(36)}`
   DENTRO la factory di `defineConfig` (eseguita una volta per `vite build` / avvio dev server) e lo
   inietta via `define` come `__BUILD_ID__` (`vite.config.ts:31`); `src/vite-env.d.ts:5` dichiara il
@@ -246,3 +249,80 @@ spostamento della cintura sul valore, §9.4) per confermare che il messaggio reg
    si rifanno (raffica una tantum, dichiarata), la seduta mostra gli esercizi e le righe
    registrabili aprono il drawer. La riga non mente più: se mai una riga dovesse dire «Solo
    consultazione», ora è la verità del documento, non un disaccordo fra guardiani.
+
+## 11. Addendum 2026-08-26 (sera) — la fonte del buster diventa l'identità del commit
+
+### 11.1 Commit
+
+- `f4a50e5` — fix(build): il buster viene dall'identità del commit, non dall'orologio.
+- `d5bf33f` — test(athlete): il gemello del gate (contatore di referenza stabile su `selectGateStatus`).
+- `32c0517` — test(build): pin sui sorgenti — il buster mancante viene notato.
+- il commit dei documenti (tip del ramo).
+
+### 11.2 La fonte e il ripiego
+
+Il criterio originale («due build consecutivi, due valori») era mal posto: l'orologio lo
+soddisfaceva ma `__BUILD_ID__` per-build, iniettato nell'entry, faceva cambiare nome a **124/143
+asset a ogni redeploy dello stesso codice** (misura Cowork su `f4bdd6c`; controllo su main senza
+buster: 0/143). Proprietà voluta, scritta bene: **cambia quando cambia il codice, NON cambia
+quando non cambia.**
+
+Catena della fonte (`vite.config.ts`, funzione `resolveBuildId`):
+
+1. **`VERCEL_GIT_COMMIT_SHA`** — su Vercel un deploy È un commit; validato esadecimale, troncato
+   a 12, minuscolo. Valore iniettato: `ncph-<sha12>`.
+2. Ripiego: **`git rev-parse --short=12 HEAD`** via `execFileSync` (niente shell, argomenti
+   fissi) — build locali e checkout CI.
+3. **Senza entrambe: il build FALLISCE** con un errore che nomina le due fonti. Scelto il rosso
+   al ripiego-costante, e il perché è scritto nel codice: una cintura che muore in silenzio è
+   esattamente la classe di difetto che questa fetta ripara; tutti gli ambienti reali di build
+   del repo (Vercel, checkout locale, GitHub Actions) hanno una delle due fonti.
+
+Nota dichiarata: un build da tree SPORCO porta comunque lo sha di HEAD — i deploy nascono da
+commit, il caso sporco è solo locale.
+
+### 11.3 Acceptance (7 criteri, comando → output)
+
+1. 🔴 **Stesso commit, due build: stesso buster E stessi asset** — 2×(`npm run build` +
+   `grep -roh "ncph-[0-9a-f]*" dist/assets/`; `ls dist/assets | sort` + `diff`):
+   `ncph-f4bdd6ced0f6` due volte · **DIFF_EXIT=0, zero differenze su 143 asset**.
+2. **Commit diverso: buster diverso** — (a) fonte primaria:
+   `VERCEL_GIT_COMMIT_SHA=0123…4567 npm run build` → `ncph-0123456789ab`; (b) build reale al
+   commit dei documenti (HEAD ≠ `f4bdd6c`) → valore diverso da `ncph-f4bdd6ced0f6`
+   (incollato nel ritorno in chat).
+3. **Ripiego dichiarato** — §11.2: senza `VERCEL_GIT_COMMIT_SHA` risponde `git rev-parse`;
+   senza entrambi il build muore nominandoli (niente costante silenziosa, motivazione scritta).
+4. **`selectGateStatus` ha il suo test di referenza stabile** — «gemello del gate:
+   deriveGateStatus gira 1 volta e RESTA 1 dopo 10 re-render» → passed; rosso con l'inline:
+   `expected 2 to be 1` (§11.4).
+5. **Il buster mancante viene notato** — `persistBuster.source.test.ts` (3 pin sui sorgenti)
+   → passed; rosso togliendo la riga (§11.4).
+6. **Gate** — tsc **0** · vitest **442/44** (438/43 + gemello + 3 pin) · eslint **81 = ratchet**
+   · `npm run build` verde (più volte) · verify:css **20/20** (sul dist del build finale).
+7. **Perimetro** — `vite.config.ts` · 2 file di test · i documenti. Predicato, select, cancello
+   e test esistenti INTATTI (diff nullo su `main.tsx`, `useProgramRelease.ts` e i componenti).
+
+### 11.4 I due buchi, chiusi col loro rosso
+
+1. **Gemello del gate** (`d5bf33f`): spia su `deriveGateStatus` (implementazione vera) nel test
+   del select, stesso contatore del parser. Rosso verificato rimettendo il select inline
+   (`select: (source) => selectGateStatus(source)`):
+   `AssertionError: una sola derivazione al settle: expected 2 to be 1` — l'inline riesegue già
+   al mount. Ripristino → 6/6 verdi, diff nullo sul hook.
+2. **Pin del buster** (`32c0517`): test che legge i SORGENTI (pattern casa-unica di sessionRpe)
+   — `main.tsx` deve passare `buster: __BUILD_ID__`, `vite.config.ts` deve iniettarlo via
+   `define` e risolverlo dal commit (e MAI `Date.now()`). Rosso verificato togliendo la riga da
+   `persistOptions`: «src/main.tsx non passa più buster: \_\_BUILD_ID\_\_ …» —
+   prima, la stessa rimozione non faceva cadere nulla (misura Cowork). Ripristino → 3/3 verdi.
+
+### 11.5 Non fatto / divergenze
+
+1. **La nota sul costo in §4 e nella spec precedente resta storica**: il costo vero non era
+   «una raffica di query» ma anche il churn degli asset — corretto qui, non riscritto là.
+2. **PWA**: il prompt la dice «PWA con service worker»; `CLAUDE.md §1` dichiara la PWA RIMOSSA
+   (SW eliminato). Il costo del churn resta vero comunque (cache HTTP/CDN dei 143 asset) — la
+   misura 124/143 non dipende dal SW.
+3. **Il pin legge i sorgenti, non il runtime**: se un refactor rinomina le àncore di proposito
+   (`persistOptions`, `__BUILD_ID__`), cintura e pin si spostano INSIEME (dichiarato nel test).
+4. Il bullet di `HANDOFF §0` è stato aggiornato alla fonte nuova; la RETRO ha l'addendum sul
+   criterio mal posto.
