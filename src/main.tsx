@@ -16,16 +16,16 @@ const queryClient = new QueryClient({
       staleTime: Infinity,
       gcTime: MS_24H,
       retry: (failureCount, error) => {
-        if (error && typeof error === 'object' && 'status' in error) {
+        if (error && typeof error === "object" && "status" in error) {
           const status = (error as { status: number }).status;
           if (status >= 400 && status < 500) return false;
         }
         return failureCount < 3;
       },
-      networkMode: 'offlineFirst',
+      networkMode: "offlineFirst",
     },
     mutations: {
-      networkMode: 'offlineFirst',
+      networkMode: "offlineFirst",
     },
   },
 });
@@ -33,7 +33,12 @@ const queryClient = new QueryClient({
 const persistOptions = {
   persister: idbPersister,
   maxAge: MS_24H,
-  buster: "v1",
+  // Build identity (vite.config.ts `define`): a new build = a new buster =
+  // the cache persisted by any PREVIOUS build is discarded on restore.
+  // Objects shaped by older code must never rehydrate into newer components
+  // (defect measured 2026-08-25: a pre-A-03 cached release document reached
+  // the session list with `catalog_exercise_id` absent).
+  buster: __BUILD_ID__,
 };
 
 createRoot(document.getElementById("root")!).render(
@@ -45,5 +50,5 @@ createRoot(document.getElementById("root")!).render(
         </MaterialYouProvider>
       </PersistQueryClientProvider>
     </HelmetProvider>
-  </ErrorBoundary>
+  </ErrorBoundary>,
 );
