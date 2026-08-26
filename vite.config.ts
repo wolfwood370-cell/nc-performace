@@ -10,15 +10,30 @@ import path from "path";
 // `public/service-worker.js` clean the SW out of any browser that already
 // installed it. See those files before re-introducing PWA features.
 
-export default defineConfig(() => ({
-  server: {
-    host: "::",
-    port: 8080,
-  },
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(() => {
+  // Build identity for the persisted-cache buster (src/main.tsx). Stamped
+  // once per build (this factory runs once per `vite build` / dev-server
+  // start), so every deploy ships a DIFFERENT literal and the TanStack
+  // cache written by a previous build is discarded on restore instead of
+  // rehydrating yesterday's object shapes into today's components. The
+  // wall clock is allowed here: this is build tooling, not an app module —
+  // the app only ever reads the injected constant. Not the git hash on
+  // purpose: two builds of the same commit must still differ.
+  const buildId = `ncph-${Date.now().toString(36)}`;
+
+  return {
+    server: {
+      host: "::",
+      port: 8080,
     },
-  },
-}));
+    plugins: [react()],
+    define: {
+      __BUILD_ID__: JSON.stringify(buildId),
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+  };
+});
