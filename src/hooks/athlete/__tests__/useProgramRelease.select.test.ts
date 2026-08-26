@@ -73,7 +73,15 @@ vi.mock("@/lib/program/releaseView", async (importOriginal) => {
   return { ...actual, parseReleaseDocument: vi.fn(actual.parseReleaseDocument) };
 });
 
+// Same spy pattern on the gate derivation — the TWIN counter: without it,
+// selectGateStatus put back inline would fail no test (measured 2026-08-26).
+vi.mock("@/lib/program/gateStatus", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/program/gateStatus")>();
+  return { ...actual, deriveGateStatus: vi.fn(actual.deriveGateStatus) };
+});
+
 import { parseReleaseDocument } from "@/lib/program/releaseView";
+import { deriveGateStatus } from "@/lib/program/gateStatus";
 import {
   useAthleteGateStatusQuery,
   useLatestReleaseQuery,
@@ -176,6 +184,8 @@ function ReleaseProbe() {
 }
 
 function GateProbe() {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  forceRender = bump;
   latestGate = useAthleteGateStatusQuery();
   return null;
 }
@@ -210,6 +220,7 @@ beforeEach(() => {
   latestRelease = null;
   latestGate = null;
   (parseReleaseDocument as unknown as Mock).mockClear();
+  (deriveGateStatus as unknown as Mock).mockClear();
 });
 
 afterEach(async () => {
@@ -295,6 +306,29 @@ describe("referenza stabile di select", () => {
         "la referenza stabile deve tenerlo a 1",
     ).toBe(1);
     expect(latestRelease!.data, "anche la referenza del derivato resta stabile").toBe(derivedRef);
+  });
+
+  it("gemello del gate: deriveGateStatus gira 1 volta e RESTA 1 dopo 10 re-render", async () => {
+    await renderProbe(GateProbe);
+
+    const gateCalls = () => (deriveGateStatus as unknown as Mock).mock.calls.length;
+    expect(gateCalls(), "una sola derivazione al settle").toBe(1);
+    const derivedRef = latestGate!.data;
+
+    for (let i = 0; i < 10; i++) {
+      await act(async () => {
+        forceRender();
+      });
+      await flush(1);
+    }
+
+    expect(
+      gateCalls(),
+      "selectGateStatus rimesso inline rieseguirebbe la derivazione a ogni render: " +
+        "la simmetria col rilascio è il criterio, non un'abitudine (misurato 2026-08-26: " +
+        "senza questo test l'inline non faceva cadere nulla)",
+    ).toBe(1);
+    expect(latestGate!.data, "referenza del derivato del gate stabile").toBe(derivedRef);
   });
 });
 
