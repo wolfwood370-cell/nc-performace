@@ -331,4 +331,34 @@ describe("la cache di ieri attraversa select e degrada, non mente", () => {
         "e la pagina dice «Programma non disponibile» — mai una seduta che promette",
     ).toBeNull();
   });
+
+  it("gate status: la forma derivata di ieri in cache degrada CHIUSA (errore), mai un gate inventato", async () => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    // Yesterday's persisted shape: the ALREADY-DERIVED AthleteGateStatus,
+    // where the raw {profile, consents} now belongs. deriveGateStatus throws
+    // inside `select` (no .profile to read) and TanStack turns it into an
+    // error state: the consumer (AthleteTraining) renders its error card —
+    // closed, never a gate invented from a stale shape.
+    queryClient.setQueryData(GATE_KEY, {
+      coachingMode: "autonomous",
+      onboardingCompleted: true,
+      missingConsents: [],
+      pendingReview: false,
+    });
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        createElement(QueryClientProvider, { client: queryClient }, createElement(GateProbe)),
+      );
+    });
+    await flush();
+
+    expect(latestGate!.data, "nessun derivato inventato dalla forma vecchia").toBeUndefined();
+    expect(latestGate!.isError, "select lancia e la query fallisce CHIUSA").toBe(true);
+  });
 });

@@ -63,7 +63,10 @@ export function useLatestReleaseQuery() {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      // maybeSingle's contract is row-or-null, but TanStack v5 refuses an
+      // undefined query value outright: normalize so "no release yet" can
+      // never become a query error.
+      return data ?? null;
     },
     select: selectLatestRelease,
     enabled: Boolean(user?.id),
