@@ -62,6 +62,7 @@ import {
   useStartSessionMutation,
 } from "@/hooks/athlete/useAthleteWorkoutHooks";
 import { useLatestReleaseQuery } from "@/hooks/athlete/useProgramRelease";
+import { isLoggableExercise } from "@/lib/program/loggableExercise";
 import { formatReleaseSetLine, localIsoDate, sessionForDate } from "@/lib/program/releaseView";
 
 // =============================================================================
@@ -352,8 +353,16 @@ export default function ActiveWorkout() {
   // on every open (CORE §0.8).
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const openExercise = day?.exercises.find((e) => e.id === openExerciseId) ?? null;
-  const openCatalogId = openExercise?.catalog_exercise_id ?? null;
-  const openDone = openCatalogId !== null ? (countsByCatalogId[openCatalogId] ?? 0) : 0;
+  // Loggability goes through THE shared predicate — the same one the list
+  // rows read: the two surfaces must never answer this question with two
+  // different expressions (2026-08-25: `!== null` rendered a clickable row,
+  // `?? null` refused the drawer, and the tap died in silence). Downstream,
+  // the DERIVED id is consumed only when it is a string: a second belt on
+  // the value, not on the decision — should the predicate ever regress on
+  // rehydrated data, the drawer still refuses a phantom reference.
+  const openCatalogId =
+    openExercise && isLoggableExercise(openExercise) ? openExercise.catalog_exercise_id : null;
+  const openDone = typeof openCatalogId === "string" ? (countsByCatalogId[openCatalogId] ?? 0) : 0;
   // Prescription of the NEXT set to log. Beyond the prescribed count the
   // athlete may still log extra sets: the meta falls back to the compact
   // scheme — nothing is invented for a set the coach never wrote.
@@ -521,7 +530,7 @@ export default function ActiveWorkout() {
           value handed to catalogExerciseId is what reaches the INSERT.
           Declared BEFORE ExitWorkoutDialog so the friction modal wins the
           z-[60] tie by JSX order (DrawerShell's own convention). */}
-      {openExercise && openCatalogId !== null && (
+      {openExercise && typeof openCatalogId === "string" && (
         <StandardSetDrawer
           isOpen
           onClose={() => setOpenExerciseId(null)}

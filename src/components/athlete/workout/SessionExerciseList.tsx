@@ -20,6 +20,7 @@
 
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isLoggableExercise } from "@/lib/program/loggableExercise";
 import { sessionTitle } from "@/lib/program/releaseView";
 import type { ReleaseDayView, ReleaseExerciseView } from "@/lib/program/releaseView";
 
@@ -52,7 +53,10 @@ function ExerciseRow({
   prescribed: number;
   onOpen: (exercise: ReleaseExerciseView) => void;
 }) {
-  const loggable = exercise.catalog_exercise_id !== null;
+  // THE shared predicate — the same one that gates the drawer mount
+  // (ActiveWorkout): list and page must never answer "loggable?" with two
+  // different expressions (2026-08-25).
+  const loggable = isLoggableExercise(exercise);
   const completed = loggable && prescribed > 0 && done >= prescribed;
 
   const body = (
@@ -148,7 +152,7 @@ export function SessionExerciseList({
   // attribution needs schema (flagged as follow-up).
   const prescribedByCatalogId: Record<string, number> = {};
   for (const exercise of day.exercises) {
-    if (exercise.catalog_exercise_id !== null) {
+    if (isLoggableExercise(exercise)) {
       prescribedByCatalogId[exercise.catalog_exercise_id] =
         (prescribedByCatalogId[exercise.catalog_exercise_id] ?? 0) + exercise.sets;
     }
@@ -170,12 +174,12 @@ export function SessionExerciseList({
             key={exercise.id}
             exercise={exercise}
             done={
-              exercise.catalog_exercise_id !== null
+              isLoggableExercise(exercise)
                 ? (countsByCatalogId[exercise.catalog_exercise_id] ?? 0)
                 : 0
             }
             prescribed={
-              exercise.catalog_exercise_id !== null
+              isLoggableExercise(exercise)
                 ? (prescribedByCatalogId[exercise.catalog_exercise_id] ?? exercise.sets)
                 : exercise.sets
             }
