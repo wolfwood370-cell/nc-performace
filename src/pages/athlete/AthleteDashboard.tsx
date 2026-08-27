@@ -397,7 +397,7 @@ function TodaySessionCard({ onStart }: { onStart: () => void }) {
   const decor = (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/8 to-transparent opacity-70"
+      className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/[0.08] to-transparent opacity-70"
     />
   );
   const status = (icon: LucideIcon, title: string, body: string, action?: React.ReactNode) => (

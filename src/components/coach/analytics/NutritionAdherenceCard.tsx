@@ -137,8 +137,8 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
                   <AreaChart data={points} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
                     <defs>
                       <linearGradient id="nutritionLogged" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis
@@ -147,13 +147,13 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
                       interval={6}
                       tickLine={false}
                       axisLine={false}
-                      stroke="var(--muted-foreground)"
+                      stroke="hsl(var(--muted-foreground))"
                     />
                     <YAxis hide domain={["dataMin - 200", "dataMax + 200"]} />
                     {targetCalories != null && (
                       <ReferenceLine
                         y={targetCalories}
-                        stroke="var(--muted-foreground)"
+                        stroke="hsl(var(--muted-foreground))"
                         strokeDasharray="4 4"
                         strokeWidth={1}
                       />
@@ -178,7 +178,7 @@ export function NutritionAdherenceCard({ athleteId }: NutritionAdherenceCardProp
                     <Area
                       type="monotone"
                       dataKey="loggedCalories"
-                      stroke="var(--primary)"
+                      stroke="hsl(var(--primary))"
                       strokeWidth={2}
                       fill="url(#nutritionLogged)"
                       connectNulls

@@ -180,10 +180,14 @@ function bulletPresentation(bullet: TriageBullet): {
         ),
       };
     case "warning":
+      // `tertiary-fixed` was an M3 token this repo never defined: both
+      // classes were dead CSS. Same pairing as the `critical` case above
+      // (strong tint at /20 + light readable text), on the family the
+      // `Attenzione` step already owns (see EXPECTED in verify-css-tokens).
       return {
         icon: Activity,
-        iconWrap: "bg-tertiary-fixed/20",
-        iconColor: "text-tertiary-fixed",
+        iconWrap: "bg-tertiary-container/20",
+        iconColor: "text-on-tertiary-container",
         text: (
           <>
             <strong>{bullet.athleteName}</strong>: {bullet.description}.

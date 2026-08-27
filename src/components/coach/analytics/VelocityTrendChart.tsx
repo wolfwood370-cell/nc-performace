@@ -204,32 +204,37 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <ReferenceArea
                     y1={1.0}
                     y2={yDomain[1]}
-                    fill="var(--success)"
+                    fill="hsl(var(--success))"
                     fillOpacity={0.08}
                   />
-                  <ReferenceArea y1={0} y2={0.5} fill="var(--destructive)" fillOpacity={0.08} />
+                  <ReferenceArea
+                    y1={0}
+                    y2={0.5}
+                    fill="hsl(var(--destructive))"
+                    fillOpacity={0.08}
+                  />
                   <ReferenceLine
                     y={1.0}
-                    stroke="var(--success)"
+                    stroke="hsl(var(--success))"
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                   />
                   <ReferenceLine
                     y={0.5}
-                    stroke="var(--destructive)"
+                    stroke="hsl(var(--destructive))"
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                   />
 
                   <XAxis
                     dataKey="dateFormatted"
-                    stroke="var(--muted-foreground)"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    stroke="var(--muted-foreground)"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -285,10 +290,10 @@ export function VelocityTrendChart({ athleteId }: VelocityTrendChartProps) {
                   <Line
                     type="monotone"
                     dataKey="meanVelocity"
-                    stroke="var(--primary)"
+                    stroke="hsl(var(--primary))"
                     strokeWidth={2.5}
-                    dot={{ fill: "var(--primary)", r: 4, strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: "var(--primary)" }}
+                    dot={{ fill: "hsl(var(--primary))", r: 4, strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
                   />
                 </LineChart>
               </ResponsiveContainer>

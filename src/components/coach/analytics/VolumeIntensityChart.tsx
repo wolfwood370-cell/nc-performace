@@ -106,8 +106,8 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "var(--popover)",
-                  border: "1px solid var(--border)",
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
                   borderRadius: "8px",
                   fontSize: "11px",
                 }}
@@ -131,9 +131,9 @@ export function VolumeIntensityChart({ athleteId }: VolumeIntensityChartProps) {
                 yAxisId="rpe"
                 type="monotone"
                 dataKey="avgRpe"
-                stroke="var(--destructive)"
+                stroke="hsl(var(--destructive))"
                 strokeWidth={2}
-                dot={{ fill: "var(--destructive)", r: 3 }}
+                dot={{ fill: "hsl(var(--destructive))", r: 3 }}
               />
             </ComposedChart>
           </ResponsiveContainer>

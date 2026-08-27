@@ -417,7 +417,7 @@ function CriticalBody({
             {painMarkers.map((m, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1 rounded-full bg-destructive/8 border border-destructive/20 px-2.5 py-0.5 text-3xs font-bold text-destructive"
+                className="inline-flex items-center gap-1 rounded-full bg-destructive/[0.08] border border-destructive/20 px-2.5 py-0.5 text-3xs font-bold text-destructive"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-destructive" aria-hidden />
                 {m}

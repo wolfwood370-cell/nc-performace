@@ -92,8 +92,8 @@ export function MetabolicChart({ athleteId }: MetabolicChartProps) {
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "var(--popover)",
-                  border: "1px solid var(--border)",
+                  backgroundColor: "hsl(var(--popover))",
+                  border: "1px solid hsl(var(--border))",
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
@@ -103,14 +103,14 @@ export function MetabolicChart({ athleteId }: MetabolicChartProps) {
               <ReferenceLine
                 yAxisId="calories"
                 y={caloriesTarget}
-                stroke="var(--destructive)"
+                stroke="hsl(var(--destructive))"
                 strokeDasharray="5 5"
                 label={{ value: `Target: ${caloriesTarget}`, position: "right", fontSize: 10 }}
               />
               <Bar
                 yAxisId="calories"
                 dataKey="caloriesLogged"
-                fill="var(--primary)"
+                fill="hsl(var(--primary))"
                 opacity={0.6}
                 name="Calorie Registrate"
                 radius={[4, 4, 0, 0]}
