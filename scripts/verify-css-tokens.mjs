@@ -92,10 +92,15 @@
  *     form `hsl(var(--x, …))` nor a name built dynamically would match;
  *   - check 7 inherits check 5's blindness to dynamic class names and its
  *     comment-line handling. A slash inside an arbitrary value
- *     (`aspect-[3/4]`) is not an opacity modifier: candidates with
- *     unbalanced brackets are skipped. Fraction utilities (`w-1/2`,
- *     `top-1/2`) match the same shape and are checked the same way — they
- *     have rules, so they cost nothing. An alpha value outside the opacity
+ *     (`aspect-[3/4]`) is not an opacity modifier: the bracket segment is
+ *     matched as a unit, so the slash inside never reads as one. Fraction
+ *     utilities (`w-1/2`, `top-1/2`) match the same shape and are checked
+ *     the same way — they have rules, so they cost nothing.
+ *     Arbitrary-value bases carry their modifier too: `border-[#hex]/30`
+ *     emits and passes, `bg-[var(--x)]/95` can never emit (Tailwind cannot
+ *     inject an alpha into a var() it cannot parse) and gets its own red
+ *     with the color-mix repair — the first regex missed the whole family
+ *     and the independent review found it with a live instance (2026-08-27). An alpha value outside the opacity
  *     theme scale (`/8`) emits no rule even on a healthy token: the red
  *     tells the two causes apart by looking at the base class's rule.
  *     Token names are derived from the base rule's `var(--x)` reads, so a
@@ -490,7 +495,7 @@ console.log(
 //   - base rule alive on channel vars → the MODIFIER is the problem (an
 //     alpha outside the opacity scale, e.g. `/8`): the repair is `/[0.08]`.
 const ALPHA_CLASS_RE =
-  /(?<![\w-])!?[a-z][a-z0-9.\][-]*-[a-z0-9.\][-]+\/(?:\d{1,3}|\[[^\]\s]+\])(?![\w%/-])/g;
+  /(?<![\w-])!?[a-z][a-z0-9-]*(?:-\[[^\]\s]+\])?(?:-[a-z0-9-]+)*\/(?:\d{1,3}|\[[^\]\s]+\])(?![\w%/-])/g;
 
 /** class → first `file:line`, comment lines skipped, unbalanced [ ] skipped. */
 const alphaClassSites = new Map();
@@ -502,6 +507,10 @@ for (const file of SOURCE_FILES) {
       const cls = m[0];
       const opens = (cls.match(/\[/g) ?? []).length;
       if (opens !== (cls.match(/\]/g) ?? []).length) continue;
+      // A utility base always carries a dash (`bg-…`, `w-1`); a bare word
+      // before the slash is prose («success/10» in a JSX comment body,
+      // which isCommentLine cannot recognise — its declared limit).
+      if (!cls.slice(0, cls.lastIndexOf("/")).includes("-")) continue;
       if (!alphaClassSites.has(cls))
         alphaClassSites.set(cls, `${file.replace(/\\/g, "/")}:${i + 1}`);
     }
@@ -537,6 +546,16 @@ for (const [cls, site] of [...alphaClassSites.entries()].sort()) {
       continue;
     }
     alphaEmitted += 1;
+    continue;
+  }
+  if (cls.includes("[var(")) {
+    // Tailwind cannot inject an alpha into an arbitrary `var(...)` value —
+    // reviewer-found gap, 2026-08-27, one live instance (IntakeForm footer).
+    failures.push(
+      `${cls} — scritta in ${site} ma nessuna regola emessa: il modificatore di alpha ` +
+        `non si applica a un valore arbitrario var(...) — usa ` +
+        `color-mix(in_srgb,var(--x)_N%,transparent) oppure un token config a canali`,
+    );
     continue;
   }
   const base = cls.replace(/^!/, "").replace(/\/(?:\d{1,3}|\[[^\]\s]+\])$/, "");
