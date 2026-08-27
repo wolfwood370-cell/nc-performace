@@ -1,236 +1,218 @@
-# ULTIMO RITORNO — fetta alpha-vivi
+# ULTIMO RITORNO — fetta durata-unica
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/alpha-vivi` · 2026-08-27 · base `origin/main` = `f0244ca` (la stessa della misura
-> Cowork del 27/08) · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/alpha-vivi)
+> Fetta: `claude/durata-unica` · 2026-08-27 · base `origin/main` = `df7d4ee` (post-merge PR #65) ·
+> PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/durata-unica)
 > — dal 20/08 il classificatore nega le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/alpha-vivi`, da `f0244ca`, 3 commit di codice + il commit dei documenti (tip del ramo):
+`claude/durata-unica`, da `df7d4ee`, 3 commit di codice + il commit dei documenti (tip del ramo):
 
-- `ef24798` — la conversione: 69 dichiarazioni a canali, 46 voci config wrapped, bridge del
-  provider a canali nudi, 57 usi diretti avvolti, la scala di CoachHome riparata intera,
-  le `/8` fuori scala → `/[0.08]`.
-- `b2853cd` — il check 7 derivato nel gate + la passata anti-rewrap del check 4.
-- il terzo commit di codice — esito della passata indipendente (v. §9.0): lo scanner del check 7
-  esteso alle basi arbitrarie (`bg-[var(--x)]/95` era invisibile al regex, istanza viva trovata
-  dal reviewer) + il footer dell'intake riparato con `color-mix`, baseline eslint → 64.
+- `59f53c0` — la migration (NON applicata) + il test di parità che deriva tipo ed espressione
+  dal file e li confronta con `computeAcwr`.
+- `e73ed65` — le due edge smettono di leggere `rpe_global` e `duration_minutes`.
+- `361557b` — il pannello coach legge i secondi e mostra minuti-vista; la coda offline
+  (scollegata) scrive i secondi; `formatDurataSeduta` + 3 file di test.
+- il 4° commit di codice — esito della review (§9.0): il volume del check-in smette di
+  fabbricare «0 UA» dall'assenza (`generate-batch-checkins`, somma sui soli carichi presenti,
+  campo assente + «N/A» quando nessuna seduta è misurata).
 
 ## 2. Manifesto
 
-**NUOVI:** nessuno.
+**NUOVI:** `supabase/migrations/20260827130000_durata_unica_carico_sui_secondi.sql` ·
+`src/lib/format/durataSeduta.ts` (vista dei minuti, pure logic → lib per il decision tree §4) ·
+`src/lib/math/__tests__/caricoParita.test.ts` · `src/lib/format/__tests__/durataSeduta.test.ts` ·
+`src/components/coach/messages/__tests__/AthleteContextPane.durata.render.test.ts`.
 
-**MODIFICATI (21):** `src/index.css` (69 dichiarazioni `hsl(X)`→`X`; 7 usi interni →
-`hsl(var(--x))`, `color-mix` scrollbar compreso; 2 commenti aggiornati) · `tailwind.config.ts`
-(46 voci `"var(--x)"` → `"hsl(var(--x) / <alpha-value>)"`; commenti) ·
-`scripts/verify-css-tokens.mjs` (check 7 + estensione check 4 + header) ·
-`src/providers/MaterialYouProvider.tsx` (bridge: 19 `setProperty` da `hsl(${t.x})` a `t.x` nudo) ·
-i 10 file con usi diretti avvolti: `OverviewTab.tsx`(4) `AthleteDetail.tsx`(18) `sidebar.tsx`(2)
-`VolumeIntensityChart.tsx`(4) `VelocityTrendChart.tsx`(9) `StrengthChart.tsx`(2)
-`NutritionAdherenceCard.tsx`(5) `MetabolicChart.tsx`(4) `CoachBottomNav.tsx`(1) `Confetti.tsx`(1) ·
-`CoachHome.tsx` (coppia `tertiary-fixed` → `tertiary-container`) · `AthleteCard.tsx`,
-`NutritionHero.tsx`, `AthleteDashboard.tsx`, `AthleteTraining.tsx` (`/8` → `/[0.08]`) ·
-`src/features/intake/IntakeForm.tsx` (`bg-[var(--nc-surface)]/95` morta → `color-mix`, rilievo
-reviewer, §9.0) · `.eslint-baseline` (81→64) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md`
-(RETRO) · questo file.
+**MODIFICATI:** `supabase/functions/analyze-athlete-week/index.ts` (select :81) ·
+`supabase/functions/generate-batch-checkins/index.ts` (select :128) ·
+`src/hooks/useOfflineSync.ts` (:36, :186 — secondi) ·
+`src/components/coach/messages/AthleteContextPane.tsx` (select :89, vista :185-190 e :423) ·
+`src/components/coach/messages/__tests__/AthleteContextPane.render.test.ts` (fixture allineata,
+scoperta dal grep di acceptance — non era nel censimento del prompt) ·
+`docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) · questo file.
 
-**NEL PERIMETRO MA NON TOCCATI:** `vite.config.ts` (vietato, intatto) · `supabase/**`, `types.ts`,
-`acwr.ts`, `sessionRpe.ts`, `src/lib/program/**`, `src/main.tsx` (vietati, intatti) · i token
-`--nc-*` athlete (hex, non esposti dal config — v. §6) · `EXPECTED` e `CHANNEL_VARS` del gate
-(invariante 3: intatte, ridondanza voluta col check 7).
-
-**Perimetro ESTESO rispetto al prompt (dichiarato, il contratto vince sulla lista file):**
-`MaterialYouProvider.tsx` — il bridge riscrive a runtime 19 delle variabili convertite in
-`hsl(...)` completa (`tailwind.config.ts:168` lo documentava): senza la riscrittura a canali ogni
-tinta sarebbe morta al primo mount del provider, contratto (b) violato a runtime. ·
-`CoachHome.tsx:185-186` — `bg-tertiary-fixed/20`+`text-tertiary-fixed` su token MAI definito:
-irrisolvibile per conversione, il check 7 sarebbe rosso; mappata sulla famiglia
-`tertiary-container` gemella del gradino critical della stessa scala (o si ripara la scala intera
-o si dichiara — Fragilità #6; l'auditor tema conferma coerenza). · `AthleteCard.tsx:420`,
-`NutritionHero.tsx:54`, `AthleteDashboard.tsx:400`, `AthleteTraining.tsx:359` — `/8` non è nella
-scala opacity di Tailwind (misurato: 0 regole `/8`, 7 regole `/15` nel CSS emesso): morte per la
-scala, non per il token; `/[0.08]` conserva l'8% inteso. · `IntakeForm.tsx:248` — rilievo del
-reviewer (§9.0): l'alpha su un valore arbitrario `var(...)` non può emettere mai. ·
-`.eslint-baseline` — la CI stessa prescrive «Lint migliorato. Abbassa .eslint-baseline nello
-stesso commit» (81 → 65 col grosso della fetta → 64 col fix dell'intake).
+**NEL PERIMETRO MA NON TOCCATI:** `src/lib/math/acwr.ts` (VIETATO: 0 righe di diff — il test lo
+LEGGE per derivare l'espressione) · `sessionRpe.ts` · `src/lib/program/**` · `vite.config.ts` ·
+`src/main.tsx` · `scripts/verify-css-tokens.mjs` · **`types.ts`: NON rigenerato, dichiarato** —
+il cambio integer→numeric mappa comunque su `number | null` e la migration non è applicata: la
+regen post-apply resta a valle (col DB vivo il gen produrrebbe lo schema VECCHIO) ·
+`duration_minutes` come colonna: RESTA nel DB (la rimozione è un secondo passo dopo la produzione).
 
 ## 3. Le prove dei permessi (repo di scarto in scratchpad)
 
-1. `git reset --hard HEAD~1` → **RIFIUTATO** («Permission … has been denied») · `git rebase HEAD~1` → **RIFIUTATO**.
-2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -2` → 2 commit stampati.
-3. ⚠️ La forma `git -C <percorso> rebase HEAD~1` → **PASSATA** (eseguita davvero: «Current branch
-   master is up to date», no-op innocuo nel repo di scarto). Il matcher della cintura locale non
-   copre `-C`/`--git-dir` — buco già chip-flaggato il 25/08, ora rimisurato.
+1. `git reset --hard HEAD~1` → **RIFIUTATO** · `git rebase HEAD~1` → **RIFIUTATO**.
+2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -2` → 2 commit.
+3. ⚠️ `git -C <percorso> rebase HEAD~1` → **PASSATA** (eseguita: «Current branch master is up to
+   date», no-op innocuo). Stessa misura di stamattina sulla fetta alpha-vivi: il classificatore
+   non è deterministico su questa forma — la chip per le deny esplicite `-C`/`--git-dir` resta aperta.
 
-## 4. Il conteggio prima e dopo
+## 4. La migrazione, per intero
 
-Misura sul CSS EMESSO, scanner Node con lo stesso `findRule` del gate (mai one-liner shell):
+File: `supabase/migrations/20260827130000_durata_unica_carico_sui_secondi.sql` (166 righe — il
+testo completo è nel file; qui la spina dorsale):
 
-|                       | classi con alpha distinte | morte   | usi morti | file |
-| --------------------- | ------------------------- | ------- | --------- | ---- |
-| **PRIMA** (`f0244ca`) | 246                       | **140** | 519       | 87   |
-| **DOPO** (tip)        | 245                       | **0**   | 0         | 0    |
+```sql
+DROP VIEW public.analytics_athlete_summary;          -- dipende dalla colonna
 
-**Copertura dichiarata: 245 su 245** (la 246ª, `bg-[var(--nc-surface)]/95`, non è più scritta coi
-modificatori: riscritta in `color-mix` perché l'alpha su un `var()` arbitrario non può emettere —
-§9.0). Controllo positivo `bg-amber-500/10` emessa in entrambi; controllo negativo `bg-accent/30`
-assente PRIMA, emessa DOPO. ⚠️ La misura **corregge** la 234/110/366/77 di Cowork (per difetto:
-mancavano i prefissi `ring-`, `from-`, `to-`, `via-`, `divide-`, `shadow-`, `stroke-`, `fill-` e
-tutte le basi arbitrarie `-[...]`). Delle 140: 134 morte per token nudo, 4 per `/8` fuori scala
-opacity, 1 (`bg-tertiary-fixed/20`) per token inesistente, 1 (`bg-[var(--nc-surface)]/95`) per
-alpha su valore arbitrario — 4 cause diverse, 4 rimedi diversi.
+ALTER TABLE public.workout_logs DROP COLUMN total_load_au;
+ALTER TABLE public.workout_logs
+  ADD COLUMN total_load_au numeric GENERATED ALWAYS AS
+    (srpe::numeric * duration_seconds::numeric / 60.0) STORED;
 
-## 5. La prova che nessun colore è cambiato — sui colori risolti
-
-**Livello 1 — comparatore sui due CSS emessi** (`confronta-colori.mjs`, scratchpad): parsing in
-regole, variabili convertite DERIVATE dai fogli (46: colore completo prima, canali dopo — il
-minificatore aveva già compresso le `hsl()` in hex, il confronto è su rgba normalizzati),
-risoluzione ricorsiva delle `var()` nei due scope `:root`/`.dark`:
-
-```
-Variabili convertite (derivate dai due CSS): 46
-Dichiarazioni confrontate a colore identico: 90    (46 light + 44 dark; le 2 restanti in §9.1)
-Regole referenzianti confrontate (colori risolti, 2 scope): 155 — tutte identiche
-Altre regole byte-identiche: 1275
-Selettori rinominati dal wrap hsl() (arbitrary values), colori confrontati: 3 — identici
-Selettori SOLO nel prima: 0 · SOLO nel dopo: 166 (164 classi con alpha resuscitate
-  + .text-on-tertiary-container, nuova per la riparazione della scala di CoachHome,
-  + .bg-[color-mix(…var(--nc-surface)…)], la riparazione del footer intake — §9.0)
+COMMENT ON COLUMN public.workout_logs.total_load_au IS '…';
+CREATE OR REPLACE VIEW public.analytics_athlete_summary … ;  -- BYTE-IDENTICA alla 20260214204708
 ```
 
-**Livello 2 — browser vero** (Chrome del pane, mini-server statico, `getComputedStyle` sulle due
-pagine-sonda che caricano il CSS prima/dopo):
+**Il tipo: `numeric`, col perché.** `integer` su `srpe×secondi/60` arrotonda 6,0666… → 6 — lo
+stesso difetto della colonna vecchia in scala più piccola; `real`/`double` metterebbero float
+binario in un dato che il FE confronta col mirror JS. `numeric` è esatto, e l'arrotondamento
+appartiene alla VISTA (`formatDurataSeduta`), mai al dato. **Niente COALESCE**: srpe o durata
+mancanti → NULL — la stessa semantica di `computeAcwr`, che ESCLUDE la seduta invece di azzerarla.
+
+**Cosa succede alle 16 righe esistenti** (misura live 27/08: 6 con secondi, 4 con srpe, 4 con
+entrambi, 0 con minuti, 0 con carico ≠ 0): STORED ricalcola al `ADD COLUMN` — le **4 righe con
+srpe+durata ricevono il carico vero**, le **altre 12 passano da 0 a NULL** (assenza dichiarata).
+La 52 s × sRPE 7 del criterio varrà 364/60 = **6,0666… AU** (≈ 6,07 alla vista).
+
+**La view**: ricreata byte-identica (diff = zero byte contro la 20260214204708; la definizione
+live coincide, verificata via `pg_get_viewdef` prima di scrivere; `security_invoker=true`
+preservato). I grant erano i default Supabase (verificati via `role_table_grants`) e tornano dai
+default privileges — nessun GRANT da riemettere. ⚠️ Reperto per Cowork in §9/§10: col carico
+ripopolato si attiva il ramo `total_load_au * COALESCE(rpe_global,5)` della view — il doppio
+conteggio già censito il 25/08, NON corretto qui di proposito.
+
+## 5. Il viaggio della durata
 
 ```
-non-alpha su token convertiti — IDENTICI byte per byte:
-  bg-card rgb(255,255,255)=rgb(255,255,255) · bg-primary rgb(0,53,97)= · bg-surface-container
-  rgb(219,239,255)= · text-muted-foreground rgb(64,71,79)= · border-border rgb(194,200,209)= ·
-  dark: bg-card rgb(2,8,23)=
-resuscitate — da rgba(0,0,0,0) alla tinta INTESA:
-  bg-surface-container/40 → rgba(219,239,255,0.4) · bg-primary/10 → rgba(0,53,97,0.1) ·
-  bg-accent/30 → rgba(179,221,255,0.3) · bg-destructive/[0.08] → rgba(187,27,27,0.08) ·
-  dark bg-primary/10 → rgba(109,40,217,0.1)
-caso-confine: hsl(207 100% 95%) → rgb(230,244,255) = #e6f4ff  (identici anche qui, v. §9.1)
+timer      useAthleteWorkoutStore.elapsedTime (:49-50, tick del cronometro)
+   ↓       PostWorkoutDebrief.tsx:340        duration_seconds: elapsedTime
+scrittura  useAthleteWorkoutHooks.ts:176     UPDATE workout_logs SET duration_seconds
+   ‖       useOfflineSync.ts:189             (coda offline, modulo scollegato: ora stessi secondi)
+colonna    workout_logs.duration_seconds     — UNA colonna, quella che A-02 nomina
+   ↓       migration 20260827130000          total_load_au = srpe × secondi / 60  (numeric, NULL-onesta)
+carico     generate-batch-checkins:180       somma di total_load_au → metrics_snapshot.total_volume (:201→:272)
+   ‖       acwr.ts:144                       load = srpe × (durationSeconds/60)   (stessa formula, inchiodata)
+schermo    AthleteContextPane.tsx:89         select duration_seconds
+   ↓       durataSeduta.ts                   minuti ARROTONDATI SOLO IN VISTA
+           AthleteContextPane.tsx:423        «52 min» — o NIENTE quando manca, mai «0 min»
 ```
 
-I gradient `--tw-gradient-to` passano da `transparent` a `hsl(var(--x) / 0)`: alpha 0 ≡ alpha 0
-a schermo (interpolazione premoltiplicata) — dichiarato, non nascosto dal comparatore.
+## 6. Le due formule, inchiodate
 
-## 6. I token convertiti
-
-**Convertiti (46, tutti quelli che il config espone come `var()` nuda):** background, foreground,
-card±fg, popover±fg, primary±fg, secondary±fg, muted±fg, accent±fg, destructive±fg, warning±fg,
-success±fg, border, input, ring, outline, outline-variant, on-surface-variant,
-surface-container-{lowest,low,∅,high,highest}, primary-container, on-primary-container,
-inverse-{surface,on-surface,primary}, tertiary±fg, sidebar-{background,foreground,primary,
-primary-foreground,accent,accent-foreground,border,ring}. Tutti erano `hsl(H S% L%)` a sintassi
-spazi: conversione testuale pura, zero valori riscritti.
-
-**NON convertiti, col perché:** `--nc-*` (6, hex `#...` in `.theme-athlete`) — non esposti dal
-config, usati nudi dal namespace athlete: fuori dal criterio della fetta, e l'auditor conferma che
-un wrap `hsl()` li avrebbe rotti · famiglia error (3), tertiary-container (2), chart (14) — già a
-canali (i «18 vivi» della misura) · `--radius`, `--sidebar-width{,-collapsed}` — non colori ·
-`brand`/`surface`/`on-surface` del config — hex letterali con alpha nativa già funzionante.
-**Nessun token è risultato inesprimibile a canali** (niente hex-con-alpha né oklch): la clausola
-di stop non è scattata.
+Vivono in: **la colonna generata** (migration `20260827130000`) e **`acwr.ts:144`**
+(`s.srpe * (s.durationSeconds / 60)`). Il test `src/lib/math/__tests__/caricoParita.test.ts` le
+inchioda **derivando entrambe dai sorgenti a ogni esecuzione** (regex sul file di migration →
+tipo + espressione; regex su acwr.ts → l'espressione del load; un riferimento che invecchia non
+si scrive, si deriva): pin delle due espressioni · stessa cifra su griglia di input (52 s×7;
+3600×10; 1×1; 0×5; 90×8) · stessa semantica delle assenze (mirror → NULL; computeAcwr →
+`excluded.senzaSrpe`/`senzaDurata` = 1, mai uno zero; durata 0 = DATO, nessuna esclusione).
 
 ## 7. Acceptance — comando ed esito
 
-1. 🔴 **140 morte → 0**: `node misura-alpha.mjs . <dist> …` → «vive 245 · MORTE 0» — **245 su 245** (§4).
-2. 🔴 **Nessun colore cambia, sui colori risolti**: comparatore + browser (§5) — zero differenze
-   con superfici; l'unica voce a margine è `--inverse-on-surface`, chiusa in §9.1.
-3. **Check 7 derivato**: `git diff origin/main..HEAD -- scripts/verify-css-tokens.mjs` — le
-   uniche costanti nuove sono `ALPHA_CLASS_RE` (un regex), `hslWrappedVars`/`HSL_WRITE_RE`
-   (derivate dal foglio costruito) e le mappe riempite scandendo `SOURCE_FILES`; `EXPECTED` e
-   `CHANNEL_VARS` senza una riga di diff. Il check passa dal `findRule` condiviso di check 2/5.
-4. 🔴 **Prova rossa**: tripla, col token o il rimedio nominati — incollata in §8.
-5. **Usi diretti sotto il check 6**: `npm run verify:css` → «check 6: 0 usi su variabile-colore
-   completa / **68 corretti**» (erano 18 prima della fetta: +50 avvolti dal codemod).
-6. **I 5 gate** (rieseguiti anche dal code-test-verifier in contesto proprio, exit code nudi;
-   il reviewer li ha rifatti una terza volta in autonomia):
-   `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **442/442 in 44 file** ·
-   `npx eslint .` → errorCount **64 = baseline 64** (81→65→64, v. §9.3) · `npm run build` → 0 ·
-   `npm run verify:css` → 0, «check 7: **245/245**».
-7. **Perimetro**: `git diff origin/main..HEAD --stat` → 21 file, tutti nel manifesto §2 (le 7
-   estensioni dichiarate col perché).
+1. 🔴 **La prova rossa sulla scala**: incollata in §8 — il rosso nomina il valore troncato e a cosa.
+2. **Le due formule danno lo stesso numero**: `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`
+   → 4 passed (pin derivati, griglia, assenze).
+3. **Nessuno scrive più i minuti**: `grep -rn "duration_minutes" src supabase/functions` →
+   restano SOLO `types.ts` (specchio dello schema: la colonna esiste ancora, per scelta),
+   2 commenti-documentazione e il pin negativo del test di parità. **Zero scritture, zero select.**
+   (`src/types/training.ts:121` è `estimated_duration_minutes`: la STIMA del template, un'altra
+   grandezza — dichiarato, non toccato.)
+4. **Il coach vede la durata derivata dai secondi, e non la vede quando manca**:
+   `npx vitest run src/components/coach/messages/__tests__/AthleteContextPane.durata.render.test.ts`
+   → 2 passed: con 3120 s legge «52 min»; con NULL la riga della seduta c'è (ancora «Upper A»)
+   e la durata no — e mai «0 min» (più il property-test del formatter: nessun input produce «0 min»).
+5. **`rpe_global` fuori dalle select**: `grep -n "rpe_global\|duration_minutes" supabase/functions/analyze-athlete-week/index.ts supabase/functions/generate-batch-checkins/index.ts`
+   → solo 2 righe di commento («legacy and no longer written»), zero nelle select.
+6. **I 5 gate** (miei + code-test-verifier in contesto proprio, exit code nudi):
+   `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **452/452 in 47 file**
+   (baseline 442/44 + i 10 test nuovi in 3 file: divergenza = la fetta, dichiarata) ·
+   `npx eslint .` → **64 = baseline 64** · `npm run build` → 0 · `npm run verify:css` → 0
+   (245/245). Più le suite Deno: metodo **50** · release **36** · intake **54** (su main è
+   cresciuta 52→54 prima di questa fetta).
+7. **Perimetro**: `git diff origin/main..HEAD --stat` → 10 file (+ i 3 doc al commit finale),
+   tutti nel manifesto §2; unico oltre la lista del prompt: la fixture del test render
+   preesistente, scoperta dal grep dell'acceptance 3 — senza l'allineamento avrebbe tenuto in
+   vita l'ultima occorrenza scritta di `duration_minutes`.
 
-## 8. La prova rossa (ripristino per copia + `cmp`, mai `git checkout --`)
+## 8. La prova rossa (backup per copia + `cmp`, mai `git checkout --`)
 
-**Rosso B — revert parziale** (solo `index.css`: `--surface-container` riportata a
-`hsl(207 100% 93%)`), build, `npm run verify:css`:
-
-```
-✗ check 7: 232/238 classi con modificatore di alpha trovate nei sorgenti emesse e a canali
-- bg-surface-container/40 — scritta in src/components/athlete/workout/SessionExerciseList.tsx:132,
-  regola emessa ma --surface-container è dichiarata «#dbefff», non a canali:
-  hsl(var(--surface-container) / …) è CSS invalido — riporta --surface-container alla forma a
-  canali in src/index.css          (+ altre 5, ognuna con classe, file:riga e token)
-```
-
-**Rosso A — revert completo** (anche `tailwind.config.ts` a `"var(--surface-container)"`):
+`integer` al posto di `numeric` nella migration → `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`:
 
 ```
-✗ check 7: 232/238 …
-- bg-surface-container/40 — scritta in src/components/athlete/workout/SessionExerciseList.tsx:132
-  ma nessuna regola emessa: il token --surface-container è esposto dal config come var() nuda o
-  non esiste — serve la coppia canali in src/index.css + hsl(var(…) / <alpha-value>) in
-  tailwind.config.ts
+FAIL  … > 52 secondi × sRPE 7 valgono 6,07 AU — la scala non si tronca
+AssertionError: 52 s × sRPE 7: attesi 6.0667 AU, la colonna «integer» li ha resi 6 —
+il tipo ha troncato 6.0667 a 6: expected 6 to be close to 6.07 …
+(+ rosso anche la parità caso-per-caso: 2 failed)
 ```
 
-**Verde dopo il ripristino** (cmp coi backup = identici, rebuild):
-`✓ check 7: 245/245 … tutte emesse e a canali`.
-
-**Rosso C — il ramo nuovo del check 7** (classe `bg-[var(--nc-surface)]/95` rimessa al posto del
-`color-mix`, senza rebuild — la regola non esiste comunque):
-
-```
-- bg-[var(--nc-surface)]/95 — scritta in src/features/intake/IntakeForm.tsx:251 ma nessuna regola
-  emessa: il modificatore di alpha non si applica a un valore arbitrario var(...) — usa
-  color-mix(in_srgb,var(--x)_N%,transparent) oppure un token config a canali
-```
+**Verde dopo il ripristino** (cmp col backup = identico): 4 passed. In più il falso-verde
+smascherato durante la costruzione: il test render è nato verde per fortuna di timing (flush
+solo-microtask) e l'ancora sul titolo l'ha fatto cadere — chiuso col macrotask hop e 4 run
+verdi consecutivi (v. RETRO).
 
 ## 9. Non fatto / divergenze
 
-0. **Esito della passata indipendente** — code-reviewer: «**committabile sì**», contratto (b)
-   riverificato in autonomia (64/64 var-colore a canali in ogni blocco, `theme()`/preflight
-   intatti, fallback dei gradient mai raggiunto, mutation test sul check 7 e sul check 4-II) —
-   **con 1 CONFERMATO**: `bg-[var(--nc-surface)]/95` (`IntakeForm.tsx:248`) senza regola emessa e
-   invisibile al primo regex del check 7 (niente parentesi ammesse). **Chiuso in-branch**: regex
-   esteso alle basi arbitrarie, messaggio mirato col rimedio `color-mix`, footer riparato
-   (`bg-[color-mix(in_srgb,var(--nc-surface)_95%,transparent)]` — intento 95% conservato, token
-   sorgente invariato), limite dichiarato nell'header del gate, numeri di §4 ricontati.
-   L'estensione ha anche smascherato un falso positivo («success/10» in prosa dentro un commento
-   JSX multilinea) chiuso col filtro «la base contiene un trattino». Aura-auditor: **zero
-   violazioni** (e conferma che avvolgere i `--nc-*` hex sarebbe stato un errore). Test-verifier:
-   5 gate verdi con gli exit code.
-1. **`--inverse-on-surface` (hsl 207 100% 95%)**: il canale blu cade esattamente su 229.5 — il
-   comparatore JS arrotondava 229, il minificatore 230. Chiusa empiricamente nel browser: Chrome
-   risolve **rgb(230,244,255) = #e6f4ff, identici**; e comunque **nessuna regola emessa e nessun
-   sorgente legge quel token** — superfici zero.
-2. **Misura Cowork corretta**: 246/140/519/87, non 234/110/366/77 (§4) — «vince la tua misura»,
-   e la mia prima misura (238/139) era a sua volta per difetto sulle basi arbitrarie: l'ha
-   corretta il reviewer (§9.0).
-3. **Attribuzione eslint 81→64 a livello di regola, non di file**: lo swap di massa dei 16 file
-   base è stato negato dal classificatore; il residuo (11 errori `tailwindcss/no-custom-classname`)
-   è coerente con le classi rese reali dalla fetta — e il −1 del fix intake (65→64, la classe
-   morta era flaggata dal plugin) è la conferma puntuale della direzione. La baseline a 64 è
-   corretta in entrambe le ipotesi (la prescrive il ratchet stesso); la CI della PR farà da arbitro.
-4. **Cintura locale**: `git -C <path> rebase` passa il matcher (§3) — chip già flaggata il 25/08.
-5. **Rinvii ereditati intatti**: potatura di `EXPECTED` · debito-tema athlete (hex `#c0c7d0`,
-   19 file, 22/08) · 72 trattini · `total_load_au` (prossima fetta dichiarata) · 31 query derivate.
-6. Nota preesistente dell'auditor (fuori scope, identica a main): `text-tertiary-container` usato
-   come colore-testo in `CoachHome.tsx:106` — token container come ink, rischio contrasto.
+0. **Esito delle passate indipendenti.** **code-reviewer**: «committabile no» per UN motivo,
+   confermato e fondato — `generate-batch-checkins:182` sommava con `l.total_load_au || 0`, e
+   con la colonna ora NULL-abile quel `|| 0` trasformava l'assenza in «0 UA» nel prompt AI, nel
+   riassunto per il coach e in `metrics_snapshot`: l'invariante della fetta violato nel percorso
+   appena toccato. **Chiuso in-branch** (4° commit): somma sui soli carichi presenti, arrotondata
+   a 2 decimali (la colonna è numeric, lo snapshot è una vista), e con ZERO sedute misurate il
+   campo resta ASSENTE (`undefined` → la key cade dal JSON → l'inbox mostra già «—»,
+   `CoachCheckinInbox.tsx:712`) e i testi dicono «N/A» come il vicino `avgRpe`. Il resto del suo
+   verdetto: scope pulito, view byte-identica transazionale, mirror JS fedele (`Math.round` ≡ cast
+   Postgres per srpe CHECK 1-10), `formatDurataSeduta(0)`→«<1 min», zero file vietati toccati.
+   **supabase-rls-auditor**: PASS con 1 media DELLA fetta — la decisione sul reperto-view va
+   PRIMA dell'apply (recepito: §10.0) — più 2 preesistenti chip-flaggate (`analyze-athlete-week`
+   parsa il body prima dell'auth e non usa `assertUuid`; `console.error` con possibili frammenti
+   in `generate-batch-checkins`) e 1 bassa (ri-verifica dei grant post-apply, aggiunta a §10.2).
+   **code-test-verifier**: 8 comandi, tutti verdi con gli exit code (i 5 gate + 3 suite Deno).
+   **aura-theme-auditor NON lanciato, con motivo misurato**: v. §9.4.
+1. **Il reperto-view si attiva**: con `total_load_au` finalmente popolata, il ramo
+   `total_load_au * COALESCE(rpe_global,5)` di `analytics_athlete_summary` (righe 92-93 della
+   migration nuova, ereditate byte-identiche dalla 0214) moltiplica il carico per un RPE
+   FABBRICATO (5, perché `rpe_global` è vuota dal 24/08) — il doppio conteggio censito il 25/08.
+   Ricrearla identica era il mandato («non la riscrivere di iniziativa»); il fix è SQL da un
+   rigo ma cambia i numeri esposti (acute/chronic/current_acwr): decisione per Nicolò, blocco in §10.
+2. **`useOfflineSync` è un modulo scollegato** (0 importatori, censito già il 25/08): la
+   riscrittura ai secondi lo tiene coerente per quando verrà ricablato, ma NON c'è un percorso
+   vivo che la eserciti — il percorso vivo è il debrief, che i secondi li scrive da prima.
+3. **`types.ts` non rigenerato** (dichiarato in §2): `numeric` mappa su `number|null` come
+   `integer`; regen dopo l'apply.
+4. **Aura-theme-auditor non lanciato, con motivo misurato**: il diff non tocca UNA className
+   (`git diff … | grep -c className` → 0) — cambiano solo dati e testo derivato.
+5. **`estimated_duration_minutes`** (`src/types/training.ts:121`): grandezza diversa (stima del
+   template, non misura della seduta) — fuori scope, nominata perché il grep la trova.
 
 ## 10. Resta a Nicolò
 
-- **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/alpha-vivi))
-  coi 2 check obbligatori verdi. POST-MERGE: nulla da applicare (publish FE, zero DB).
-- **L'ultimo miglio a occhio**: le superfici dove l'alpha ora si vede — l'hover della riga di
-  seduta (`hover:bg-surface-container/40`, il difetto che ha aperto la caccia), le tinte di
-  severità della Centrale Operativa (critical E warning ora accesi insieme), i gradient hero
-  dell'app atleta (`from-brand-container/[0.08]`), i badge `bg-primary/10` sparsi nel coach.
-- La verifica dei colori risolti che Cowork ha dichiarato di voler rifare in un browser suo:
-  le sonde e il metodo sono in RETRO (Migliorie #3).
+- **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/durata-unica)).
+- **Il blocco SQL che prepara Cowork** (dopo il merge, col benestare di Nicolò): 0. ⚠️ **PRIMA dell'apply, la decisione sul reperto-view** (§9.1 — riordinato qui su rilievo
+  dell'auditor RLS: attivare il ramo tocca `current_acwr`, un indicatore che orienta decisioni
+  di carico). Applicare la migration così com'è ATTIVA il doppio conteggio
+  (`total_load_au * COALESCE(rpe_global,5)`) sulle 4 righe con carico vero. Le opzioni:
+  (a) applicare e accettare il reperto finché una fetta dedicata corregge la view (fedele al
+  mandato «non riscriverla di iniziativa»); (b) chiedere a Code il FILE con la correzione a un
+  rigo (ramo 1 → `total_load_au`) PRIMA dell'apply — cambia i numeri esposti da
+  `current_acwr`/`acute_load_raw`/`chronic_load_raw`.
+  1. `apply_migration` con ESATTAMENTE il file `20260827130000_durata_unica_carico_sui_secondi.sql`
+     (stesso nome/versione — workflow §8.2).
+  2. Verifica post-apply:
+     `SELECT count(*) FILTER (WHERE total_load_au IS NOT NULL) AS con_carico, count(*) FILTER (WHERE total_load_au IS NULL) AS senza, round(avg(total_load_au) FILTER (WHERE total_load_au IS NOT NULL), 2) AS media FROM workout_logs;`
+     → attesi: 4 con carico, 12 senza (e la seduta 52 s × sRPE 7, se presente, a ≈6,07). E il
+     check dei grant chiesto dall'auditor:
+     `SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_name='analytics_athlete_summary';`
+     → attesi identici ai default pre-apply (misurati il 27/08: anon/authenticated/service_role/postgres, tutti i privilegi).
+  3. `get_advisors(security)` di rito dopo il DDL.
+  4. **Deploy delle due edge** (`analyze-athlete-week`, `generate-batch-checkins`) via connettore —
+     le select ridotte sono compatibili anche PRIMA dell'apply (togliere colonne da una select non
+     rompe), quindi l'ordine apply/deploy è libero.
+- **L'ultimo miglio a occhio** (C9): atleta chiude una seduta col cronometro vero → Cowork
+  interroga `SELECT srpe, duration_seconds, total_load_au FROM workout_logs ORDER BY started_at DESC LIMIT 1`
+  → il carico è `srpe×secondi/60` con due decimali sensati, e il coach nel pannello messaggi
+  legge la durata in minuti — o niente, se l'atleta non ha chiuso col debrief.
+- **La rimozione di `duration_minutes`**: secondo passo, dopo che la produzione gira sui secondi.
