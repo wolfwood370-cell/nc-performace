@@ -16,9 +16,11 @@
 - `e73ed65` — le due edge smettono di leggere `rpe_global` e `duration_minutes`.
 - `361557b` — il pannello coach legge i secondi e mostra minuti-vista; la coda offline
   (scollegata) scrive i secondi; `formatDurataSeduta` + 3 file di test.
-- il 4° commit di codice — esito della review (§9.0): il volume del check-in smette di
-  fabbricare «0 UA» dall'assenza (`generate-batch-checkins`, somma sui soli carichi presenti,
-  campo assente + «N/A» quando nessuna seduta è misurata).
+- `0ebf175` — esito della review (§9.0): il volume del check-in smette di fabbricare «0 UA»
+  dall'assenza (`generate-batch-checkins`, somma sui soli carichi presenti, campo assente +
+  «N/A» quando nessuna seduta è misurata).
+- `607903f` — appendice serale: i due rami del carico nella view, corretti su decisione presa
+  (v. APPENDICE in coda).
 
 ## 2. Manifesto
 
@@ -78,12 +80,11 @@ entrambi, 0 con minuti, 0 con carico ≠ 0): STORED ricalcola al `ADD COLUMN` �
 srpe+durata ricevono il carico vero**, le **altre 12 passano da 0 a NULL** (assenza dichiarata).
 La 52 s × sRPE 7 del criterio varrà 364/60 = **6,0666… AU** (≈ 6,07 alla vista).
 
-**La view**: ricreata byte-identica (diff = zero byte contro la 20260214204708; la definizione
-live coincide, verificata via `pg_get_viewdef` prima di scrivere; `security_invoker=true`
-preservato). I grant erano i default Supabase (verificati via `role_table_grants`) e tornano dai
-default privileges — nessun GRANT da riemettere. ⚠️ Reperto per Cowork in §9/§10: col carico
-ripopolato si attiva il ramo `total_load_au * COALESCE(rpe_global,5)` della view — il doppio
-conteggio già censito il 25/08, NON corretto qui di proposito.
+**La view**: la mattina ricreata byte-identica alla 20260214204708 (definizione live verificata
+via `pg_get_viewdef` prima di scrivere; `security_invoker=true` preservato; grant = default
+Supabase, verificati via `role_table_grants`, tornano dai default privileges). **In serata, su
+decisione presa, i due rami del carico sono stati corretti dentro la stessa migration** — v.
+APPENDICE in coda: tutto il resto della view resta identico al vivo.
 
 ## 5. Il viaggio della durata
 
@@ -172,12 +173,12 @@ verdi consecutivi (v. RETRO).
    in `generate-batch-checkins`) e 1 bassa (ri-verifica dei grant post-apply, aggiunta a §10.2).
    **code-test-verifier**: 8 comandi, tutti verdi con gli exit code (i 5 gate + 3 suite Deno).
    **aura-theme-auditor NON lanciato, con motivo misurato**: v. §9.4.
-1. **Il reperto-view si attiva**: con `total_load_au` finalmente popolata, il ramo
-   `total_load_au * COALESCE(rpe_global,5)` di `analytics_athlete_summary` (righe 92-93 della
-   migration nuova, ereditate byte-identiche dalla 0214) moltiplica il carico per un RPE
-   FABBRICATO (5, perché `rpe_global` è vuota dal 24/08) — il doppio conteggio censito il 25/08.
-   Ricrearla identica era il mandato («non la riscrivere di iniziativa»); il fix è SQL da un
-   rigo ma cambia i numeri esposti (acute/chronic/current_acwr): decisione per Nicolò, blocco in §10.
+1. **Il reperto-view si attiva** → ✅ **RISOLTO in serata, decisione presa da Nicolò** (misura
+   Cowork: acute 7d 6,08 oggi → 45,08 col ramo doppio → 9,02 corretto): i due rami sono stati
+   corretti DENTRO la stessa migration — v. l'**APPENDICE 27/08 sera** in coda a questo file.
+   [Testo storico: il ramo `total_load_au * COALESCE(rpe_global,5)` moltiplicava il carico per
+   un RPE fabbricato — il doppio conteggio censito il 25/08; ricrearla identica era il mandato
+   della mattina.]
 2. **`useOfflineSync` è un modulo scollegato** (0 importatori, censito già il 25/08): la
    riscrittura ai secondi lo tiene coerente per quando verrà ricablato, ma NON c'è un percorso
    vivo che la eserciti — il percorso vivo è il debrief, che i secondi li scrive da prima.
@@ -191,14 +192,10 @@ verdi consecutivi (v. RETRO).
 ## 10. Resta a Nicolò
 
 - **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/durata-unica)).
-- **Il blocco SQL che prepara Cowork** (dopo il merge, col benestare di Nicolò): 0. ⚠️ **PRIMA dell'apply, la decisione sul reperto-view** (§9.1 — riordinato qui su rilievo
-  dell'auditor RLS: attivare il ramo tocca `current_acwr`, un indicatore che orienta decisioni
-  di carico). Applicare la migration così com'è ATTIVA il doppio conteggio
-  (`total_load_au * COALESCE(rpe_global,5)`) sulle 4 righe con carico vero. Le opzioni:
-  (a) applicare e accettare il reperto finché una fetta dedicata corregge la view (fedele al
-  mandato «non riscriverla di iniziativa»); (b) chiedere a Code il FILE con la correzione a un
-  rigo (ramo 1 → `total_load_au`) PRIMA dell'apply — cambia i numeri esposti da
-  `current_acwr`/`acute_load_raw`/`chronic_load_raw`.
+- **Il blocco SQL che prepara Cowork** (dopo il merge, col benestare di Nicolò): 0. ✅ La decisione pre-apply chiesta dall'auditor È PRESA (27/08 sera): i due rami sono
+  corretti nella migration stessa — v. appendice. L'apply procede col file così com'è; i numeri
+  attesi della view cambiano di conseguenza (carico = somma delle `total_load_au` presenti,
+  niente fattore RPE, niente stima per le sedute senza sRPE).
   1. `apply_migration` con ESATTAMENTE il file `20260827130000_durata_unica_carico_sui_secondi.sql`
      (stesso nome/versione — workflow §8.2).
   2. Verifica post-apply:
@@ -216,3 +213,73 @@ verdi consecutivi (v. RETRO).
   → il carico è `srpe×secondi/60` con due decimali sensati, e il coach nel pannello messaggi
   legge la durata in minuti — o niente, se l'atleta non ha chiuso col debrief.
 - **La rimozione di `duration_minutes`**: secondo passo, dopo che la produzione gira sui secondi.
+
+---
+
+## APPENDICE 27/08 sera — i due rami della view, corretti su decisione presa
+
+### 1. Commit
+
+`607903f` — migration + test estesi (stesso ramo `claude/durata-unica`, stessa PR).
+
+### 2. I due rami, prima e dopo (in ENTRAMBE le finestre, acute ≤7 e chronic ≤28)
+
+```sql
+-- PRIMA (ereditati byte-identici dalla 0214):
+WHEN total_load_au IS NOT NULL AND total_load_au > 0
+  THEN total_load_au * COALESCE(rpe_global, 5)               -- ramo 1: RPE contato DUE volte
+WHEN duration_seconds IS NOT NULL AND duration_seconds > 0
+  THEN COALESCE(rpe_global, 5) * (duration_seconds / 60.0)   -- ramo 2: RPE FABBRICATO (B-09)
+ELSE 0
+
+-- DOPO:
+WHEN total_load_au IS NOT NULL AND total_load_au > 0
+  THEN total_load_au                                          -- la colonna È già srpe×minuti
+ELSE 0                                                        -- assenza → niente, non una stima
+```
+
+Misura che ha deciso (Cowork, vivo, acute 7d): oggi 6,08 · col ramo doppio 45,08 · corretto **9,02**
+= identico ad `acwr.ts:144`.
+
+### 3. Cosa succede a `rpe_global` nella view
+
+**ESCE dalla CTE `recent_logs`** (mandato del prompt: selezionata-e-mai-usata dopo la correzione,
+nessun altro punto della view la legge). **Con lo stesso principio, e dichiarandola, esce anche
+`duration_seconds`**: il ramo 2 era il suo unico lettore — lasciarla sarebbe stato lo stesso
+selezionato-e-mai-usato appena vietato per `rpe_global`. Colonne in USCITA della view: invariate.
+
+### 4. Acceptance
+
+1. **Prova rossa sul doppio conteggio**: incollata in §5 — il rosso nomina l'espressione e i numeri.
+2. **Nessun ramo fabbrica un carico**: `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`
+   → 6 passed; il test deriva il blocco `load_windows` dal file e asserisce ZERO
+   `COALESCE(rpe_global` (e zero `rpe_global`/`duration_seconds` residue) nel calcolo.
+3. **La view resta identica al vivo nel resto**: `diff view-0214 view-corretta` → SOLO: i 2 rami
+   (×2 finestre), le 2 righe di CTE dichiarate al punto 3, e il blocco di commento che documenta
+   la correzione. CTE, finestra 42 giorni, `security_invoker`, colonne in uscita: identiche.
+4. **Gate**: `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **454/454 in 47
+   file** (452 + i 2 test nuovi della view — vince la misura, causa dichiarata) · `npx eslint .`
+   → **64 = baseline** · `npm run build` → 0 · `npm run verify:css` → 0.
+5. **Perimetro**: `git diff` del commit `607903f` = solo la migration e il test; questo documento
+   nel commit successivo.
+
+### 5. La prova rossa
+
+`* COALESCE(rpe_global, 5)` rimesso sul ramo acute (backup per copia + `cmp` al ripristino):
+
+```
+FAIL  … > total_load_au non è moltiplicata per un RPE — sarebbe contarlo due volte
+AssertionError: total_load_au È GIÀ srpe × minuti: «total_load_au * COALESCE(rpe_global, 5)»
+conta l'RPE DUE VOLTE (misurato live: il carico acuto salterebbe da 9,02 a 45,08 AU)
+```
+
+Verde dopo il ripristino: 6 passed.
+
+### 6. Non fatto / divergenze
+
+- **`duration_seconds` fuori dalla CTE** oltre al mandato esplicito su `rpe_global` (v. §3):
+  stessa classe, stessa passata, dichiarata — se Cowork la rivuole dentro è una riga.
+- I punti §9.1 e §10.0 del ritorno della mattina sono stati aggiornati per non dire il falso
+  (la decisione è presa, l'apply procede col file così com'è); il testo storico resta citato.
+- Il resto della fetta (colonna, tipo, edge, FE, test della mattina) è INTATTO: il diff del
+  commit lo prova.
