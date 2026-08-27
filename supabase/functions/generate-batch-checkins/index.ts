@@ -124,9 +124,7 @@ Deno.serve(async (req) => {
     const [logsRes, nutritionRes] = await Promise.all([
       supabase
         .from("workout_logs")
-        .select(
-          "athlete_id, completed_at, rpe_global, duration_minutes, total_load_au, status, scheduled_date, srpe",
-        )
+        .select("athlete_id, completed_at, total_load_au, status, scheduled_date, srpe")
         .in("athlete_id", athleteIds)
         .gte("scheduled_date", weekStartStr)
         .lte("scheduled_date", weekEndStr),
@@ -181,7 +179,21 @@ Deno.serve(async (req) => {
             const compliance =
               totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
 
-            const totalVolume = completed.reduce((sum, l) => sum + (l.total_load_au || 0), 0);
+            // A missing load is an absence, not a 0 — same rule as avgRpe
+            // below. Since migration 20260827130000 total_load_au is NULL on
+            // every session without sRPE or duration: those leave the sum,
+            // and zero measured sessions leave the metric ABSENT (the inbox
+            // already renders "—" for a missing field) — never a fabricated
+            // «0 UA». Two decimals: the column is numeric, the snapshot is a
+            // view of it.
+            const loadValues = completed
+              .map((l) => l.total_load_au)
+              .filter((v): v is number => v != null);
+            const totalVolume =
+              loadValues.length > 0
+                ? Math.round(loadValues.reduce((sum, v) => sum + v, 0) * 100) / 100
+                : null;
+            const totalVolumeText = totalVolume != null ? `${totalVolume} UA` : "N/A";
             // A missing RPE is an absence, not a 0: it must leave numerator
             // AND denominator, or the weekly mean silently drops. Zero valid
             // values → the existing "N/A" sentinel (already guarded by the
@@ -204,7 +216,9 @@ Deno.serve(async (req) => {
 
             const metricsSnapshot = {
               compliance_pct: compliance,
-              total_volume: totalVolume,
+              // undefined (not null) so JSON.stringify DROPS the key: the
+              // inbox shows "—" for a missing field, "null UA" for a null.
+              total_volume: totalVolume ?? undefined,
               workouts_completed: completedCount,
               workouts_missed: missedCount,
               workouts_remaining: remainingCount,
@@ -236,7 +250,7 @@ Dati settimana:
 - Allenamenti saltati: ${missedCount}
 - Allenamenti ancora in programma: ${remainingCount}
 - Compliance attuale: ${compliance}% (${completedCount}/${totalScheduled})
-- Volume totale: ${totalVolume} UA
+- Volume totale: ${totalVolumeText}
 - RPE medio: ${avgRpe}
 - Calorie medie giornaliere: ${avgCalories ? avgCalories + " kcal" : "Non registrate"}
 
@@ -263,7 +277,7 @@ Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggi
               aiSummary = aiData.choices?.[0]?.message?.content?.trim() || "";
             } else {
               console.error("AI error:", aiResponse.status, await aiResponse.text());
-              aiSummary = `Compliance: ${compliance}%. Completati: ${completedCount}/${totalScheduled}. Volume: ${totalVolume} UA. RPE medio: ${avgRpe}.`;
+              aiSummary = `Compliance: ${compliance}%. Completati: ${completedCount}/${totalScheduled}. Volume: ${totalVolumeText}. RPE medio: ${avgRpe}.`;
             }
 
             const { error: upsertError } = await supabase.from("weekly_checkins").upsert(

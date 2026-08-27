@@ -78,7 +78,7 @@ serve(async (req) => {
         .from("workout_logs")
         .select(
           `
-          id, completed_at, rpe_global, srpe, duration_minutes, status,
+          id, completed_at, srpe, status,
           workout_exercises (
             exercise_name, mean_velocity_ms, peak_velocity_ms, rom_cm, calc_power_watts, sets_data
           )

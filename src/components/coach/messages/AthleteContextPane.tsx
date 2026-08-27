@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatRoom } from "@/hooks/useChatRooms";
 import { useAuth } from "@/hooks/useAuth";
+import { formatDurataSeduta } from "@/lib/format/durataSeduta";
 
 interface AthleteContextPaneProps {
   room: ChatRoom | null;
@@ -86,7 +87,7 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
 
       const { data: lastCompleted } = await supabase
         .from("workout_logs")
-        .select("id, scheduled_date, completed_at, srpe, duration_minutes, workout:workouts(title)")
+        .select("id, scheduled_date, completed_at, srpe, duration_seconds, workout:workouts(title)")
         .eq("athlete_id", athleteId)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
@@ -178,6 +179,12 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
   // arc is only drawn when a real score exists.
   const RING_CIRC = 264;
   const ringDash = latestReadiness != null ? (latestReadiness / 100) * RING_CIRC : 0;
+
+  // Minutes are a VIEW of the one stored column (duration_seconds, A-02):
+  // null when the datum is absent, so the JSX renders nothing — never «0 min».
+  const durataUltimaSeduta = formatDurataSeduta(
+    workoutData?.lastCompleted?.duration_seconds ?? null,
+  );
 
   return (
     <div
@@ -413,10 +420,10 @@ export function AthleteContextPane({ room, isOpen, onClose }: AthleteContextPane
                           { locale: it },
                         )}
                       </span>
-                      {workoutData.lastCompleted.duration_minutes && (
+                      {durataUltimaSeduta !== null && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {workoutData.lastCompleted.duration_minutes} min
+                          {durataUltimaSeduta}
                         </span>
                       )}
                     </div>
