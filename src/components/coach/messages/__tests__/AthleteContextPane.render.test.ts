@@ -36,7 +36,7 @@ type LastCompleted = {
   /** Session rating from workout_logs.srpe — B-22: the pane reads THIS
    *  column, and a missing value reads "—". */
   srpe: number | null;
-  duration_minutes: number | null;
+  duration_seconds: number | null;
 } | null;
 
 type WorkoutData = {
@@ -118,7 +118,7 @@ describe("col dato: il numero c'è ed è quello della riga", () => {
         scheduled_date: "2026-08-20",
         completed_at: "2026-08-20T18:00:00",
         srpe,
-        duration_minutes: null,
+        duration_seconds: null,
       },
       upcoming: [],
       compliance: { total: 1, completed: 1, missed: 0, percentage: 100 },

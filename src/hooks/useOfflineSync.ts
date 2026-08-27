@@ -33,7 +33,9 @@ export interface WorkoutLogPayload {
   started_at: string;
   completed_at?: string;
   srpe?: number;
-  duration_minutes?: number;
+  /** Seconds, like the online debrief path (A-02): duration_minutes is a
+   *  VIEW-side rounding, never a stored datum. */
+  duration_seconds?: number;
   exercises: WorkoutExercise[];
   notes?: string;
   /** sync_version captured when the athlete started the session */
@@ -183,7 +185,7 @@ async function syncWorkoutLog(payload: WorkoutLogPayload): Promise<void> {
       started_at: payload.started_at,
       completed_at: payload.completed_at,
       srpe: payload.srpe,
-      duration_minutes: payload.duration_minutes,
+      duration_seconds: payload.duration_seconds,
       notes: conflictDetected
         ? `[SYNC CONFLICT] ${payload.notes || ""} — Versione coach aggiornata durante sessione offline.`
         : payload.notes,
