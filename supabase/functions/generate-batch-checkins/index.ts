@@ -124,9 +124,7 @@ Deno.serve(async (req) => {
     const [logsRes, nutritionRes] = await Promise.all([
       supabase
         .from("workout_logs")
-        .select(
-          "athlete_id, completed_at, rpe_global, duration_minutes, total_load_au, status, scheduled_date, srpe",
-        )
+        .select("athlete_id, completed_at, total_load_au, status, scheduled_date, srpe")
         .in("athlete_id", athleteIds)
         .gte("scheduled_date", weekStartStr)
         .lte("scheduled_date", weekEndStr),
