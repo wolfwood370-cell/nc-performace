@@ -72,70 +72,72 @@ export default {
           DEFAULT: "#001e2d",
           variant: "#40474f",
         },
-        border: "var(--border)",
-        input: "var(--input)",
-        ring: "var(--ring)",
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        border: "hsl(var(--border) / <alpha-value>)",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
         primary: {
-          DEFAULT: "var(--primary)",
-          foreground: "var(--primary-foreground)",
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
         },
         secondary: {
-          DEFAULT: "var(--secondary)",
-          foreground: "var(--secondary-foreground)",
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
         },
         destructive: {
-          DEFAULT: "var(--destructive)",
-          foreground: "var(--destructive-foreground)",
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
         },
         /* Material 3 error family. `error` is the strong colour,
            `error-container` the tint that carries it on a surface — the
            distinction the Coach severity pills rely on, and the reason these
            are not folded into `destructive`.
-           Written as `hsl(var(--x) / <alpha-value>)` instead of the
-           `var(--x)` form used above: the latter makes Tailwind v3 drop the
-           opacity modifier entirely, and half the call sites need it
-           (`bg-error-container/40`, `/30`, `/20`). The matching vars in
-           `src/index.css` therefore hold bare HSL channels. */
+           Since 2026-08-27 EVERY token in this file uses the
+           `hsl(var(--x) / <alpha-value>)` form: a naked `var(--x)` makes
+           Tailwind v3 drop the opacity modifier without emitting any rule
+           (139 classes measured dead on the built CSS). Every matching var
+           in `src/index.css` holds bare HSL channels; check 7 of
+           scripts/verify-css-tokens.mjs scans the sources and goes red on
+           any opacity-modified class with no emitted rule. */
         error: {
           DEFAULT: "hsl(var(--error) / <alpha-value>)",
           container: "hsl(var(--error-container) / <alpha-value>)",
         },
         "on-error-container": "hsl(var(--on-error-container) / <alpha-value>)",
         warning: {
-          DEFAULT: "var(--warning)",
-          foreground: "var(--warning-foreground)",
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
         },
         success: {
-          DEFAULT: "var(--success)",
-          foreground: "var(--success-foreground)",
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
         },
         muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "var(--muted-foreground)",
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "var(--accent)",
-          foreground: "var(--accent-foreground)",
+          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
+          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
         },
         popover: {
-          DEFAULT: "var(--popover)",
-          foreground: "var(--popover-foreground)",
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
         },
         card: {
-          DEFAULT: "var(--card)",
-          foreground: "var(--card-foreground)",
+          DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
         },
         sidebar: {
-          DEFAULT: "var(--sidebar-background)",
-          foreground: "var(--sidebar-foreground)",
-          primary: "var(--sidebar-primary)",
-          "primary-foreground": "var(--sidebar-primary-foreground)",
-          accent: "var(--sidebar-accent)",
-          "accent-foreground": "var(--sidebar-accent-foreground)",
-          border: "var(--sidebar-border)",
-          ring: "var(--sidebar-ring)",
+          DEFAULT: "hsl(var(--sidebar-background) / <alpha-value>)",
+          foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
+          primary: "hsl(var(--sidebar-primary) / <alpha-value>)",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground) / <alpha-value>)",
+          accent: "hsl(var(--sidebar-accent) / <alpha-value>)",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
+          border: "hsl(var(--sidebar-border) / <alpha-value>)",
+          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
         },
         /* Aura Health System — Material 3 inspired surface roles.
            These map 1:1 to the CSS vars defined in `src/index.css`
@@ -146,31 +148,30 @@ export default {
            above would conflict. Use `bg-background` for the base Aura
            surface — they're CSS-var-identical (`--background`). */
         outline: {
-          DEFAULT: "var(--outline)",
-          variant: "var(--outline-variant)",
+          DEFAULT: "hsl(var(--outline) / <alpha-value>)",
+          variant: "hsl(var(--outline-variant) / <alpha-value>)",
         },
-        "on-surface-variant": "var(--on-surface-variant)",
-        "surface-container-lowest": "var(--surface-container-lowest)",
-        "surface-container-low": "var(--surface-container-low)",
-        "surface-container": "var(--surface-container)",
-        "surface-container-high": "var(--surface-container-high)",
-        "surface-container-highest": "var(--surface-container-highest)",
-        "primary-container": "var(--primary-container)",
-        "on-primary-container": "var(--on-primary-container)",
+        "on-surface-variant": "hsl(var(--on-surface-variant) / <alpha-value>)",
+        "surface-container-lowest": "hsl(var(--surface-container-lowest) / <alpha-value>)",
+        "surface-container-low": "hsl(var(--surface-container-low) / <alpha-value>)",
+        "surface-container": "hsl(var(--surface-container) / <alpha-value>)",
+        "surface-container-high": "hsl(var(--surface-container-high) / <alpha-value>)",
+        "surface-container-highest": "hsl(var(--surface-container-highest) / <alpha-value>)",
+        "primary-container": "hsl(var(--primary-container) / <alpha-value>)",
+        "on-primary-container": "hsl(var(--on-primary-container) / <alpha-value>)",
         tertiary: {
-          DEFAULT: "var(--tertiary)",
-          foreground: "var(--tertiary-foreground)",
+          DEFAULT: "hsl(var(--tertiary) / <alpha-value>)",
+          foreground: "hsl(var(--tertiary-foreground) / <alpha-value>)",
         },
-        /* Channel form like the error family: the severity chips that use
-           these want a tint, and `var(--x)` alone loses the opacity
-           modifier. Safe to convert — nothing reads these vars outside this
-           file, and the MaterialYouProvider BRIDGE (:524-542) does not
-           overwrite them at runtime, unlike `--destructive`. */
+        /* The severity chips that use these want a tint. The
+           MaterialYouProvider BRIDGE does not overwrite them at runtime;
+           the vars it DOES overwrite are written as bare channels there,
+           for the same reason every entry here wraps in hsl(). */
         "tertiary-container": "hsl(var(--tertiary-container) / <alpha-value>)",
         "on-tertiary-container": "hsl(var(--on-tertiary-container) / <alpha-value>)",
-        "inverse-surface": "var(--inverse-surface)",
-        "inverse-on-surface": "var(--inverse-on-surface)",
-        "inverse-primary": "var(--inverse-primary)",
+        "inverse-surface": "hsl(var(--inverse-surface) / <alpha-value>)",
+        "inverse-on-surface": "hsl(var(--inverse-on-surface) / <alpha-value>)",
+        "inverse-primary": "hsl(var(--inverse-primary) / <alpha-value>)",
         /* Semantic chart palette. One vocabulary: a colour is named for
            WHAT it represents (volume, load, velocity…), never numbered —
            nobody can notice a wrong number, `chart-fatigue` can be caught.

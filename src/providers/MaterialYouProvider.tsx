@@ -518,27 +518,33 @@ export function MaterialYouProvider({ children }: MaterialYouProviderProps) {
 
     // =============================================
     // BRIDGE: Map M3 tokens → Standard Tailwind CSS vars
-    // This makes bg-primary, text-foreground etc. reactive
+    // This makes bg-primary, text-foreground etc. reactive.
+    // BARE CHANNELS on purpose (the t.* values already are): since
+    // 2026-08-27 every colour token is declared as `H S% L%` and Tailwind
+    // wraps it in `hsl(var(--x) / <alpha-value>)`. Writing a complete
+    // `hsl(...)` here would turn every rule into invalid `hsl(hsl(…))`
+    // the moment this effect runs — check 4 of
+    // scripts/verify-css-tokens.mjs goes red on an hsl()-wrapped write.
     // =============================================
-    root.style.setProperty("--primary", `hsl(${t.primary})`);
-    root.style.setProperty("--primary-foreground", `hsl(${t.onPrimary})`);
-    root.style.setProperty("--background", `hsl(${t.background})`);
-    root.style.setProperty("--foreground", `hsl(${t.onBackground})`);
-    root.style.setProperty("--card", `hsl(${t.surfaces.surfaceContainerLow})`);
-    root.style.setProperty("--card-foreground", `hsl(${t.onSurface})`);
-    root.style.setProperty("--popover", `hsl(${t.surfaces.surfaceContainerLow})`);
-    root.style.setProperty("--popover-foreground", `hsl(${t.onSurface})`);
-    root.style.setProperty("--secondary", `hsl(${t.secondaryContainer})`);
-    root.style.setProperty("--secondary-foreground", `hsl(${t.onSecondaryContainer})`);
-    root.style.setProperty("--muted", `hsl(${t.surfaces.surfaceContainerHigh})`);
-    root.style.setProperty("--muted-foreground", `hsl(${t.onSurfaceVariant})`);
-    root.style.setProperty("--accent", `hsl(${t.tertiaryContainer})`);
-    root.style.setProperty("--accent-foreground", `hsl(${t.onTertiaryContainer})`);
-    root.style.setProperty("--destructive", `hsl(${t.error})`);
-    root.style.setProperty("--destructive-foreground", `hsl(${t.onError})`);
-    root.style.setProperty("--border", `hsl(${t.outlineVariant})`);
-    root.style.setProperty("--input", `hsl(${t.outlineVariant})`);
-    root.style.setProperty("--ring", `hsl(${t.primary})`);
+    root.style.setProperty("--primary", t.primary);
+    root.style.setProperty("--primary-foreground", t.onPrimary);
+    root.style.setProperty("--background", t.background);
+    root.style.setProperty("--foreground", t.onBackground);
+    root.style.setProperty("--card", t.surfaces.surfaceContainerLow);
+    root.style.setProperty("--card-foreground", t.onSurface);
+    root.style.setProperty("--popover", t.surfaces.surfaceContainerLow);
+    root.style.setProperty("--popover-foreground", t.onSurface);
+    root.style.setProperty("--secondary", t.secondaryContainer);
+    root.style.setProperty("--secondary-foreground", t.onSecondaryContainer);
+    root.style.setProperty("--muted", t.surfaces.surfaceContainerHigh);
+    root.style.setProperty("--muted-foreground", t.onSurfaceVariant);
+    root.style.setProperty("--accent", t.tertiaryContainer);
+    root.style.setProperty("--accent-foreground", t.onTertiaryContainer);
+    root.style.setProperty("--destructive", t.error);
+    root.style.setProperty("--destructive-foreground", t.onError);
+    root.style.setProperty("--border", t.outlineVariant);
+    root.style.setProperty("--input", t.outlineVariant);
+    root.style.setProperty("--ring", t.primary);
   }, [theme, seedColor]);
 
   // Handlers

@@ -6,8 +6,8 @@
  * not there. `bg-error-container` shipped through every green gate and the
  * coach read a severity pill with no colour on it.
  *
- * Six checks. The first five run against the BUILT stylesheet, because only
- * the built stylesheet knows what Tailwind actually emitted; the sixth reads
+ * Seven checks. Most run against the BUILT stylesheet, because only the
+ * built stylesheet knows what Tailwind actually emitted; the sixth reads
  * the sources and `src/index.css` directly, because its defect never reaches
  * the stylesheet at all:
  *
@@ -38,7 +38,19 @@
  *      is dropped and the element paints nothing. Channel form is fine;
  *      a variable not declared in `src/index.css` (runtime-written) is
  *      assumed fine. Declared complete in ONE block and channels in another
- *      is broken: the worst case is the one that reaches a screen.
+ *      is broken: the worst case is the one that reaches a screen;
+ *   7. DERIVED like check 5, for the WHOLE colour system: every class with
+ *      an opacity modifier found in the sources (`bg-card/50`,
+ *      `hover:bg-surface-container/40`, `from-primary/[0.08]`…) must have
+ *      an emitted rule, and every variable that rule reads must be declared
+ *      in channel form in every sheet that declares it. The EXPECTED list
+ *      above protected the ten opacity variants someone remembered to write
+ *      into it while 139 classes (518 uses, 86 files) stayed dead under a
+ *      green gate — measured on the built CSS, 2026-08-27. Check 7 scans
+ *      instead of remembering, exactly like check 5 did for chart-*. When a
+ *      class has no rule, the red names the token to convert by reading the
+ *      rule of the SAME class without its modifier — looked up, never
+ *      hardcoded.
  *
  * Opacity variants are listed on purpose: in Tailwind v3 a colour declared as
  * a complete `var(--x)` silently drops the opacity modifier — no rule is
@@ -77,7 +89,29 @@
  *     passes on trust. Usages inside `index.css` itself are not scanned
  *     (the source scan is `.ts/.tsx` — today the only two `hsl(var(--…))`
  *     strings in that file sit inside comments), and neither a fallback
- *     form `hsl(var(--x, …))` nor a name built dynamically would match.
+ *     form `hsl(var(--x, …))` nor a name built dynamically would match;
+ *   - check 7 inherits check 5's blindness to dynamic class names and its
+ *     comment-line handling. A slash inside an arbitrary value
+ *     (`aspect-[3/4]`) is not an opacity modifier: the bracket segment is
+ *     matched as a unit, so the slash inside never reads as one. Fraction
+ *     utilities (`w-1/2`, `top-1/2`) match the same shape and are checked
+ *     the same way — they have rules, so they cost nothing.
+ *     Arbitrary-value bases carry their modifier too: `border-[#hex]/30`
+ *     emits and passes, `bg-[var(--x)]/95` can never emit (Tailwind cannot
+ *     inject an alpha into a var() it cannot parse) and gets its own red
+ *     with the color-mix repair — the first regex missed the whole family
+ *     and the independent review found it with a live instance (2026-08-27). An alpha value outside the opacity
+ *     theme scale (`/8`) emits no rule even on a healthy token: the red
+ *     tells the two causes apart by looking at the base class's rule.
+ *     Token names are derived from the base rule's `var(--x)` reads, so a
+ *     config alias whose class name differs from its variable
+ *     (`bg-sidebar` → `--sidebar-background`) is still named correctly;
+ *   - check 4's second pass derives its protected set from the built CSS
+ *     (every var the stylesheet reads as `hsl(var(--x))`) and flags a
+ *     `setProperty("--x", hsl(...))` that would turn those rules into
+ *     invalid `hsl(hsl(…))` at runtime. It matches the literal-name,
+ *     string-or-template-opening-with-hsl( shape only — the same declared
+ *     narrowness as the first pass.
  *
  * Usage: npm run build && npm run verify:css
  */
@@ -317,9 +351,17 @@ for (const name of CHANNEL_VARS) {
 }
 
 // ── 4. Nobody overwrites them at runtime ───────────────────────────────────
-// `MaterialYouProvider` writes 19 vars with `setProperty(name, hsl(...))`.
-// Adding one of these to that list is the natural-looking change that would
-// break every tint without touching the built stylesheet at all.
+// First pass: the severity/chart vars must stay static in index.css.
+// Second pass, DERIVED: any var the built stylesheet reads as
+// `hsl(var(--x))` may be rewritten at runtime (the MaterialYouProvider
+// bridge legitimately does, with bare channels) but NEVER with a complete
+// `hsl(...)` value — that turns every rule reading it into invalid
+// `hsl(hsl(…))` the moment the effect runs, without changing the built CSS.
+const hslWrappedVars = new Set(
+  [...css.matchAll(/hsl\(var\((--[a-zA-Z0-9-]+)\)/g)].map((m) => m[1]),
+);
+const HSL_WRITE_RE = /setProperty\(\s*["'](--[a-zA-Z0-9-]+)["']\s*,\s*["'`]hsl\(/g;
+
 for (const file of SOURCE_FILES) {
   const body = readFileSync(file, "utf8");
   for (const name of CHANNEL_VARS) {
@@ -328,6 +370,14 @@ for (const file of SOURCE_FILES) {
         `${file} scrive ${name} a runtime: queste variabili devono restare statiche in index.css`,
       );
     }
+  }
+  for (const m of body.matchAll(HSL_WRITE_RE)) {
+    if (!hslWrappedVars.has(m[1])) continue;
+    const line = body.slice(0, m.index).split(/\r?\n/).length;
+    failures.push(
+      `${file.replace(/\\/g, "/")}:${line} scrive ${m[1]} come hsl(...) completa a runtime, ` +
+        `ma il foglio la legge come hsl(var(${m[1]})): diventerebbe hsl(hsl(…)) — scrivi canali nudi`,
+    );
   }
 }
 
@@ -437,6 +487,108 @@ console.log(
     `su variabile-colore completa / ${hslWrapOk} corretti`,
 );
 
+// ── 7. DERIVED: every opacity-modified class in the sources is emitted ─────
+// No list — the sources are scanned like check 5 and every hit goes through
+// the same shared `findRule`. Two red shapes, told apart by the base class:
+//   - base rule missing or reading a non-channel var → the TOKEN is the
+//     problem (config exposes it naked, or index.css declares it complete);
+//   - base rule alive on channel vars → the MODIFIER is the problem (an
+//     alpha outside the opacity scale, e.g. `/8`): the repair is `/[0.08]`.
+const ALPHA_CLASS_RE =
+  /(?<![\w-])!?[a-z][a-z0-9-]*(?:-\[[^\]\s]+\])?(?:-[a-z0-9-]+)*\/(?:\d{1,3}|\[[^\]\s]+\])(?![\w%/-])/g;
+
+/** class → first `file:line`, comment lines skipped, unbalanced [ ] skipped. */
+const alphaClassSites = new Map();
+for (const file of SOURCE_FILES) {
+  const lines = readFileSync(file, "utf8").split(/\r?\n/);
+  lines.forEach((line, i) => {
+    if (isCommentLine(line.trim())) return;
+    for (const m of line.matchAll(ALPHA_CLASS_RE)) {
+      const cls = m[0];
+      const opens = (cls.match(/\[/g) ?? []).length;
+      if (opens !== (cls.match(/\]/g) ?? []).length) continue;
+      // A utility base always carries a dash (`bg-…`, `w-1`); a bare word
+      // before the slash is prose («success/10» in a JSX comment body,
+      // which isCommentLine cannot recognise — its declared limit).
+      if (!cls.slice(0, cls.lastIndexOf("/")).includes("-")) continue;
+      if (!alphaClassSites.has(cls))
+        alphaClassSites.set(cls, `${file.replace(/\\/g, "/")}:${i + 1}`);
+    }
+  });
+}
+
+/** The `--x` names a rule body reads, Tailwind's own `--tw-*` excluded. */
+const varsReadBy = (rule) =>
+  [...rule.matchAll(/var\((--[a-zA-Z0-9-]+)/g)]
+    .map((m) => m[1])
+    .filter((name) => !name.startsWith("--tw-"));
+
+/** Every declared value of `name` across the built sheets. */
+const builtDecls = (name) =>
+  [...css.matchAll(new RegExp(`(?:^|[^-\\w])${name}\\s*:\\s*([^;}]+)`, "g"))].map((m) =>
+    m[1].trim(),
+  );
+
+let alphaEmitted = 0;
+for (const [cls, site] of [...alphaClassSites.entries()].sort()) {
+  const rule = findRule(cls);
+  if (rule) {
+    // Emitted — but only channel-form declarations keep it valid.
+    const nonChannel = varsReadBy(rule)
+      .map((name) => [name, builtDecls(name).filter((v) => !CHANNEL_FORM.test(v))])
+      .find(([, wrong]) => wrong.length > 0);
+    if (nonChannel) {
+      failures.push(
+        `${cls} — scritta in ${site}, regola emessa ma ${nonChannel[0]} è dichiarata ` +
+          `«${nonChannel[1][0]}», non a canali: hsl(var(${nonChannel[0]}) / …) è CSS invalido — ` +
+          `riporta ${nonChannel[0]} alla forma a canali in src/index.css`,
+      );
+      continue;
+    }
+    alphaEmitted += 1;
+    continue;
+  }
+  if (cls.includes("[var(")) {
+    // Tailwind cannot inject an alpha into an arbitrary `var(...)` value —
+    // reviewer-found gap, 2026-08-27, one live instance (IntakeForm footer).
+    failures.push(
+      `${cls} — scritta in ${site} ma nessuna regola emessa: il modificatore di alpha ` +
+        `non si applica a un valore arbitrario var(...) — usa ` +
+        `color-mix(in_srgb,var(--x)_N%,transparent) oppure un token config a canali`,
+    );
+    continue;
+  }
+  const base = cls.replace(/^!/, "").replace(/\/(?:\d{1,3}|\[[^\]\s]+\])$/, "");
+  const baseRule = findRule(base);
+  const tokens = baseRule ? varsReadBy(baseRule) : [];
+  if (
+    baseRule &&
+    tokens.length > 0 &&
+    tokens.every((n) => builtDecls(n).every((v) => CHANNEL_FORM.test(v)))
+  ) {
+    failures.push(
+      `${cls} — scritta in ${site} ma nessuna regola emessa; la base ${base} è viva e ` +
+        `${tokens.join(", ")} è a canali: il modificatore non è nella scala opacity — ` +
+        `usa la forma arbitraria (es. /[0.08])`,
+    );
+    continue;
+  }
+  const token =
+    tokens[0] ??
+    [...cssVarDecls.keys()]
+      .filter((n) => cls.includes(n.slice(2)))
+      .sort((a, b) => b.length - a.length)[0];
+  failures.push(
+    `${cls} — scritta in ${site} ma nessuna regola emessa: il token ${token ?? "(non derivabile dal nome: vedi tailwind.config.ts)"} ` +
+      `è esposto dal config come var() nuda o non esiste — serve la coppia ` +
+      `canali in src/index.css + hsl(var(…) / <alpha-value>) in tailwind.config.ts`,
+  );
+}
+console.log(
+  `  ${alphaEmitted === alphaClassSites.size ? "✓" : "✗"} check 7: ${alphaEmitted}/${alphaClassSites.size} ` +
+    `classi con modificatore di alpha trovate nei sorgenti emesse e a canali`,
+);
+
 if (notes.length > 0) {
   console.log(`\nℹ ${notes.length} note (non bloccanti):`);
   for (const n of notes) console.log(`  - ${n}`);
@@ -456,5 +608,6 @@ console.log(
   `\n✓ ${expectedVerified}/${Object.keys(EXPECTED).length} classi attese in uso e verificate, ` +
     `${CHANNEL_VARS.length} variabili in forma a canali e non riscritte a runtime, ` +
     `${chartClassSites.size} utility chart-* derivate dai sorgenti tutte emesse, ` +
-    `${hslWrapOk} usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime.`,
+    `${hslWrapOk} usi hsl(var(--x)) tutti su variabili a canali o scritte solo a runtime, ` +
+    `${alphaClassSites.size} classi con modificatore di alpha tutte emesse e a canali.`,
 );

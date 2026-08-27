@@ -443,13 +443,13 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                 <LineChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
                   <XAxis
                     dataKey="date"
-                    stroke="var(--muted-foreground)"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
-                    stroke="var(--muted-foreground)"
+                    stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
@@ -492,15 +492,15 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="var(--primary)"
+                    stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     dot={(props) => {
                       const { cx, cy, payload } = props;
                       if (payload.isPR) {
                         return (
                           <g key={`dot-${cx}-${cy}`}>
-                            <circle cx={cx} cy={cy} r={6} fill="var(--primary)" />
-                            <circle cx={cx} cy={cy} r={3} fill="var(--primary-foreground)" />
+                            <circle cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" />
+                            <circle cx={cx} cy={cy} r={3} fill="hsl(var(--primary-foreground))" />
                           </g>
                         );
                       }
@@ -510,11 +510,11 @@ function ExerciseStatsContent({ athleteId }: { athleteId: string | undefined }) 
                           cx={cx}
                           cy={cy}
                           r={4}
-                          fill="var(--primary)"
+                          fill="hsl(var(--primary))"
                         />
                       );
                     }}
-                    activeDot={{ r: 6, fill: "var(--primary)" }}
+                    activeDot={{ r: 6, fill: "hsl(var(--primary))" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -562,7 +562,7 @@ function AdvancedStatsContent({ athleteId }: { athleteId: string | undefined }) 
 // Mini sparkline component for measurements
 function MiniSparkline({
   data,
-  color = "var(--primary)",
+  color = "hsl(var(--primary))",
 }: {
   data: Array<{ value: number }>;
   color?: string;
@@ -941,14 +941,14 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                     >
                       <XAxis
                         dataKey="date"
-                        stroke="var(--muted-foreground)"
+                        stroke="hsl(var(--muted-foreground))"
                         fontSize={10}
                         tickLine={false}
                         axisLine={false}
                         interval="preserveStartEnd"
                       />
                       <YAxis
-                        stroke="var(--muted-foreground)"
+                        stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
@@ -989,24 +989,24 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                       <Line
                         type="monotone"
                         dataKey="weight"
-                        stroke="var(--muted-foreground)"
+                        stroke="hsl(var(--muted-foreground))"
                         strokeWidth={0}
                         dot={{
-                          fill: "var(--muted-foreground)",
+                          fill: "hsl(var(--muted-foreground))",
                           r: chartData.length <= 5 ? 4 : 2,
                           opacity: chartData.length <= 5 ? 0.8 : 0.4,
                         }}
-                        activeDot={{ r: 4, fill: "var(--foreground)" }}
+                        activeDot={{ r: 4, fill: "hsl(var(--foreground))" }}
                       />
                       {/* Trend line (7-day MA). A single point draws no
                           segment, so it gets a visible dot instead. */}
                       <Line
                         type="monotone"
                         dataKey="trend"
-                        stroke="var(--primary)"
+                        stroke="hsl(var(--primary))"
                         strokeWidth={3}
-                        dot={chartData.length === 1 ? { r: 5, fill: "var(--primary)" } : false}
-                        activeDot={{ r: 5, fill: "var(--primary)" }}
+                        dot={chartData.length === 1 ? { r: 5, fill: "hsl(var(--primary))" } : false}
+                        activeDot={{ r: 5, fill: "hsl(var(--primary))" }}
                         connectNulls
                       />
                     </ComposedChart>
@@ -1100,7 +1100,11 @@ function BodyMetricsContent({ athleteId }: { athleteId: string | undefined }) {
                     <div className="flex-1 max-w-[80px]">
                       <MiniSparkline
                         data={measurement.history}
-                        color={measurement.key === "waist" ? "var(--success)" : "var(--primary)"}
+                        color={
+                          measurement.key === "waist"
+                            ? "hsl(var(--success))"
+                            : "hsl(var(--primary))"
+                        }
                       />
                     </div>
                   </div>

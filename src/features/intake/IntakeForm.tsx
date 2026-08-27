@@ -245,7 +245,10 @@ export default function IntakeForm() {
         )}
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 border-t border-[var(--nc-track)] bg-[var(--nc-surface)]/95 backdrop-blur">
+      {/* `bg-[color-mix(in_srgb,var(--nc-surface)_95%,transparent)]` emitted no rule (alpha cannot apply to an
+          arbitrary var()): the fixed footer had NO background over scrolling
+          content. color-mix keeps the token and the intended 95%. */}
+      <footer className="fixed inset-x-0 bottom-0 border-t border-[var(--nc-track)] bg-[color-mix(in_srgb,var(--nc-surface)_95%,transparent)] backdrop-blur">
         <div className="mx-auto flex w-full max-w-lg gap-3 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
           {stepIndex > 0 && (
             <button

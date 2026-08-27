@@ -219,7 +219,7 @@ export function CelebrationOverlay() {
           "absolute inset-0 animate-fade-in",
           isPR
             ? "bg-[radial-gradient(circle_at_center,hsl(45_95%_60%/0.25),transparent_55%)]"
-            : "bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--primary)_22%,transparent),transparent_55%)]",
+            : "bg-[radial-gradient(circle_at_center,color-mix(in_srgb,hsl(var(--primary))_22%,transparent),transparent_55%)]",
         )}
       />
       {/* Burst card */}

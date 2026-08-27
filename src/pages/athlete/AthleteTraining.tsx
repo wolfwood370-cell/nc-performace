@@ -356,7 +356,7 @@ function HeroWorkoutCard({ day }: { day: ReleaseDayView }) {
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/8 to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/[0.08] to-transparent"
       />
       <div className="relative z-10 flex flex-col gap-4">
         <span className="self-start font-sans text-[10px] font-semibold tracking-widest uppercase text-brand-container bg-brand-container/10 px-2 py-1 rounded-full">

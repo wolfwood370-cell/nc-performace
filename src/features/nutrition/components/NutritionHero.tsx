@@ -51,7 +51,7 @@ export function NutritionHero({ view, muted = false }: { view: ReleaseView; mute
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/8 to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-container/[0.08] to-transparent"
       />
       <div className="relative z-10 flex flex-col gap-4">
         {(view.headline.strategyLabel !== null || view.badges.length > 0) && (
