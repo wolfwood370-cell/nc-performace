@@ -1,328 +1,200 @@
-# ULTIMO RITORNO — fetta aggiornamento-sicuro (A-03, continua)
+# ULTIMO RITORNO — fetta alpha-vivi
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/aggiornamento-sicuro` · 2026-08-26 · base `origin/main` = `08db1fc` (la stessa della
-> misura di Cowork) · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/aggiornamento-sicuro)
+> Fetta: `claude/alpha-vivi` · 2026-08-27 · base `origin/main` = `f0244ca` (la stessa della misura
+> Cowork del 27/08) · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/alpha-vivi)
 > — dal 20/08 il classificatore nega le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/aggiornamento-sicuro`, da `08db1fc`, 4 commit di codice + il commit dei documenti (tip del ramo):
+`claude/alpha-vivi`, da `f0244ca`, 2 commit di codice + il commit dei documenti (tip del ramo):
 
-- `cb15f38` — il buster della cache persistita porta l'identità del build (la **cintura**).
-- `a2af1ba` — la derivazione del rilascio esce dalla queryFn ed entra in `select` (il **cancello**).
-- `11c5456` — un predicato solo per «registrabile»: undefined è assente come null (l'**onestà**).
-- `84f9ff4` — esiti della passata indipendente: `?? null` sulla queryFn, pin del gate che degrada chiuso.
+- `ef24798` — la conversione: 69 dichiarazioni a canali, 46 voci config wrapped, bridge del
+  provider a canali nudi, 57 usi diretti avvolti, la scala di CoachHome riparata intera,
+  le `/8` fuori scala → `/[0.08]`, baseline eslint 81→65.
+- `b2853cd` — il check 7 derivato nel gate + la passata anti-rewrap del check 4.
 
 ## 2. Manifesto
 
-**NUOVI:** `src/lib/program/loggableExercise.ts` (la casa del predicato) ·
-`src/lib/program/__tests__/loggableExercise.test.ts` (6 test) ·
-`src/hooks/athlete/__tests__/useProgramRelease.select.test.ts` (5 test: cache grezza,
-referenza stabile, degrado della cache di ieri — rilascio aperto-ma-onesto, gate chiuso) ·
-`src/pages/athlete/__tests__/ActiveWorkout.updateCache.boundary.test.ts` (3 test: LA prova
-dell'aggiornamento + parità undefined/null in superficie + controllo positivo).
+**NUOVI:** nessuno.
 
-**MODIFICATI:** `vite.config.ts` (define `__BUILD_ID__`) · `src/main.tsx` (`buster: __BUILD_ID__`) ·
-`src/vite-env.d.ts` (**divergenza dichiarata, v. §9.3**: la declare TS del global) ·
-`src/hooks/athlete/useProgramRelease.ts` (queryFn grezze + 2 select module-level) ·
-`src/components/athlete/workout/SessionExerciseList.tsx` (4 punti → predicato) ·
-`src/pages/athlete/ActiveWorkout.tsx` (1 punto → predicato + cintura sul valore) ·
-`docs/HANDOFF.md` · `docs/auto-miglioramento.md` · questo file.
+**MODIFICATI (20):** `src/index.css` (69 dichiarazioni `hsl(X)`→`X`; 7 usi interni →
+`hsl(var(--x))`, `color-mix` scrollbar compreso; 2 commenti aggiornati) · `tailwind.config.ts`
+(46 voci `"var(--x)"` → `"hsl(var(--x) / <alpha-value>)"`; commenti) ·
+`scripts/verify-css-tokens.mjs` (check 7 + estensione check 4 + header) ·
+`src/providers/MaterialYouProvider.tsx` (bridge: 19 `setProperty` da `hsl(${t.x})` a `t.x` nudo) ·
+i 10 file con usi diretti avvolti: `OverviewTab.tsx`(4) `AthleteDetail.tsx`(18) `sidebar.tsx`(2)
+`VolumeIntensityChart.tsx`(4) `VelocityTrendChart.tsx`(9) `StrengthChart.tsx`(2)
+`NutritionAdherenceCard.tsx`(5) `MetabolicChart.tsx`(4) `CoachBottomNav.tsx`(1) `Confetti.tsx`(1) ·
+`CoachHome.tsx` (coppia `tertiary-fixed` → `tertiary-container`) · `AthleteCard.tsx`,
+`NutritionHero.tsx`, `AthleteDashboard.tsx`, `AthleteTraining.tsx` (`/8` → `/[0.08]`) ·
+`.eslint-baseline` (81→65) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) · questo file.
 
-**NEL PERIMETRO MA NON TOCCATI:** `src/lib/queryPersister.ts` (vietato — zero diff: il persister fa
-il suo lavoro) · `supabase/**` · `src/integrations/supabase/types.ts` · `src/lib/math/acwr.ts` ·
-`src/lib/effort/sessionRpe.ts` · `src/pages/athlete/PostWorkoutDebrief.tsx` · le **31 query derivate
-restanti** (elencate una per una in §9.2 — rinvio datato di questa fetta).
+**NEL PERIMETRO MA NON TOCCATI:** `vite.config.ts` (vietato, intatto) · `supabase/**`, `types.ts`,
+`acwr.ts`, `sessionRpe.ts`, `src/lib/program/**`, `src/main.tsx` (vietati, intatti) · i token
+`--nc-*` athlete (hex, non esposti dal config — v. §6) · `EXPECTED` e `CHANNEL_VARS` del gate
+(invariante 3: intatte, ridondanza voluta col check 7).
 
-## 3. Le tre prove dei permessi (repo di scarto, prima riga di lavoro)
+**Perimetro ESTESO rispetto al prompt (dichiarato, il contratto vince sulla lista file):**
+`MaterialYouProvider.tsx` — il bridge riscrive a runtime 19 delle variabili convertite in
+`hsl(...)` completa (`tailwind.config.ts:168` lo documentava): senza la riscrittura a canali ogni
+tinta sarebbe morta al primo mount del provider, contratto (b) violato a runtime. ·
+`CoachHome.tsx:185-186` — `bg-tertiary-fixed/20`+`text-tertiary-fixed` su token MAI definito:
+irrisolvibile per conversione, il check 7 sarebbe rosso; mappata sulla famiglia
+`tertiary-container` gemella del gradino critical della stessa scala (o si ripara la scala intera
+o si dichiara — Fragilità #6; l'auditor tema conferma coerenza). · `AthleteCard.tsx:420`,
+`NutritionHero.tsx:54`, `AthleteDashboard.tsx:400`, `AthleteTraining.tsx:359` — `/8` non è nella
+scala opacity di Tailwind (misurato: 0 regole `/8`, 7 regole `/15` nel CSS emesso): morte per la
+scala, non per il token; `/[0.08]` conserva l'8% inteso. · `.eslint-baseline` — la CI stessa
+prescrive «Lint migliorato (65 < 81). Abbassa .eslint-baseline a 65 nello stesso commit».
 
-1. Vicini consentiti: `git status -s` (clean, output vuoto) · `git log --oneline -1` → `62f0604
-commit di prova`. **Passano.**
-2. `git reset --hard HEAD` → **rifiutato** («Permission … has been denied», matcher locale).
-3. `git rebase HEAD` → **rifiutato** (matcher locale). E la forma `git -C <percorso> rebase HEAD`
-   — il **buco del matcher misurato il 25/08** — oggi viene **bloccata dal classificatore auto-mode**
-   («Blocked by classifier»): non più un varco aperto, ma resta cintura-via-classificatore, non
-   matcher: la chip del 25/08 per estendere le deny alle forme `-C`/`--git-dir` resta valida.
+## 3. Le prove dei permessi (repo di scarto in scratchpad)
 
-## 4. Da dove viene il buster
+1. `git reset --hard HEAD~1` → **RIFIUTATO** («Permission … has been denied») · `git rebase HEAD~1` → **RIFIUTATO**.
+2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -2` → 2 commit stampati.
+3. ⚠️ La forma `git -C <percorso> rebase HEAD~1` → **PASSATA** (eseguita davvero: «Current branch
+   master is up to date», no-op innocuo nel repo di scarto). Il matcher della cintura locale non
+   copre `-C`/`--git-dir` — buco già chip-flaggato il 25/08, ora rimisurato.
 
-> ⚠️ **SUPERATO dall'addendum in coda (§11):** la fonte non è più l'orologio ma l'identità del
-> commit. Questo §4 resta come storia del criterio mal posto; la fonte vigente è in §11.
+## 4. Il conteggio prima e dopo
 
-- **Fonte scelta: l'orologio di build.** `vite.config.ts` genera `ncph-${Date.now().toString(36)}`
-  DENTRO la factory di `defineConfig` (eseguita una volta per `vite build` / avvio dev server) e lo
-  inietta via `define` come `__BUILD_ID__` (`vite.config.ts:31`); `src/vite-env.d.ts:5` dichiara il
-  global per tsc; `src/main.tsx:41` lo usa come `buster`.
-- **Perché non l'hash git:** il criterio di acceptance è «due build consecutivi, due valori» — due
-  build dello stesso commit avrebbero lo stesso hash. Perché non un uuid: il timestamp è anche
-  diagnostica (decodificabile all'epoca del build). **Il vincolo «nessuna data dall'orologio» vale
-  per i moduli puri dell'app, non per il tooling di build**: l'app legge solo il literal iniettato.
-- **La prova, due build consecutivi** (`npm run build ; grep -roh "ncph-[0-9a-z]*" dist/assets/ | sort -u`):
+Misura sul CSS EMESSO, scanner Node con lo stesso `findRule` del gate (mai one-liner shell):
 
-  ```
-  BUILD1 EXIT=0 → ncph-mta18tly
-  BUILD2 EXIT=0 → ncph-mta194jw
-  ESITO: DIVERSI — il buster cambia da sé
-  ```
+|                       | classi con alpha distinte | morte   | usi morti | file |
+| --------------------- | ------------------------- | ------- | --------- | ---- |
+| **PRIMA** (`f0244ca`) | 238                       | **139** | 518       | 86   |
+| **DOPO** (tip)        | 238                       | **0**   | 0         | 0    |
 
-- **Costo dichiarato** (spec §1.7): al primo avvio dopo ogni deploy la cache offline viene scartata
-  e le query si rifanno — chi riceve il bundle nuovo è online per definizione. Vercel non c'entra:
-  nessuna configurazione da toccare, la fonte vive tutta nel repo.
+**Copertura dichiarata: 238 su 238.** Controllo positivo `bg-amber-500/10` emessa in entrambi;
+controllo negativo `bg-accent/30` assente PRIMA, emessa DOPO. ⚠️ La misura **corregge** la
+234/110/366/77 di Cowork (per difetto: mancavano i prefissi `ring-`, `from-`, `to-`, `via-`,
+`divide-`, `shadow-`, `stroke-`, `fill-`). Delle 139: 134 morte per token nudo, 4 per `/8` fuori
+scala opacity (2 cause diverse, 2 rimedi diversi), 1 (`bg-tertiary-fixed/20`) per token inesistente.
 
-## 5. Il viaggio del documento — dal database alla cache al componente
+## 5. La prova che nessun colore è cambiato — sui colori risolti
 
-1. **Postgres** → la queryFn restituisce SOLO la riga `program_releases` come arriva
-   (`useProgramRelease.ts:53-66`, `select("*")` invariato — nessuna query nuova); per il gate,
-   `{profile, consents}` grezzi (`useProgramRelease.ts:92-118`).
-2. **Cache TanStack → IndexedDB**: il persister (INTATTO, `queryPersister.ts:12`, chiave
-   `rq-offline-cache`) deidrata `state.data` = la riga grezza. **Cosa finisce in IndexedDB adesso,
-   misurato dal test col client mockato**: chiavi di primo livello `["athlete_id","id",
-"program_document"]` — la riga, **non** `program` né `release` (in produzione la riga porta
-   tutte le colonne della tabella: l'invariante è «niente che il nostro codice abbia derivato»).
-   Per il gate: `["consents","profile"]`, nessun campo derivato (`pendingReview`/`coachingMode`
-   assenti dalla cache).
-3. **Lettura** → `select` con referenza stabile MODULE-LEVEL: `selectLatestRelease`
-   (`useProgramRelease.ts:44`) chiama `parseReleaseDocument` col codice CORRENTE;
-   `selectGateStatus` (`useProgramRelease.ts:83`) chiama `deriveGateStatus`. Misurato nel test:
-   **1 esecuzione del parser, e resta 1 dopo 10 re-render** (`ActiveWorkout` ri-renderizza ogni
-   secondo per il timer; un select inline farebbe 12 esecuzioni su 10 re-render — spec §1.6).
-4. **Componenti**: ricevono lo stesso derivato di prima (`{release, program}` /
-   `AthleteGateStatus`) — i 4 consumatori (`AthleteDashboard:386` · `ActiveWorkout:329` ·
-   `AthleteTraining:810` · `PostWorkoutDebrief:319`) leggono solo `.data?.program` o la truthiness
-   di `.data`: **zero modifiche**, misurato con grep prima di toccare.
-5. **La cache di ieri** (wrapper `{release, program}` pre-merge) attraversa `select` e degrada:
-   `program: null` → la pagina dice «Programma non disponibile» (test dedicato) — mai una lista
-   che promette.
-
-## 6. Il predicato
-
-**Casa:** `src/lib/program/loggableExercise.ts:27` — `isLoggableExercise(exercise)`, `undefined`
-assente esattamente come `null`. Boolean semplice DI PROPOSITO, non type guard: con `strict: false`
-(niente strictNullChecks) `string | null` collassa in `string`, un guard `T & {p: string}` è
-identico a `T` e il ramo falso narrowa a `never` (misurato: `Property 'sets' does not exist on
-type 'never'`). La sentinella NIL resta responsabilità del parser (`catalogRef`): una porta per
-regola. **I cinque chiamanti:**
-
-| #   | punto                         | prima                            | ora                                |
-| --- | ----------------------------- | -------------------------------- | ---------------------------------- |
-| 1   | `SessionExerciseList.tsx:59`  | `!== null` (riga cliccabile)     | `isLoggableExercise(exercise)`     |
-| 2   | `SessionExerciseList.tsx:155` | `!== null` (accumulo prescritte) | `isLoggableExercise(exercise)`     |
-| 3   | `SessionExerciseList.tsx:177` | `!== null` (conteggio fatte)     | `isLoggableExercise(exercise)`     |
-| 4   | `SessionExerciseList.tsx:182` | `!== null` (prescritte per riga) | `isLoggableExercise(exercise)`     |
-| 5   | `ActiveWorkout.tsx:364`       | `?? null` (id per il drawer)     | `isLoggableExercise(openExercise)` |
-
-A valle del punto 5, il drawer monta solo su `typeof openCatalogId === "string"`
-(`ActiveWorkout.tsx:365` e `:533`): una seconda cintura sul VALORE derivato — anche lì undefined e
-null sono la stessa assenza — che se il predicato regredisse tiene il drawer lontano da un id
-fantasma, ed è ciò che fa fallire la prova rossa col messaggio giusto.
-
-## 7. Acceptance — ognuno col suo comando
-
-1. 🔴 **LA PROVA DELL'AGGIORNAMENTO** — `npx vitest run
-src/pages/athlete/__tests__/ActiveWorkout.updateCache.boundary.test.ts` → **3 passed**. Il
-   client è idratato con l'oggetto nella forma di PRIMA del merge (campo ASSENTE), la pagina VERA
-   monta lista e drawer veri. Run rosso: **§8**.
-2. **Il buster cambia da sé** — comando e i DUE valori in §4: `ncph-mta18tly` → `ncph-mta194jw`.
-3. **In IndexedDB non finisce il derivato** — test «la riga grezza di Postgres, MAI il derivato»
-   (`useProgramRelease.select.test.ts`): chiavi di primo livello del dato in cache **e** del
-   payload `dehydrate()` = `["athlete_id","id","program_document"]`; `program`/`release` assenti.
-   → passed.
-4. **`select` ha referenza stabile** — test «il parser gira 1 volta e RESTA 1 dopo 10 re-render»:
-   contatore sulle esecuzioni di `parseReleaseDocument` (spy che tiene l'implementazione vera) +
-   referenza del derivato stabile. → passed.
-5. **Un predicato solo** — `grep -n "isLoggableExercise" src/components/athlete/workout/SessionExerciseList.tsx src/pages/athlete/ActiveWorkout.tsx`
-   → i 5 punti di §6 (+ 2 import); `grep -n "catalog_exercise_id !== null\|catalog_exercise_id != null\|catalog_exercise_id ?? null"`
-   sugli stessi file → **zero residui** (`GREP_EXIT=1`).
-6. **`undefined` e `null` identici** — unit (`loggableExercise.test.ts`: null / undefined esplicito /
-   campo assente → stesso esito, uuid → true, parità col parser) + superficie
-   (`updateCache.boundary`: due righe, campo assente e null, **2×** «manca il riferimento di
-   catalogo», zero registratori). → passed.
-7. **Gate — CINQUE** (baseline misurate sul tree pulito a `08db1fc` prima di toccare:
-   424/40 · 81 · verdi):
-   - `npx tsc --noEmit -p tsconfig.app.json` → **EXIT=0**
-   - `npx vitest run` → **438 passed (43 file)** = baseline 424/40 + 14 nuovi
-   - `npx eslint .` → **81 errori = ratchet `.eslint-baseline`** (445 file lintati, nessun nuovo)
-   - `npm run build` → **EXIT=0** (eseguito DUE volte, §4)
-   - `npm run verify:css` → **20/20 classi · 18 variabili · 11 chart-\* · EXIT=0**
-     Conferma indipendente di `code-test-verifier`: tsc 0 · 437/437 · 81 al limite non superato.
-8. **Perimetro** — `git diff origin/main..HEAD --stat`: **10 file di codice** (860 inserzioni,
-   32 rimozioni) + i 3 docs nel commit dei documenti; nessun file vietato toccato.
-
-**Passata indipendente (agenti di progetto, contesto proprio):** `code-reviewer` sul diff —
-verdetto «committabile», prova rossa **riprodotta in autonomia** («il test non è decorativo»),
-2 rilievi ENTRAMBI chiusi in-branch (`84f9ff4`): [basso] `return data` poteva propagare
-`undefined` a TanStack v5 → `?? null`; [informativo] la degradazione del gate-status non era
-pinnata → test gemello (degrada CHIUSA: `isError`, card errore in `AthleteTraining`, nota: con
-`staleTime: Infinity` l'errore non si auto-ripara fino a refetch — accettato, fail-closed).
-`aura-theme-auditor`: zero violazioni introdotte (l'hex `#c0c7d0` preesiste in 19 file athlete —
-debito-tema già dichiarato il 22/08, non di questa fetta). `code-test-verifier`: tsc 0 ·
-437/437 (pre-commit 4) · eslint 81 al limite non superato.
-
-## 8. La prova rossa
-
-Predicato riportato a `!== null` (solo il corpo, un sed avanti e indietro; tree committato prima):
+**Livello 1 — comparatore sui due CSS emessi** (`confronta-colori.mjs`, scratchpad): parsing in
+regole, variabili convertite DERIVATE dai fogli (46: colore completo prima, canali dopo — il
+minificatore aveva già compresso le `hsl()` in hex, il confronto è su rgba normalizzati),
+risoluzione ricorsiva delle `var()` nei due scope `:root`/`.dark`:
 
 ```
-FAIL  src/pages/athlete/__tests__/ActiveWorkout.updateCache.boundary.test.ts
-  > cache scritta dal build precedente (catalog_exercise_id ASSENTE)
-  > la riga non promette: o dice «Solo consultazione», o — se cliccabile — il drawer DEVE montarsi
-AssertionError: la riga è cliccabile ma il drawer non si monta: i due guardiani rispondono
-in modo diverso su undefined (riga: cliccabile; montaggio: rifiutato) — la promessa muta del
-25/08: expected null not to be null
-
-  > undefined e null si comportano identicamente anche in superficie
-AssertionError: entrambe le righe degradano allo stesso modo: expected [ 'manca il riferimento
-di catalogo' ] to have a length of 2 but got 1
-
-Tests  2 failed | 1 passed (3)
+Variabili convertite (derivate dai due CSS): 46
+Dichiarazioni confrontate a colore identico: 90    (46 light + 44 dark; le 2 restanti in §9.1)
+Regole referenzianti confrontate (colori risolti, 2 scope): 155 — tutte identiche
+Altre regole byte-identiche: 1275
+Selettori rinominati dal wrap hsl() (arbitrary values), colori confrontati: 3 — identici
+Selettori SOLO nel prima: 0 · SOLO nel dopo: 165 (164 classi con alpha resuscitate
+  + .text-on-tertiary-container, nuova per la riparazione della scala di CoachHome)
 ```
 
-Dopo il ripristino: `Tests 3 passed (3)` · `git status -s` vuoto · `git diff` su
-`loggableExercise.ts` = 0 righe. La prova rossa è stata eseguita DUE volte (anche dopo lo
-spostamento della cintura sul valore, §9.4) per confermare che il messaggio reggesse.
+**Livello 2 — browser vero** (Chrome del pane, mini-server statico, `getComputedStyle` sulle due
+pagine-sonda che caricano il CSS prima/dopo):
+
+```
+non-alpha su token convertiti — IDENTICI byte per byte:
+  bg-card rgb(255,255,255)=rgb(255,255,255) · bg-primary rgb(0,53,97)= · bg-surface-container
+  rgb(219,239,255)= · text-muted-foreground rgb(64,71,79)= · border-border rgb(194,200,209)= ·
+  dark: bg-card rgb(2,8,23)=
+resuscitate — da rgba(0,0,0,0) alla tinta INTESA:
+  bg-surface-container/40 → rgba(219,239,255,0.4) · bg-primary/10 → rgba(0,53,97,0.1) ·
+  bg-accent/30 → rgba(179,221,255,0.3) · bg-destructive/[0.08] → rgba(187,27,27,0.08) ·
+  dark bg-primary/10 → rgba(109,40,217,0.1)
+caso-confine: hsl(207 100% 95%) → rgb(230,244,255) = #e6f4ff  (identici anche qui, v. §9.1)
+```
+
+I gradient `--tw-gradient-to` passano da `transparent` a `hsl(var(--x) / 0)`: alpha 0 ≡ alpha 0
+a schermo (interpolazione premoltiplicata) — dichiarato, non nascosto dal comparatore.
+
+## 6. I token convertiti
+
+**Convertiti (46, tutti quelli che il config espone come `var()` nuda):** background, foreground,
+card±fg, popover±fg, primary±fg, secondary±fg, muted±fg, accent±fg, destructive±fg, warning±fg,
+success±fg, border, input, ring, outline, outline-variant, on-surface-variant,
+surface-container-{lowest,low,∅,high,highest}, primary-container, on-primary-container,
+inverse-{surface,on-surface,primary}, tertiary±fg, sidebar-{background,foreground,primary,
+primary-foreground,accent,accent-foreground,border,ring}. Tutti erano `hsl(H S% L%)` a sintassi
+spazi: conversione testuale pura, zero valori riscritti.
+
+**NON convertiti, col perché:** `--nc-*` (6, hex `#...` in `.theme-athlete`) — non esposti dal
+config, usati nudi dal namespace athlete: fuori dal criterio della fetta, e l'auditor conferma che
+un wrap `hsl()` li avrebbe rotti · famiglia error (3), tertiary-container (2), chart (14) — già a
+canali (i «18 vivi» della misura) · `--radius`, `--sidebar-width{,-collapsed}` — non colori ·
+`brand`/`surface`/`on-surface` del config — hex letterali con alpha nativa già funzionante.
+**Nessun token è risultato inesprimibile a canali** (niente hex-con-alpha né oklch): la clausola
+di stop non è scattata.
+
+## 7. Acceptance — comando ed esito
+
+1. 🔴 **139 morte → 0**: `node misura-alpha.mjs . <dist> …` → «vive 238 · MORTE 0» — **238 su 238** (§4).
+2. 🔴 **Nessun colore cambia, sui colori risolti**: comparatore + browser (§5) — zero differenze
+   con superfici; l'unica voce a margine è `--inverse-on-surface`, chiusa in §9.1.
+3. **Check 7 derivato**: `git diff origin/main..HEAD -- scripts/verify-css-tokens.mjs` — le
+   uniche costanti nuove sono `ALPHA_CLASS_RE` (un regex), `hslWrappedVars`/`HSL_WRITE_RE`
+   (derivate dal foglio costruito) e le mappe riempite scandendo `SOURCE_FILES`; `EXPECTED` e
+   `CHANNEL_VARS` senza una riga di diff. Il check passa dal `findRule` condiviso di check 2/5.
+4. 🔴 **Prova rossa**: doppia, col token nominato — incollata in §8.
+5. **Usi diretti sotto il check 6**: `npm run verify:css` → «check 6: 0 usi su variabile-colore
+   completa / **68 corretti**» (erano 18 prima della fetta: +50 avvolti dal codemod).
+6. **I 5 gate** (rieseguiti anche dal code-test-verifier in contesto proprio, exit code nudi):
+   `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **442/442 in 44 file** ·
+   `npx eslint .` → errorCount **65 = baseline 65** (81→65, v. §9.3) · `npm run build` → 0 ·
+   `npm run verify:css` → 0, «check 7: **238/238**».
+7. **Perimetro**: `git diff origin/main..HEAD --stat` → 20 file, tutti nel manifesto §2 (le 6
+   estensioni dichiarate col perché).
+
+## 8. La prova rossa (ripristino per copia + `cmp`, mai `git checkout --`)
+
+**Rosso B — revert parziale** (solo `index.css`: `--surface-container` riportata a
+`hsl(207 100% 93%)`), build, `npm run verify:css`:
+
+```
+✗ check 7: 232/238 classi con modificatore di alpha trovate nei sorgenti emesse e a canali
+- bg-surface-container/40 — scritta in src/components/athlete/workout/SessionExerciseList.tsx:132,
+  regola emessa ma --surface-container è dichiarata «#dbefff», non a canali:
+  hsl(var(--surface-container) / …) è CSS invalido — riporta --surface-container alla forma a
+  canali in src/index.css          (+ altre 5, ognuna con classe, file:riga e token)
+```
+
+**Rosso A — revert completo** (anche `tailwind.config.ts` a `"var(--surface-container)"`):
+
+```
+✗ check 7: 232/238 …
+- bg-surface-container/40 — scritta in src/components/athlete/workout/SessionExerciseList.tsx:132
+  ma nessuna regola emessa: il token --surface-container è esposto dal config come var() nuda o
+  non esiste — serve la coppia canali in src/index.css + hsl(var(…) / <alpha-value>) in
+  tailwind.config.ts
+```
+
+**Verde dopo il ripristino** (cmp coi backup = identici, rebuild):
+`✓ check 7: 238/238 … tutte emesse e a canali`.
 
 ## 9. Non fatto / divergenze
 
-1. **Censimento — la misura converge sulla spec ma il criterio è più largo.** Misurato su
-   `08db1fc`: **81 chiamate `useQuery` in 44 file** (il mio primo grep `useQuery\(` ne vedeva 78:
-   perdeva le 3 forme generiche `useQuery<T>(` — la misura della spec era giusta). Derivate
-   secondo il MIO criterio (qualunque valore costruito dal nostro codice: oggetti, ma anche
-   scalari estratti, boolean calcolati, array mappati/deduplicati): **33**, contro le 20 della
-   spec (che contava gli oggetti). Le 2 di `useProgramRelease` sono riparate qui; restano **31**.
-2. **Le 31 query derivate restanti — il rinvio datato (2026-08-26), una per una** (file:riga —
-   chiave). ⚠️ Con la cintura del buster sono un miglioramento, non un'urgenza:
-   - `src/features/nutrition/useLatestNutritionRelease.ts:28` — `["nutrition-release-latest", user?.id]` (**ATLETA** — la nominava la spec)
-   - `src/providers/MaterialYouProvider.tsx:415` — `["coach-brand-color", coach_id]` (provider condiviso, letto anche dall'app atleta)
-   - `src/features/nutrition/useNutritionEntitlement.ts:30` — `["tier-entitlement", "nutrition", tier]`
-   - `src/hooks/useWeeklyCheckins.ts:34` — `["weekly-checkins", user?.id]`
-   - `src/pages/coach/CoachCalendar.tsx:167` — `["calendar-workout-logs", …]`
-   - `src/components/coach/CoachBottomNav.tsx:18` — `["coach-brand-color"]`
-   - `src/pages/coach/CoachAthletes.tsx:109` — `["live-sessions", user?.id]`
-   - `src/hooks/useCoachAppointments.ts:25` — `["coach-appointments", …]`
-   - `src/hooks/useAthleteAnalytics.ts:40` — `["athlete-metabolic", athleteId]`
-   - `src/hooks/useAthleteAnalytics.ts:121` — `["athlete-strength", athleteId, exerciseName]`
-   - `src/hooks/useAthleteAnalytics.ts:197` — `["athlete-volume-intensity", athleteId]`
-   - `src/hooks/useAthleteAnalytics.ts:268` — `["athlete-exercise-list", athleteId]`
-   - `src/pages/coach/AthleteDetail.tsx:2216` — `["athlete-weight-trend", id]`
-   - `src/hooks/useAthleteAcwrData.ts:38` — `["athlete-acwr-data", athleteId]`
-   - `src/hooks/useAiQuota.ts:11` — `["ai-quota"]`
-   - `src/hooks/useChatRooms.ts:50` — `["chat-rooms", user?.id]`
-   - `src/hooks/useChatRooms.ts:213` — `["messages", roomId]`
-   - `src/pages/coach/CoachSettings.tsx:178` — `["coach-profile", user?.id]`
-   - `src/components/coach/athlete/StrategyContent.tsx:291` — `["nutrition-plan", athleteId]`
-   - `src/components/coach/athlete/StrategyContent.tsx:321` — `["athlete-week-schedule", athleteId]`
-   - `src/components/coach/calendar/ProgramsDrawer.tsx:180` — `["calendar-programs", user?.id]`
-   - `src/hooks/useFmsAlerts.ts:107` — `["fms-alerts", athleteId]`
-   - `src/hooks/useAthleteVbtData.ts:25` — `["athlete-vbt", athleteId, exerciseFilter]`
-   - `src/hooks/useAthleteVbtData.ts:112` — `["athlete-vbt-exercises", athleteId]`
-   - `src/hooks/useAthleteHealthProfile.ts:121` — `["athlete-health-profile", athleteId]`
-   - `src/components/coach/AthleteViewerDialog.tsx:306` — `["god-mode-habits", athleteId, todayDate]`
-   - `src/hooks/useCoachTrainingBlocks.ts:32` — `["coach-training-blocks", user?.id]`
-   - `src/components/coach/messages/AthleteContextPane.tsx:78` — `["athlete-context-workouts", athleteId]`
-   - `src/hooks/useAthleteRiskAnalysis.ts:198` — `["fms-assessments", athleteId, "latest-completed"]`
-   - `src/hooks/useCoachNutritionAnalytics.ts:25` — `["coach-nutrition-analytics", athleteId]`
-   - `src/hooks/useExerciseLibraryQuery.ts:147` — `["exercise-library", search, limit]`
-3. **`src/vite-env.d.ts` modificato pur non essendo nella lista della spec**: 4 righe, la sola
-   declare TS di `__BUILD_ID__` — senza, il gate tsc è rosso. Nessun'altra strada senza toccare
-   `tsconfig` (più invasivo).
-4. **La prima stesura della cintura a valle del predicato usava `openExercise.catalog_exercise_id
-?? null`**: funzionava, ma pattern-matchava l'espressione storica del difetto e sporcava il
-   comando-prova del criterio 5. Sostituita con la cintura sul VALORE (`typeof === "string"`),
-   prova rossa rieseguita dopo il cambio.
-5. **Fuori dalla fetta, datati (spec §3):** la validazione a runtime dei dati reidratati (la
-   risposta completa — vale una fetta sua; qui se n'è tolto il motivo principale) · i 72 alpha
-   morti col cancello · `total_load_au` · i 72 trattini · il dedupe del watchdog.
-6. **Reperto permessi aggiornato**: `git -C <path> rebase` oggi è bloccato dal classificatore
-   (il 25/08 scavalcava il matcher) — la chip per le deny esplicite `-C`/`--git-dir` resta aperta.
+1. **`--inverse-on-surface` (hsl 207 100% 95%)**: il canale blu cade esattamente su 229.5 — il
+   comparatore JS arrotondava 229, il minificatore 230. Chiusa empiricamente nel browser: Chrome
+   risolve **rgb(230,244,255) = #e6f4ff, identici**; e comunque **nessuna regola emessa e nessun
+   sorgente legge quel token** — superfici zero.
+2. **Misura Cowork corretta**: 238/139/518/86, non 234/110/366/77 (§4) — «vince la tua misura».
+3. **Attribuzione eslint 81→65 a livello di regola, non di file**: lo swap di massa dei 16 file
+   base è stato negato dal classificatore; il residuo (12 errori `tailwindcss/no-custom-classname`)
+   è coerente con le classi rese reali dalla fetta. La baseline a 65 è corretta in entrambe le
+   ipotesi (la prescrive il ratchet stesso); la CI della PR farà da arbitro.
+4. **Cintura locale**: `git -C <path> rebase` passa il matcher (§3) — chip già flaggata il 25/08.
+5. **Rinvii ereditati intatti**: potatura di `EXPECTED` · debito-tema athlete (hex `#c0c7d0`,
+   19 file, 22/08) · 72 trattini · `total_load_au` (prossima fetta dichiarata) · 31 query derivate.
+6. Nota preesistente dell'auditor (fuori scope, identica a main): `text-tertiary-container` usato
+   come colore-testo in `CoachHome.tsx:106` — token container come ink, rischio contrasto.
 
 ## 10. Resta a Nicolò
 
-1. **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/aggiornamento-sicuro))
-   coi 2 check obbligatori verdi. **Post-merge: NULLA da applicare** — solo FE, il deploy Vercel
-   parte dal merge; zero migration, zero edge, zero secrets, zero configurazione Vercel (il buster
-   vive tutto nel repo).
-2. **L'ultimo miglio, a occhio**: aprire l'app su un dispositivo che l'aveva usata PRIMA del
-   deploy (cache vecchia in IndexedDB) → al primo avvio il buster nuovo scarta la cache, le query
-   si rifanno (raffica una tantum, dichiarata), la seduta mostra gli esercizi e le righe
-   registrabili aprono il drawer. La riga non mente più: se mai una riga dovesse dire «Solo
-   consultazione», ora è la verità del documento, non un disaccordo fra guardiani.
-
-## 11. Addendum 2026-08-26 (sera) — la fonte del buster diventa l'identità del commit
-
-### 11.1 Commit
-
-- `f4a50e5` — fix(build): il buster viene dall'identità del commit, non dall'orologio.
-- `d5bf33f` — test(athlete): il gemello del gate (contatore di referenza stabile su `selectGateStatus`).
-- `32c0517` — test(build): pin sui sorgenti — il buster mancante viene notato.
-- il commit dei documenti (tip del ramo).
-
-### 11.2 La fonte e il ripiego
-
-Il criterio originale («due build consecutivi, due valori») era mal posto: l'orologio lo
-soddisfaceva ma `__BUILD_ID__` per-build, iniettato nell'entry, faceva cambiare nome a **124/143
-asset a ogni redeploy dello stesso codice** (misura Cowork su `f4bdd6c`; controllo su main senza
-buster: 0/143). Proprietà voluta, scritta bene: **cambia quando cambia il codice, NON cambia
-quando non cambia.**
-
-Catena della fonte (`vite.config.ts`, funzione `resolveBuildId`):
-
-1. **`VERCEL_GIT_COMMIT_SHA`** — su Vercel un deploy È un commit; validato esadecimale, troncato
-   a 12, minuscolo. Valore iniettato: `ncph-<sha12>`.
-2. Ripiego: **`git rev-parse --short=12 HEAD`** via `execFileSync` (niente shell, argomenti
-   fissi) — build locali e checkout CI.
-3. **Senza entrambe: il build FALLISCE** con un errore che nomina le due fonti. Scelto il rosso
-   al ripiego-costante, e il perché è scritto nel codice: una cintura che muore in silenzio è
-   esattamente la classe di difetto che questa fetta ripara; tutti gli ambienti reali di build
-   del repo (Vercel, checkout locale, GitHub Actions) hanno una delle due fonti.
-
-Nota dichiarata: un build da tree SPORCO porta comunque lo sha di HEAD — i deploy nascono da
-commit, il caso sporco è solo locale.
-
-### 11.3 Acceptance (7 criteri, comando → output)
-
-1. 🔴 **Stesso commit, due build: stesso buster E stessi asset** — 2×(`npm run build` +
-   `grep -roh "ncph-[0-9a-f]*" dist/assets/`; `ls dist/assets | sort` + `diff`):
-   `ncph-f4bdd6ced0f6` due volte · **DIFF_EXIT=0, zero differenze su 143 asset**.
-2. **Commit diverso: buster diverso** — (a) fonte primaria:
-   `VERCEL_GIT_COMMIT_SHA=0123…4567 npm run build` → `ncph-0123456789ab`; (b) build reale al
-   commit dei documenti (HEAD ≠ `f4bdd6c`) → valore diverso da `ncph-f4bdd6ced0f6`
-   (incollato nel ritorno in chat).
-3. **Ripiego dichiarato** — §11.2: senza `VERCEL_GIT_COMMIT_SHA` risponde `git rev-parse`;
-   senza entrambi il build muore nominandoli (niente costante silenziosa, motivazione scritta).
-4. **`selectGateStatus` ha il suo test di referenza stabile** — «gemello del gate:
-   deriveGateStatus gira 1 volta e RESTA 1 dopo 10 re-render» → passed; rosso con l'inline:
-   `expected 2 to be 1` (§11.4).
-5. **Il buster mancante viene notato** — `persistBuster.source.test.ts` (3 pin sui sorgenti)
-   → passed; rosso togliendo la riga (§11.4).
-6. **Gate** — tsc **0** · vitest **442/44** (438/43 + gemello + 3 pin) · eslint **81 = ratchet**
-   · `npm run build` verde (più volte) · verify:css **20/20** (sul dist del build finale).
-7. **Perimetro** — `vite.config.ts` · 2 file di test · i documenti. Predicato, select, cancello
-   e test esistenti INTATTI (diff nullo su `main.tsx`, `useProgramRelease.ts` e i componenti).
-
-### 11.4 I due buchi, chiusi col loro rosso
-
-1. **Gemello del gate** (`d5bf33f`): spia su `deriveGateStatus` (implementazione vera) nel test
-   del select, stesso contatore del parser. Rosso verificato rimettendo il select inline
-   (`select: (source) => selectGateStatus(source)`):
-   `AssertionError: una sola derivazione al settle: expected 2 to be 1` — l'inline riesegue già
-   al mount. Ripristino → 6/6 verdi, diff nullo sul hook.
-2. **Pin del buster** (`32c0517`): test che legge i SORGENTI (pattern casa-unica di sessionRpe)
-   — `main.tsx` deve passare `buster: __BUILD_ID__`, `vite.config.ts` deve iniettarlo via
-   `define` e risolverlo dal commit (e MAI `Date.now()`). Rosso verificato togliendo la riga da
-   `persistOptions`: «src/main.tsx non passa più buster: \_\_BUILD_ID\_\_ …» —
-   prima, la stessa rimozione non faceva cadere nulla (misura Cowork). Ripristino → 3/3 verdi.
-
-### 11.5 Non fatto / divergenze
-
-1. **La nota sul costo in §4 e nella spec precedente resta storica**: il costo vero non era
-   «una raffica di query» ma anche il churn degli asset — corretto qui, non riscritto là.
-2. **PWA**: il prompt la dice «PWA con service worker»; `CLAUDE.md §1` dichiara la PWA RIMOSSA
-   (SW eliminato). Il costo del churn resta vero comunque (cache HTTP/CDN dei 143 asset) — la
-   misura 124/143 non dipende dal SW.
-3. **Il pin legge i sorgenti, non il runtime**: se un refactor rinomina le àncore di proposito
-   (`persistOptions`, `__BUILD_ID__`), cintura e pin si spostano INSIEME (dichiarato nel test).
-4. Il bullet di `HANDOFF §0` è stato aggiornato alla fonte nuova; la RETRO ha l'addendum sul
-   criterio mal posto.
+- **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/alpha-vivi))
+  coi 2 check obbligatori verdi. POST-MERGE: nulla da applicare (publish FE, zero DB).
+- **L'ultimo miglio a occhio**: le superfici dove l'alpha ora si vede — l'hover della riga di
+  seduta (`hover:bg-surface-container/40`, il difetto che ha aperto la caccia), le tinte di
+  severità della Centrale Operativa (critical E warning ora accesi insieme), i gradient hero
+  dell'app atleta (`from-brand-container/[0.08]`), i badge `bg-primary/10` sparsi nel coach.
+- La verifica dei colori risolti che Cowork ha dichiarato di voler rifare in un browser suo:
+  le sonde e il metodo sono in RETRO (Migliorie #3).
