@@ -9,18 +9,21 @@
 
 ## 1. Ramo e commit
 
-`claude/alpha-vivi`, da `f0244ca`, 2 commit di codice + il commit dei documenti (tip del ramo):
+`claude/alpha-vivi`, da `f0244ca`, 3 commit di codice + il commit dei documenti (tip del ramo):
 
 - `ef24798` — la conversione: 69 dichiarazioni a canali, 46 voci config wrapped, bridge del
   provider a canali nudi, 57 usi diretti avvolti, la scala di CoachHome riparata intera,
-  le `/8` fuori scala → `/[0.08]`, baseline eslint 81→65.
+  le `/8` fuori scala → `/[0.08]`.
 - `b2853cd` — il check 7 derivato nel gate + la passata anti-rewrap del check 4.
+- il terzo commit di codice — esito della passata indipendente (v. §9.0): lo scanner del check 7
+  esteso alle basi arbitrarie (`bg-[var(--x)]/95` era invisibile al regex, istanza viva trovata
+  dal reviewer) + il footer dell'intake riparato con `color-mix`, baseline eslint → 64.
 
 ## 2. Manifesto
 
 **NUOVI:** nessuno.
 
-**MODIFICATI (20):** `src/index.css` (69 dichiarazioni `hsl(X)`→`X`; 7 usi interni →
+**MODIFICATI (21):** `src/index.css` (69 dichiarazioni `hsl(X)`→`X`; 7 usi interni →
 `hsl(var(--x))`, `color-mix` scrollbar compreso; 2 commenti aggiornati) · `tailwind.config.ts`
 (46 voci `"var(--x)"` → `"hsl(var(--x) / <alpha-value>)"`; commenti) ·
 `scripts/verify-css-tokens.mjs` (check 7 + estensione check 4 + header) ·
@@ -30,7 +33,9 @@ i 10 file con usi diretti avvolti: `OverviewTab.tsx`(4) `AthleteDetail.tsx`(18) 
 `NutritionAdherenceCard.tsx`(5) `MetabolicChart.tsx`(4) `CoachBottomNav.tsx`(1) `Confetti.tsx`(1) ·
 `CoachHome.tsx` (coppia `tertiary-fixed` → `tertiary-container`) · `AthleteCard.tsx`,
 `NutritionHero.tsx`, `AthleteDashboard.tsx`, `AthleteTraining.tsx` (`/8` → `/[0.08]`) ·
-`.eslint-baseline` (81→65) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) · questo file.
+`src/features/intake/IntakeForm.tsx` (`bg-[var(--nc-surface)]/95` morta → `color-mix`, rilievo
+reviewer, §9.0) · `.eslint-baseline` (81→64) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md`
+(RETRO) · questo file.
 
 **NEL PERIMETRO MA NON TOCCATI:** `vite.config.ts` (vietato, intatto) · `supabase/**`, `types.ts`,
 `acwr.ts`, `sessionRpe.ts`, `src/lib/program/**`, `src/main.tsx` (vietati, intatti) · i token
@@ -47,8 +52,10 @@ irrisolvibile per conversione, il check 7 sarebbe rosso; mappata sulla famiglia
 o si dichiara — Fragilità #6; l'auditor tema conferma coerenza). · `AthleteCard.tsx:420`,
 `NutritionHero.tsx:54`, `AthleteDashboard.tsx:400`, `AthleteTraining.tsx:359` — `/8` non è nella
 scala opacity di Tailwind (misurato: 0 regole `/8`, 7 regole `/15` nel CSS emesso): morte per la
-scala, non per il token; `/[0.08]` conserva l'8% inteso. · `.eslint-baseline` — la CI stessa
-prescrive «Lint migliorato (65 < 81). Abbassa .eslint-baseline a 65 nello stesso commit».
+scala, non per il token; `/[0.08]` conserva l'8% inteso. · `IntakeForm.tsx:248` — rilievo del
+reviewer (§9.0): l'alpha su un valore arbitrario `var(...)` non può emettere mai. ·
+`.eslint-baseline` — la CI stessa prescrive «Lint migliorato. Abbassa .eslint-baseline nello
+stesso commit» (81 → 65 col grosso della fetta → 64 col fix dell'intake).
 
 ## 3. Le prove dei permessi (repo di scarto in scratchpad)
 
@@ -64,14 +71,17 @@ Misura sul CSS EMESSO, scanner Node con lo stesso `findRule` del gate (mai one-l
 
 |                       | classi con alpha distinte | morte   | usi morti | file |
 | --------------------- | ------------------------- | ------- | --------- | ---- |
-| **PRIMA** (`f0244ca`) | 238                       | **139** | 518       | 86   |
-| **DOPO** (tip)        | 238                       | **0**   | 0         | 0    |
+| **PRIMA** (`f0244ca`) | 246                       | **140** | 519       | 87   |
+| **DOPO** (tip)        | 245                       | **0**   | 0         | 0    |
 
-**Copertura dichiarata: 238 su 238.** Controllo positivo `bg-amber-500/10` emessa in entrambi;
-controllo negativo `bg-accent/30` assente PRIMA, emessa DOPO. ⚠️ La misura **corregge** la
-234/110/366/77 di Cowork (per difetto: mancavano i prefissi `ring-`, `from-`, `to-`, `via-`,
-`divide-`, `shadow-`, `stroke-`, `fill-`). Delle 139: 134 morte per token nudo, 4 per `/8` fuori
-scala opacity (2 cause diverse, 2 rimedi diversi), 1 (`bg-tertiary-fixed/20`) per token inesistente.
+**Copertura dichiarata: 245 su 245** (la 246ª, `bg-[var(--nc-surface)]/95`, non è più scritta coi
+modificatori: riscritta in `color-mix` perché l'alpha su un `var()` arbitrario non può emettere —
+§9.0). Controllo positivo `bg-amber-500/10` emessa in entrambi; controllo negativo `bg-accent/30`
+assente PRIMA, emessa DOPO. ⚠️ La misura **corregge** la 234/110/366/77 di Cowork (per difetto:
+mancavano i prefissi `ring-`, `from-`, `to-`, `via-`, `divide-`, `shadow-`, `stroke-`, `fill-` e
+tutte le basi arbitrarie `-[...]`). Delle 140: 134 morte per token nudo, 4 per `/8` fuori scala
+opacity, 1 (`bg-tertiary-fixed/20`) per token inesistente, 1 (`bg-[var(--nc-surface)]/95`) per
+alpha su valore arbitrario — 4 cause diverse, 4 rimedi diversi.
 
 ## 5. La prova che nessun colore è cambiato — sui colori risolti
 
@@ -86,8 +96,9 @@ Dichiarazioni confrontate a colore identico: 90    (46 light + 44 dark; le 2 res
 Regole referenzianti confrontate (colori risolti, 2 scope): 155 — tutte identiche
 Altre regole byte-identiche: 1275
 Selettori rinominati dal wrap hsl() (arbitrary values), colori confrontati: 3 — identici
-Selettori SOLO nel prima: 0 · SOLO nel dopo: 165 (164 classi con alpha resuscitate
-  + .text-on-tertiary-container, nuova per la riparazione della scala di CoachHome)
+Selettori SOLO nel prima: 0 · SOLO nel dopo: 166 (164 classi con alpha resuscitate
+  + .text-on-tertiary-container, nuova per la riparazione della scala di CoachHome,
+  + .bg-[color-mix(…var(--nc-surface)…)], la riparazione del footer intake — §9.0)
 ```
 
 **Livello 2 — browser vero** (Chrome del pane, mini-server statico, `getComputedStyle` sulle due
@@ -128,21 +139,22 @@ di stop non è scattata.
 
 ## 7. Acceptance — comando ed esito
 
-1. 🔴 **139 morte → 0**: `node misura-alpha.mjs . <dist> …` → «vive 238 · MORTE 0» — **238 su 238** (§4).
+1. 🔴 **140 morte → 0**: `node misura-alpha.mjs . <dist> …` → «vive 245 · MORTE 0» — **245 su 245** (§4).
 2. 🔴 **Nessun colore cambia, sui colori risolti**: comparatore + browser (§5) — zero differenze
    con superfici; l'unica voce a margine è `--inverse-on-surface`, chiusa in §9.1.
 3. **Check 7 derivato**: `git diff origin/main..HEAD -- scripts/verify-css-tokens.mjs` — le
    uniche costanti nuove sono `ALPHA_CLASS_RE` (un regex), `hslWrappedVars`/`HSL_WRITE_RE`
    (derivate dal foglio costruito) e le mappe riempite scandendo `SOURCE_FILES`; `EXPECTED` e
    `CHANNEL_VARS` senza una riga di diff. Il check passa dal `findRule` condiviso di check 2/5.
-4. 🔴 **Prova rossa**: doppia, col token nominato — incollata in §8.
+4. 🔴 **Prova rossa**: tripla, col token o il rimedio nominati — incollata in §8.
 5. **Usi diretti sotto il check 6**: `npm run verify:css` → «check 6: 0 usi su variabile-colore
    completa / **68 corretti**» (erano 18 prima della fetta: +50 avvolti dal codemod).
-6. **I 5 gate** (rieseguiti anche dal code-test-verifier in contesto proprio, exit code nudi):
+6. **I 5 gate** (rieseguiti anche dal code-test-verifier in contesto proprio, exit code nudi;
+   il reviewer li ha rifatti una terza volta in autonomia):
    `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **442/442 in 44 file** ·
-   `npx eslint .` → errorCount **65 = baseline 65** (81→65, v. §9.3) · `npm run build` → 0 ·
-   `npm run verify:css` → 0, «check 7: **238/238**».
-7. **Perimetro**: `git diff origin/main..HEAD --stat` → 20 file, tutti nel manifesto §2 (le 6
+   `npx eslint .` → errorCount **64 = baseline 64** (81→65→64, v. §9.3) · `npm run build` → 0 ·
+   `npm run verify:css` → 0, «check 7: **245/245**».
+7. **Perimetro**: `git diff origin/main..HEAD --stat` → 21 file, tutti nel manifesto §2 (le 7
    estensioni dichiarate col perché).
 
 ## 8. La prova rossa (ripristino per copia + `cmp`, mai `git checkout --`)
@@ -169,19 +181,43 @@ di stop non è scattata.
 ```
 
 **Verde dopo il ripristino** (cmp coi backup = identici, rebuild):
-`✓ check 7: 238/238 … tutte emesse e a canali`.
+`✓ check 7: 245/245 … tutte emesse e a canali`.
+
+**Rosso C — il ramo nuovo del check 7** (classe `bg-[var(--nc-surface)]/95` rimessa al posto del
+`color-mix`, senza rebuild — la regola non esiste comunque):
+
+```
+- bg-[var(--nc-surface)]/95 — scritta in src/features/intake/IntakeForm.tsx:251 ma nessuna regola
+  emessa: il modificatore di alpha non si applica a un valore arbitrario var(...) — usa
+  color-mix(in_srgb,var(--x)_N%,transparent) oppure un token config a canali
+```
 
 ## 9. Non fatto / divergenze
 
+0. **Esito della passata indipendente** — code-reviewer: «**committabile sì**», contratto (b)
+   riverificato in autonomia (64/64 var-colore a canali in ogni blocco, `theme()`/preflight
+   intatti, fallback dei gradient mai raggiunto, mutation test sul check 7 e sul check 4-II) —
+   **con 1 CONFERMATO**: `bg-[var(--nc-surface)]/95` (`IntakeForm.tsx:248`) senza regola emessa e
+   invisibile al primo regex del check 7 (niente parentesi ammesse). **Chiuso in-branch**: regex
+   esteso alle basi arbitrarie, messaggio mirato col rimedio `color-mix`, footer riparato
+   (`bg-[color-mix(in_srgb,var(--nc-surface)_95%,transparent)]` — intento 95% conservato, token
+   sorgente invariato), limite dichiarato nell'header del gate, numeri di §4 ricontati.
+   L'estensione ha anche smascherato un falso positivo («success/10» in prosa dentro un commento
+   JSX multilinea) chiuso col filtro «la base contiene un trattino». Aura-auditor: **zero
+   violazioni** (e conferma che avvolgere i `--nc-*` hex sarebbe stato un errore). Test-verifier:
+   5 gate verdi con gli exit code.
 1. **`--inverse-on-surface` (hsl 207 100% 95%)**: il canale blu cade esattamente su 229.5 — il
    comparatore JS arrotondava 229, il minificatore 230. Chiusa empiricamente nel browser: Chrome
    risolve **rgb(230,244,255) = #e6f4ff, identici**; e comunque **nessuna regola emessa e nessun
    sorgente legge quel token** — superfici zero.
-2. **Misura Cowork corretta**: 238/139/518/86, non 234/110/366/77 (§4) — «vince la tua misura».
-3. **Attribuzione eslint 81→65 a livello di regola, non di file**: lo swap di massa dei 16 file
-   base è stato negato dal classificatore; il residuo (12 errori `tailwindcss/no-custom-classname`)
-   è coerente con le classi rese reali dalla fetta. La baseline a 65 è corretta in entrambe le
-   ipotesi (la prescrive il ratchet stesso); la CI della PR farà da arbitro.
+2. **Misura Cowork corretta**: 246/140/519/87, non 234/110/366/77 (§4) — «vince la tua misura»,
+   e la mia prima misura (238/139) era a sua volta per difetto sulle basi arbitrarie: l'ha
+   corretta il reviewer (§9.0).
+3. **Attribuzione eslint 81→64 a livello di regola, non di file**: lo swap di massa dei 16 file
+   base è stato negato dal classificatore; il residuo (11 errori `tailwindcss/no-custom-classname`)
+   è coerente con le classi rese reali dalla fetta — e il −1 del fix intake (65→64, la classe
+   morta era flaggata dal plugin) è la conferma puntuale della direzione. La baseline a 64 è
+   corretta in entrambe le ipotesi (la prescrive il ratchet stesso); la CI della PR farà da arbitro.
 4. **Cintura locale**: `git -C <path> rebase` passa il matcher (§3) — chip già flaggata il 25/08.
 5. **Rinvii ereditati intatti**: potatura di `EXPECTED` · debito-tema athlete (hex `#c0c7d0`,
    19 file, 22/08) · 72 trattini · `total_load_au` (prossima fetta dichiarata) · 31 query derivate.
