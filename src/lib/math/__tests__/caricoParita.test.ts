@@ -108,3 +108,34 @@ describe("carico interno: la colonna generata e computeAcwr sono la stessa formu
     expect(durataZero.excludedCount).toBe(0);
   });
 });
+
+// ── la view: il carico si legge, non si moltiplica né si fabbrica ──────────
+// I due rami di load_windows sono stati corretti il 2026-08-27 (misura live:
+// acute 7d 6,08 → 45,08 col ramo doppio → 9,02 corretto). Come sopra, le
+// espressioni si DERIVANO dal file della migration a ogni esecuzione.
+describe("view analytics_athlete_summary: load_windows legge total_load_au e basta", () => {
+  const loadWindowsMatch = /load_windows AS \(([\s\S]*?)FROM recent_logs/.exec(sql);
+  if (!loadWindowsMatch) throw new Error(`${MIGRATION}: CTE load_windows non trovata`);
+  const loadWindows = loadWindowsMatch[1];
+
+  it("total_load_au non è moltiplicata per un RPE — sarebbe contarlo due volte", () => {
+    const doppio = /total_load_au\s*\*\s*[^\n]*/.exec(loadWindows);
+    expect(
+      doppio,
+      `total_load_au È GIÀ srpe × minuti: «${doppio?.[0] ?? ""}» conta l'RPE DUE VOLTE ` +
+        `(misurato live: il carico acuto salterebbe da 9,02 a 45,08 AU)`,
+    ).toBeNull();
+    // Il ramo positivo esiste e usa la colonna da sola.
+    expect(loadWindows).toContain("THEN total_load_au");
+  });
+
+  it("nessun ramo fabbrica un carico da una seduta senza sRPE (B-09)", () => {
+    expect(
+      loadWindows,
+      "COALESCE(rpe_global, …) inventa un RPE per una seduta che non l'ha dichiarato: " +
+        "computeAcwr la ESCLUDE (excluded.senzaSrpe), la view deve fare lo stesso",
+    ).not.toContain("COALESCE(rpe_global");
+    expect(loadWindows).not.toContain("rpe_global");
+    expect(loadWindows).not.toContain("duration_seconds");
+  });
+});

@@ -30,15 +30,24 @@
 -- applicata allo schema).
 --
 -- La view analytics_athlete_summary dipende dalla colonna generata: si
--- stacca e si RICREA BYTE-IDENTICA alla definizione live (= migration
--- 20260214204708, verificato via pg_get_viewdef il 2026-08-27). I grant
--- (anon/authenticated/service_role) tornano dai default privileges del
--- progetto — verificati identici ai default, nessun GRANT esplicito da
--- riemettere. ⚠ Reperto già censito il 2026-08-25 e NON corretto qui di
--- proposito (serve una decisione di Nicolò): il ramo
--- `total_load_au * COALESCE(rpe_global, 5)` conta l'RPE due volte, e con
--- la colonna finalmente popolata quel ramo si ATTIVA — prima girava
--- sempre il ramo duration_seconds perché total_load_au valeva 0.
+-- stacca e si ricrea IDENTICA alla definizione live (= migration
+-- 20260214204708, verificato via pg_get_viewdef il 2026-08-27) SALVO i
+-- due rami del calcolo del carico, corretti su decisione di Nicolò del
+-- 2026-08-27 sera (reperto censito il 25/08, misurato live da Cowork:
+-- acute 7d = 6,08 oggi → 45,08 col ramo doppio → 9,02 corretto):
+--   * ramo 1: total_load_au * COALESCE(rpe_global, 5) → total_load_au
+--     DA SOLO — la colonna è già srpe × minuti, il fattore contava
+--     l'RPE due volte;
+--   * ramo 2 (COALESCE(rpe_global, 5) × minuti sui secondi): RIMOSSO —
+--     fabbricava un carico per sedute senza sRPE dichiarato (B-09);
+--     computeAcwr le ESCLUDE, la view ora fa lo stesso.
+-- rpe_global e duration_seconds escono dalla CTE recent_logs: dopo la
+-- correzione nessun punto della view le usa (selezionate-e-mai-usate).
+-- Colonne in uscita invariate (current_acwr, acute_load_raw,
+-- chronic_load_raw, …); stessa finestra 42 giorni; security_invoker
+-- preservato. I grant (anon/authenticated/service_role) tornano dai
+-- default privileges del progetto — verificati identici ai default,
+-- nessun GRANT esplicito da riemettere.
 --
 -- NB: questa migration è un FILE proposto da Code — l'apply è di Cowork
 -- col benestare di Nicolò (CLAUDE.md legge #11).
@@ -58,7 +67,8 @@ ALTER TABLE public.workout_logs
 COMMENT ON COLUMN public.workout_logs.total_load_au IS
   'Carico interno della seduta (AU) = sRPE × durata in minuti, derivato da duration_seconds. NULL quando manca sRPE o durata: un''assenza resta un''assenza, mai 0. Numeric: l''arrotondamento è della vista, non del dato.';
 
--- 3) La view, byte-identica alla definizione precedente (20260214204708).
+-- 3) La view: identica alla definizione precedente (20260214204708) salvo
+--    i due rami del carico e la CTE ripulita — vedi l'intestazione.
 -- Server-side analytics view: ACWR, compliance, last workout, injury status
 -- Avoids downloading raw logs to the frontend
 
@@ -72,8 +82,6 @@ WITH recent_logs AS (
     wl.scheduled_date,
     wl.status,
     wl.total_load_au,
-    wl.rpe_global,
-    wl.duration_seconds,
     -- Day index from today (0 = today, 1 = yesterday, etc.)
     (CURRENT_DATE - (wl.completed_at AT TIME ZONE 'UTC')::date) AS days_ago
   FROM workout_logs wl
@@ -83,6 +91,14 @@ WITH recent_logs AS (
 -- Acute load: sum of loads in last 7 days
 -- Chronic load: sum of loads in last 28 days
 -- Using simple moving average ratios (SMA) which is standard for SQL aggregation
+-- Corrected 2026-08-27 (decision taken on the finding first recorded
+-- 2026-08-25): total_load_au IS ALREADY srpe × minutes — multiplying it by
+-- an RPE counted the RPE twice (measured live: acute 7d would have jumped
+-- from a wrong 6.08 to a wronger 45.08 instead of the true 9.02). And the
+-- old fallback branch COALESCE(rpe_global, 5) × minutes FABRICATED a load
+-- for sessions that never declared an sRPE (B-09): computeAcwr EXCLUDES
+-- those sessions (excluded.senzaSrpe) — the view now does the same. A NULL
+-- load contributes nothing to the sum: absence stays absence.
 load_windows AS (
   SELECT
     athlete_id,
@@ -90,9 +106,7 @@ load_windows AS (
       CASE WHEN days_ago <= 7 THEN
         CASE
           WHEN total_load_au IS NOT NULL AND total_load_au > 0
-            THEN total_load_au * COALESCE(rpe_global, 5)
-          WHEN duration_seconds IS NOT NULL AND duration_seconds > 0
-            THEN COALESCE(rpe_global, 5) * (duration_seconds / 60.0)
+            THEN total_load_au
           ELSE 0
         END
       ELSE 0 END
@@ -101,9 +115,7 @@ load_windows AS (
       CASE WHEN days_ago <= 28 THEN
         CASE
           WHEN total_load_au IS NOT NULL AND total_load_au > 0
-            THEN total_load_au * COALESCE(rpe_global, 5)
-          WHEN duration_seconds IS NOT NULL AND duration_seconds > 0
-            THEN COALESCE(rpe_global, 5) * (duration_seconds / 60.0)
+            THEN total_load_au
           ELSE 0
         END
       ELSE 0 END
