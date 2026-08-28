@@ -11,11 +11,20 @@ export interface WeeklyCheckin {
   status: "pending" | "approved" | "sent" | "skipped";
   ai_summary: string | null;
   coach_notes: string | null;
+  // Mirror of what the edge actually writes (generate-batch-checkins →
+  // _shared/program/weekAdherence.ts WeekSnapshotFields + calories). ALL
+  // optional: compliance_pct / workouts_scheduled / total_volume are ABSENT
+  // keys when the week has nothing to measure — the UI renders "—" and must
+  // never fabricate a denominator for them.
   metrics_snapshot: {
     compliance_pct?: number;
     total_volume?: number;
     workouts_completed?: number;
+    workouts_missed?: number;
+    workouts_remaining?: number;
     workouts_scheduled?: number;
+    sessions_completed?: number;
+    off_plan_sessions?: number;
     avg_rpe?: string;
     avg_daily_calories?: number | null;
   } | null;

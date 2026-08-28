@@ -477,7 +477,12 @@ function FeedCard({
               {checkin.metrics_snapshot.workouts_completed !== undefined && (
                 <MiniStat
                   icon={Activity}
-                  value={`${checkin.metrics_snapshot.workouts_completed}/${checkin.metrics_snapshot.workouts_scheduled ?? 0}`}
+                  value={
+                    // A missing denominator stays missing: "—", never "N/0".
+                    typeof checkin.metrics_snapshot.workouts_scheduled === "number"
+                      ? `${checkin.metrics_snapshot.workouts_completed}/${checkin.metrics_snapshot.workouts_scheduled}`
+                      : "—"
+                  }
                 />
               )}
             </div>
@@ -701,8 +706,9 @@ function Workspace({
                 icon={Activity}
                 label="Sessioni"
                 value={
-                  m?.workouts_completed !== undefined
-                    ? `${m.workouts_completed}/${m.workouts_scheduled ?? 0}`
+                  // Same rule as the feed card: no fabricated denominator.
+                  m?.workouts_completed !== undefined && typeof m?.workouts_scheduled === "number"
+                    ? `${m.workouts_completed}/${m.workouts_scheduled}`
                     : "—"
                 }
               />
