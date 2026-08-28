@@ -131,6 +131,39 @@ describe("la settimana vera: finestra 24→30, documento con date 22..25", () =>
     expect(report.snapshot.off_plan_sessions).toBe(0);
   });
 
+  it("un giorno prescritto già onorato OGGI non è «ancora in programma»: la partizione torna", () => {
+    // Esito della passata indipendente del 28/08: prescritti 24-26-28, oggi è
+    // il 26 e l'atleta ha allenato 24 e 26 — il 26 non può contare due volte.
+    const doc = {
+      ...DOC_V2,
+      days: [
+        giornoV2("w1-s1", "2026-08-24", 1, 0),
+        giornoV2("w1-s2", "2026-08-26", 1, 1),
+        giornoV2("w1-s3", "2026-08-28", 1, 2),
+      ],
+    };
+    const r = buildWeekReport({
+      document: doc,
+      fromIso: "2026-08-24",
+      toIso: "2026-08-30",
+      todayIso: "2026-08-26",
+      logs: [
+        riga({ status: "completed", completedDate: "2026-08-24", totalLoadAu: 2, srpe: 7 }),
+        riga({ status: "completed", completedDate: "2026-08-26", totalLoadAu: 3, srpe: 7 }),
+      ],
+    });
+    expect(
+      r.snapshot.workouts_remaining,
+      `il 26, già onorato, non è «ancora in programma»: resta solo il 28 — trovati ${r.snapshot.workouts_remaining}`,
+    ).toBe(1);
+    expect(r.adherence.honouredCount).toBe(2);
+    expect(r.snapshot.workouts_missed).toBe(0);
+    expect(
+      r.adherence.honouredCount + r.snapshot.workouts_missed + r.snapshot.workouts_remaining,
+      "onorati + saltati + rimanenti deve fare ESATTAMENTE i giorni prescritti",
+    ).toBe(r.adherence.prescribedCount);
+  });
+
   it("saltati e rimanenti derivano dal documento, non da status='scheduled'", () => {
     // 24/08 prescritto e non onorato, prima di oggi (28/08) -> saltato;
     // nessun giorno prescritto da oggi in poi -> 0 rimanenti.

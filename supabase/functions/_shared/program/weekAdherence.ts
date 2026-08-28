@@ -248,10 +248,16 @@ export function buildWeekReport(input: {
   const adherence = weekAdherence({ prescribed, completedDates });
 
   const completedSet = new Set(completedDates);
+  // Disjoint partition: honoured + missed + remaining === prescribed. A
+  // prescribed day already honoured (today included) is NOT "remaining" —
+  // counting it on both sides fed the model "2 still planned" with one left
+  // (defect confirmed by the independent review, 2026-08-28).
   const missedCount = prescribed.filter(
     (day) => !completedSet.has(day) && day < input.todayIso,
   ).length;
-  const remainingCount = prescribed.filter((day) => day >= input.todayIso).length;
+  const remainingCount = prescribed.filter(
+    (day) => day >= input.todayIso && !completedSet.has(day),
+  ).length;
 
   // Same absence rule the 2026-08-27/28 slices set for volume and RPE: the
   // sum runs over present values only, zero measured values leave the

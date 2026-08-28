@@ -65,6 +65,10 @@ function getItalianWeekBounds() {
   };
 }
 
+// PostgREST's default max_rows (config.toml sets none): past this many rows
+// the read would truncate SILENTLY — the guard below turns that into an error.
+const RELEASES_BATCH_CAP = 1000;
+
 const ROME_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Rome",
   year: "numeric",
@@ -195,8 +199,22 @@ Deno.serve(async (req) => {
         .from("program_releases")
         .select("athlete_id, program_document, released_at")
         .in("athlete_id", athleteIds)
-        .order("released_at", { ascending: false }),
+        .order("released_at", { ascending: false })
+        .limit(RELEASES_BATCH_CAP),
     ]);
+
+    // A failed batch read must FAIL the batch, not impersonate an absence:
+    // supabase-js resolves query errors as {data: null, error} without
+    // throwing, so `data || []` would write "no prescription / no sessions"
+    // snapshots nothing could tell apart from the truth (review 2026-08-28).
+    if (logsRes.error) throw logsRes.error;
+    if (nutritionRes.error) throw nutritionRes.error;
+    if (releasesRes.error) throw releasesRes.error;
+    // Hitting the cap means rows silently vanished for SOMEONE: an athlete
+    // whose releases were cut off would read as "never prescribed". Fail loud.
+    if ((releasesRes.data || []).length >= RELEASES_BATCH_CAP) {
+      throw new Error("program_releases oltre il cap di lettura del batch");
+    }
 
     const allLogs = logsRes.data || [];
     const nutritionLogs = nutritionRes.data || [];
