@@ -2,7 +2,7 @@
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
-> Fetta: `claude/checkin-onesto` · 2026-08-28 · base `origin/main` = `3bbf063` (la stessa della
+> Fetta: `claude/checkin-onesto` · 2026-08-28, coda test-bordi 2026-08-29 · base `origin/main` = `3bbf063` (la stessa della
 > misura di Cowork) · PR verso `main` **da aprire da Nicolò**
 > ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-onesto)
 > — `gh` non installata su questa macchina, ri-misurato oggi, e dal 20/08 il classificatore nega
@@ -20,6 +20,9 @@ commit dei documenti (tip del ramo):
   allineato, render-test con snapshot DERIVATI dal modulo.
 - `dda6669` — esiti della passata indipendente: partizione disgiunta dei giorni + il batch
   fallisce forte su errore o troncamento delle letture (v. §6).
+- **(tip, 2026-08-29) — la coda dei test-bordi**: i NOVE confronti di data di
+  `weekAdherence.ts` inchiodati uno per uno con 8 test nuovi (matrice completa in §5-bis),
+  **zero righe di diff sul modulo**. Questo file e la RETRO viaggiano nello stesso commit.
 
 **PR: non aperta.** Motivo misurato: `gh` non esiste (`command not found`) e la via API col token
 del credential manager è negata dal classificatore dal 20/08 (memoria di progetto, ri-confermata
@@ -65,6 +68,7 @@ fixture ha le quattro date `2026-08-22..25` e 4 sedute concluse il 25/08 (carich
 `prescribedCount 2 · honouredCount 1 · compliancePct 50 · sessions_completed 4 · off_plan 0 ·
 total_volume 9.02 · avg_rpe "8.5" · missed 1 · remaining 0` — 23/23 verdi col test di
 partizione aggiunto in `dda6669` (v. anche R1 sotto: gli stessi test, rossi, nominano i valori).
+**Aggiornamento 2026-08-29**: il file porta ora **31 `it`** (23 + gli 8 della coda test-bordi).
 
 **2. Non oltre il 100%.** Stesso file: `1 giorno onorato + 1 seduta fuori programma →
 compliancePct 100, offPlanCount 1`; e `4 sedute su 1 di 2 giorni → 50, mai 200` — verdi.
@@ -107,6 +111,16 @@ VERIFYCSS: 245/245 classi con modificatore di alpha tutte emesse e a canali
 
 In più (non richiesto dai cinque): `npx deno test --no-lock supabase/functions/_shared/program/`
 → 13 passed; `npx deno check --no-lock` sul modulo nuovo → pulito (v. §8 per il preesistente).
+
+**Ri-misura dei cinque cancelli, coda 2026-08-29** (worktree ricreato: `node_modules` era vuoto,
+`npm ci` con la guardia Fragilità #5 — directory reale, nessuna junction):
+
+```
+Baseline tree pulito: VITEST 482/482 (50 file), exit 0   ← identica alla misura del prompt
+Col file di test nuovo: VITEST_EXIT=0  Tests 490 passed (490)  [50 file]
+TSC_EXIT=0 · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline · BUILD_EXIT=0 ·
+VERIFYCSS 245/245
+```
 
 **9. Perimetro.** `git diff 3bbf063..HEAD --name-only` (al tip di codice `39abff6`):
 
@@ -160,6 +174,53 @@ prescribedDatesInWindow dice false, sessionForDate dice true
 Dopo ogni prova: ripristino per copia dal backup del file committato, `cmp` → exit 0, tree
 pulito, run verde di conferma.
 
+## 5-bis. La matrice delle nove mutazioni (coda 2026-08-29)
+
+Il censimento del 29/08 contava **9 confronti d'ordine su date in 6 siti, 3 tenuti e 6 no**
+(i tre tenuti erano tutti bordi VICINI: la fixture parte di lunedì e non arriva mai a `toIso`).
+Con gli 8 test nuovi: **9 su 9 uccise**. Protocollo per OGNI riga: occorrenza unica della
+stringa verificata prima di mutare · `git diff --numstat` non vuoto come prova di applicazione ·
+`npx vitest run` intera con verdetto dall'exit code nudo · ripristino per copia dalla pristina +
+confronto byte-identico + `git diff --exit-code` = 0 prima della successiva.
+
+| #   | sito               | mutazione               | rossi 28/08 | rossi 29/08 | un messaggio (estratto)                                                                                                          |
+| --- | ------------------ | ----------------------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `:167` guardia     | `>` → `>=`              | ⛔ 0        | **1**       | «la finestra 2026-08-24→2026-08-24 è legittima: deve restituire quel giorno, non []: expected [] to deeply equal ['2026-08-24']» |
+| 2   | `:175` v2 vicino   | `>=` → `>`              | 7           | **10**      | «…mai 2026-08-23 né 2026-08-31: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»                            |
+| 3   | `:175` v2 lontano  | `<=` → `<`              | ⛔ 0        | **3**       | «…dentro esattamente gli estremi…: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»                         |
+| 4   | `:181` v1 vicino   | `fromIso` → `+1 giorno` | 2           | **3**       | «le due porte non sono d'accordo sulla data 2026-08-10: prescribedDatesInWindow dice false, sessionForDate dice true»            |
+| 5   | `:181` v1 lontano  | `<=` → `<`              | ⛔ 0        | **1**       | «finestra 2026-08-24→2026-08-30: sette giorni esatti, da 2026-08-24 a 2026-08-30: expected […(6)] to deeply equal […(7)]»        |
+| 6   | `:228` log vicino  | `>=` → `>`              | 1           | **4**       | «finestra 2026-08-24→2026-08-30: contano gli estremi…: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»     |
+| 7   | `:229` log lontano | `<=` → `<`              | ⛔ 0        | **2**       | «…contano gli estremi, mai 2026-08-23 né 2026-08-31: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»       |
+| 8   | `:256` mancati     | `<` → `<=`              | ⛔ 0        | **2**       | «solo il 2026-08-26 è saltato: il 2026-08-28 (oggi) non lo è ancora: expected 2 to be 1»                                         |
+| 9   | `:259` in arrivo   | `>=` → `>`              | ⛔ 0        | **2**       | «il 2026-08-28 (oggi) e il 2026-08-29 sono ancora in programma: expected 1 to be 2»                                              |
+
+**Controllo negativo (il bordo provato da ENTRAMBI i lati)**: le sei mutazioni-allargamento
+(`fromIso → addDaysIso(fromIso, -1)` e `toIso → addDaysIso(toIso, 1)` su v2/v1/log) producono
+**tutte almeno un rosso** — in particolare `toIso+1` sul filtro dei log:
+«…mai 2026-08-23 né 2026-08-31: expected ['2026-08-24', '2026-08-30', …(1)] to deeply equal
+['2026-08-24', '2026-08-30']» (l'elemento in più è il 2026-08-31). Totale matrice: **15
+mutazioni, 0 sopravvissute**; log completi per-mutazione in scratchpad di sessione
+(`mutazioni/M1..M9,W1..W6.log` + `summary.json`).
+
+**Divergenza dichiarata sul conteggio di ieri**: il prompt del 28/08 dava «1 e 4» rossi per i
+bordi vicini (2) e (4); ri-misurati oggi sull'intera suite sono 7 e 2 — già annotato dal prompt
+del 29/08 come «vale quello di oggi»; i valori in tabella (colonna 28/08) sono quelli
+ri-misurati dal prompt stesso.
+
+**Lo stesso bordo in ALTRI moduli (nominati, NON toccati — fuori perimetro):**
+
+- `src/lib/math/acwr.ts:165` — `s.age >= ACWR_BASELINE_DAYS`: il bordo lontano della finestra
+  baseline, lo stesso sito del reperto 24/08; non ho ri-misurato se oggi sia inchiodato.
+- `supabase/functions/_shared/nutrition/dailySeries.ts:110` — `row.date < startIso ||
+row.date > endIso`: finestra a due bordi della stessa forma.
+- `src/components/coach/messages/AthleteContextPane.tsx:119` — `w.scheduled_date < todayIso`:
+  il gemello UI del confronto «mancati vs oggi» (su `scheduled_date`, la colonna morta che
+  questa fetta ha abbandonato lato edge).
+- `supabase/functions/publish-program-block/index.ts:99` e
+  `src/components/coach/program/PublishProgramDialog.tsx:74` — guardie a un solo lato
+  (`date < startDate`).
+
 ## 6. Passata indipendente (workflow: 4 auditor di progetto + 2 refuter per rilievo, 12 agenti)
 
 **Verdetto reviewer: «committabile-no» → i rilievi confermati sono CHIUSI in-branch (`dda6669`).**
@@ -208,6 +269,12 @@ pulito, run verde di conferma.
    fuori scope, nessun test lo copre, e la CI Deno esegue i test delle tre suite, non il check
    di questa funzione.
 4. **Il ramo RPE≥8 di `isAnomalous` non è stato toccato** (v. DIVERGENZE 1).
+5. **(coda 29/08) I bordi gemelli negli ALTRI moduli** (elenco in §5-bis) **sono nominati, non
+   inchiodati**: il perimetro della coda era `weekAdherence.ts` e basta — allargare di
+   iniziativa avrebbe violato il mandato. In particolare non ho ri-misurato se
+   `acwr.ts:165` sia oggi coperto. `docs/HANDOFF.md` non è stato ritoccato: lo stato utile al
+   trasferimento sta in questo file — la sua riga «vitest 482/50» resta indietro di questa
+   coda (490/50), da allineare al prossimo aggiornamento di HANDOFF.
 
 ## 8. Divergenze — dove il prompt diceva una cosa e il repo un'altra (vince la misura)
 

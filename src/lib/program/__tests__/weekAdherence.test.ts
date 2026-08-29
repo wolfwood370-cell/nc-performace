@@ -347,6 +347,160 @@ describe("completedLogsInWindow", () => {
 });
 
 // =============================================================================
+// I nove confronti di data — censimento 2026-08-29: ogni bordo da entrambi
+// i lati. I tre bordi VICINI (fromIso) erano già tenuti dalle fixture sopra,
+// che partono di lunedì; i sei scoperti erano i bordi LONTANI (toIso, che
+// nessuna fixture raggiungeva) più la coppia su todayIso e il caso di
+// uguaglianza della guardia (fromIso === toIso; la finestra rovesciata era
+// già tenuta). Qui si inchiodano tutti e nove, simmetricamente, così
+// nessuno resta appeso a un test scritto per un'altra ragione.
+// =============================================================================
+
+const LUN = "2026-08-24"; // lunedì, fromIso
+const DOM = "2026-08-30"; // domenica, toIso — il bordo lontano della finestra
+const PRIMA = "2026-08-23"; // un giorno PRIMA della finestra: non deve entrare
+const DOPO = "2026-08-31"; // un giorno DOPO la finestra: non deve entrare
+
+describe("bordi della finestra: prescribedDatesInWindow, ramo v2", () => {
+  // Un giorno prescritto su ciascun estremo e uno appena oltre ciascun
+  // estremo: l'array atteso prova inclusione ED esclusione in un colpo solo,
+  // e il rosso nomina le date da solo.
+  const docBordi = {
+    ...DOC_V2,
+    days: [
+      giornoV2("b-s1", PRIMA, 1, 0),
+      giornoV2("b-s2", LUN, 1, 1),
+      giornoV2("b-s3", DOM, 1, 2),
+      giornoV2("b-s4", DOPO, 1, 3),
+    ],
+  };
+
+  it("gli estremi entrano (lunedì 24 E domenica 30), i giorni oltre no (23 e 31)", () => {
+    expect(
+      prescribedDatesInWindow(docBordi, LUN, DOM),
+      `finestra ${LUN}→${DOM}: dentro esattamente gli estremi, mai ${PRIMA} né ${DOPO}`,
+    ).toEqual([LUN, DOM]);
+  });
+
+  it("finestra di UN solo giorno (fromIso === toIso): legittima, prescrive quel giorno", () => {
+    expect(
+      prescribedDatesInWindow(DOC_V2, LUN, LUN),
+      `la finestra ${LUN}→${LUN} è legittima: deve restituire quel giorno, non []`,
+    ).toEqual([LUN]);
+  });
+});
+
+describe("bordi della finestra: prescribedDatesInWindow, ramo v1", () => {
+  // Un documento v1 a 7 giorni prescrive OGNI giorno della settimana: la
+  // domenica (toIso) entra solo se il ciclo arriva davvero al bordo lontano
+  // — il gemello v1 del caso v2 qui sopra.
+  const docV1Settimana = {
+    version: 1,
+    goal: "GPP",
+    days: [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+      day_name: `Giorno ${n}`,
+      exercises: [{ name: "Squat", sets: 3, reps: "5" }],
+    })),
+  };
+
+  it("7 giorni v1 → TUTTA la finestra, domenica 30 inclusa, mai il 23 né il 31", () => {
+    expect(
+      prescribedDatesInWindow(docV1Settimana, LUN, DOM),
+      `finestra ${LUN}→${DOM}: sette giorni esatti, da ${LUN} a ${DOM}`,
+    ).toEqual([
+      "2026-08-24",
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      DOM,
+    ]);
+  });
+});
+
+describe("bordi della finestra: completedLogsInWindow", () => {
+  const logAiBordi: WeekLogRow[] = [
+    riga({ status: "completed", completedDate: PRIMA, totalLoadAu: 1, srpe: 6 }),
+    riga({ status: "completed", completedDate: LUN, totalLoadAu: 2, srpe: 7 }),
+    riga({ status: "completed", completedDate: DOM, totalLoadAu: 3, srpe: 8 }),
+    riga({ status: "completed", completedDate: DOPO, totalLoadAu: 4, srpe: 9 }),
+  ];
+
+  it("la seduta conclusa DOMENICA conta come quella del lunedì; 23 e 31 restano fuori", () => {
+    expect(
+      completedLogsInWindow(logAiBordi, LUN, DOM).map((log) => log.completedDate),
+      `finestra ${LUN}→${DOM}: contano gli estremi, mai ${PRIMA} né ${DOPO}`,
+    ).toEqual([LUN, DOM]);
+  });
+
+  it("settimana onorata ai due estremi: 2/2, e la domenica sta anche in volume e sRPE", () => {
+    const doc = { ...DOC_V2, days: [giornoV2("e-s1", LUN, 1, 0), giornoV2("e-s2", DOM, 1, 1)] };
+    const r = buildWeekReport({
+      document: doc,
+      fromIso: LUN,
+      toIso: DOM,
+      todayIso: "2026-08-28",
+      logs: [
+        riga({ status: "completed", completedDate: LUN, totalLoadAu: 2, srpe: 7 }),
+        riga({ status: "completed", completedDate: DOM, totalLoadAu: 3, srpe: 8 }),
+      ],
+    });
+    expect(r.adherence.prescribedCount, `anche ${DOM} è un giorno prescritto della finestra`).toBe(
+      2,
+    );
+    expect(r.adherence.honouredCount, `la seduta di domenica ${DOM} sta nel numeratore`).toBe(2);
+    expect(r.adherence.compliancePct).toBe(100);
+    expect(r.totalVolume, `il carico di domenica ${DOM} sta nel volume`).toBe(5);
+    expect(r.avgRpe, `lo sRPE di domenica ${DOM} sta nella media`).toBe("7.5");
+  });
+});
+
+describe("il giorno in bilico è OGGI: mancati vs in arrivo", () => {
+  // Prescritti 24 (onorato), 26 (passato, non onorato), 28 (= OGGI, non
+  // onorato), 29 (futuro): il 26 sta fra i saltati, il 28 e il 29 fra i
+  // rimanenti — un giorno prescritto oggi e non ancora onorato è «in
+  // arrivo», mai «mancato».
+  const docOggi = {
+    ...DOC_V2,
+    days: [
+      giornoV2("o-s1", "2026-08-24", 1, 0),
+      giornoV2("o-s2", "2026-08-26", 1, 1),
+      giornoV2("o-s3", "2026-08-28", 1, 2),
+      giornoV2("o-s4", "2026-08-29", 1, 3),
+    ],
+  };
+  const r = buildWeekReport({
+    document: docOggi,
+    fromIso: LUN,
+    toIso: DOM,
+    todayIso: "2026-08-28",
+    logs: [riga({ status: "completed", completedDate: "2026-08-24", totalLoadAu: 2, srpe: 7 })],
+  });
+
+  it("oggi (28), prescritto e non onorato, NON sta fra i saltati", () => {
+    expect(
+      r.snapshot.workouts_missed,
+      "solo il 2026-08-26 è saltato: il 2026-08-28 (oggi) non lo è ancora",
+    ).toBe(1);
+  });
+
+  it("oggi (28), prescritto e non onorato, STA fra i giorni in arrivo", () => {
+    expect(
+      r.snapshot.workouts_remaining,
+      "il 2026-08-28 (oggi) e il 2026-08-29 sono ancora in programma",
+    ).toBe(2);
+  });
+
+  it("la partizione è esaustiva: onorati + saltati + in arrivo = prescritti", () => {
+    expect(
+      r.adherence.honouredCount + r.snapshot.workouts_missed + r.snapshot.workouts_remaining,
+      "nessun giorno prescritto può cambiare categoria o contare due volte",
+    ).toBe(r.adherence.prescribedCount);
+  });
+});
+
+// =============================================================================
 // Acceptance 6 — determinismo
 // =============================================================================
 describe("determinismo del modulo puro", () => {
