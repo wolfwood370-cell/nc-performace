@@ -1,285 +1,328 @@
-# ULTIMO RITORNO — fetta durata-unica
+# ULTIMO RITORNO — fetta checkin-onesto
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
-> in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git, non serve un file per fetta.
-> Fetta: `claude/durata-unica` · 2026-08-27 · base `origin/main` = `df7d4ee` (post-merge PR #65) ·
-> PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/durata-unica)
-> — dal 20/08 il classificatore nega le credenziali all'agente).
+> in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
+> Fetta: `claude/checkin-onesto` · 2026-08-28, coda test-bordi 2026-08-29 · base `origin/main` = `3bbf063` (la stessa della
+> misura di Cowork) · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-onesto)
+> — `gh` non installata su questa macchina, ri-misurato oggi, e dal 20/08 il classificatore nega
+> le credenziali all'agente).
 
 ## 1. Ramo e commit
 
-`claude/durata-unica`, da `df7d4ee`, 3 commit di codice + il commit dei documenti (tip del ramo):
+`claude/checkin-onesto`, da `3bbf063`, 3 commit di codice + eventuale commit di review + il
+commit dei documenti (tip del ramo):
 
-- `59f53c0` — la migration (NON applicata) + il test di parità che deriva tipo ed espressione
-  dal file e li confronta con `computeAcwr`.
-- `e73ed65` — le due edge smettono di leggere `rpe_global` e `duration_minutes`.
-- `361557b` — il pannello coach legge i secondi e mostra minuti-vista; la coda offline
-  (scollegata) scrive i secondi; `formatDurataSeduta` + 3 file di test.
-- `0ebf175` — esito della review (§9.0): il volume del check-in smette di fabbricare «0 UA»
-  dall'assenza (`generate-batch-checkins`, somma sui soli carichi presenti, campo assente +
-  «N/A» quando nessuna seduta è misurata).
-- `607903f` — appendice serale: i due rami del carico nella view, corretti su decisione presa
-  (v. APPENDICE in coda).
+- `b94923d` — il modulo puro `weekAdherence.ts` + i suoi test (unit + parità con la porta atleta).
+- `9eb208c` — la edge `generate-batch-checkins`: finestra su `completed_at` ai confini del giorno
+  di Roma, lettura batch di `program_releases`, tutti i numeri dal modulo puro.
+- `39abff6` — l'inbox non fabbrica il denominatore («—» senza prescrizioni), tipo del hook
+  allineato, render-test con snapshot DERIVATI dal modulo.
+- `dda6669` — esiti della passata indipendente: partizione disgiunta dei giorni + il batch
+  fallisce forte su errore o troncamento delle letture (v. §6).
+- **(tip, 2026-08-29) — la coda dei test-bordi**: i NOVE confronti di data di
+  `weekAdherence.ts` inchiodati uno per uno con 8 test nuovi (matrice completa in §5-bis),
+  **zero righe di diff sul modulo**. Questo file e la RETRO viaggiano nello stesso commit.
+
+**PR: non aperta.** Motivo misurato: `gh` non esiste (`command not found`) e la via API col token
+del credential manager è negata dal classificatore dal 20/08 (memoria di progetto, ri-confermata
+dalla fetta durata-unica). Nicolò la apre dal link crea-PR qui sopra.
 
 ## 2. Manifesto
 
-**NUOVI:** `supabase/migrations/20260827130000_durata_unica_carico_sui_secondi.sql` ·
-`src/lib/format/durataSeduta.ts` (vista dei minuti, pure logic → lib per il decision tree §4) ·
-`src/lib/math/__tests__/caricoParita.test.ts` · `src/lib/format/__tests__/durataSeduta.test.ts` ·
-`src/components/coach/messages/__tests__/AthleteContextPane.durata.render.test.ts`.
+**NUOVI:** `supabase/functions/_shared/program/weekAdherence.ts` ·
+`src/lib/program/__tests__/weekAdherence.test.ts` ·
+`src/lib/program/__tests__/weekAdherence.parita.test.ts` ·
+`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` ·
+`docs/prompts/2026-08-28-checkin-onesto.md` (destinazione dichiarata dalla spec).
 
-**MODIFICATI:** `supabase/functions/analyze-athlete-week/index.ts` (select :81) ·
-`supabase/functions/generate-batch-checkins/index.ts` (select :128) ·
-`src/hooks/useOfflineSync.ts` (:36, :186 — secondi) ·
-`src/components/coach/messages/AthleteContextPane.tsx` (select :89, vista :185-190 e :423) ·
-`src/components/coach/messages/__tests__/AthleteContextPane.render.test.ts` (fixture allineata,
-scoperta dal grep di acceptance — non era nel censimento del prompt) ·
-`docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) · questo file.
+**MODIFICATI:** `supabase/functions/generate-batch-checkins/index.ts` ·
+`src/pages/coach/CoachCheckinInbox.tsx` (solo i due `?? 0`) · `src/hooks/useWeeklyCheckins.ts`
+(solo il tipo di `metrics_snapshot`) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) ·
+questo file.
 
-**NEL PERIMETRO MA NON TOCCATI:** `src/lib/math/acwr.ts` (VIETATO: 0 righe di diff — il test lo
-LEGGE per derivare l'espressione) · `sessionRpe.ts` · `src/lib/program/**` · `vite.config.ts` ·
-`src/main.tsx` · `scripts/verify-css-tokens.mjs` · **`types.ts`: NON rigenerato, dichiarato** —
-il cambio integer→numeric mappa comunque su `number | null` e la migration non è applicata: la
-regen post-apply resta a valle (col DB vivo il gen produrrebbe lo schema VECCHIO) ·
-`duration_minutes` come colonna: RESTA nel DB (la rimozione è un secondo passo dopo la produzione).
+**NEL PERIMETRO MA NON TOCCATI (VIETATI, misurati a zero righe di diff):**
+`src/lib/program/releaseView.ts` (letto dal test di parità, mai modificato) ·
+`supabase/functions/_shared/program/coachRelease.ts` (importati `isIsoDate`/`addDaysIso`) ·
+`src/hooks/athlete/**` · `src/lib/math/acwr.ts` · `src/lib/effort/sessionRpe.ts` ·
+`supabase/functions/analyze-athlete-week/**` · `AthleteContextPane.tsx` · `CoachCalendar.tsx` ·
+`supabase/migrations/**` · `src/integrations/supabase/types.ts`.
 
-## 3. Le prove dei permessi (repo di scarto in scratchpad)
+## 3. Le prove dei permessi (rituale d'apertura — eseguito a metà fetta, dichiarato in RETRO)
 
-1. `git reset --hard HEAD~1` → **RIFIUTATO** · `git rebase HEAD~1` → **RIFIUTATO**.
-2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -2` → 2 commit.
-3. ⚠️ `git -C <percorso> rebase HEAD~1` → **PASSATA** (eseguita: «Current branch master is up to
-   date», no-op innocuo). Stessa misura di stamattina sulla fetta alpha-vivi: il classificatore
-   non è deterministico su questa forma — la chip per le deny esplicite `-C`/`--git-dir` resta aperta.
+1. Repo di scarto in scratchpad: `git reset --hard HEAD~1` → **RIFIUTATO** ·
+   `git checkout -- f.txt` → **RIFIUTATO**.
+2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -1` → il commit c'è.
+3. Reperto nuovo di sessione: il guard del worktree rifiuta anche i comandi composti che
+   `cd`-ano nel checkout principale con git — la lettura del file di `main` si fa per path
+   assoluto senza git.
 
-## 4. La migrazione, per intero
+## 4. Acceptance — ogni criterio col suo comando e l'output
 
-File: `supabase/migrations/20260827130000_durata_unica_carico_sui_secondi.sql` (166 righe — il
-testo completo è nel file; qui la spina dorsale):
+Tutti eseguiti nel worktree `.claude/worktrees/checkin-onesto`; le tre prove rosse su
+`39abff6`, i cancelli finali sul tip di codice `dda6669`.
 
-```sql
-DROP VIEW public.analytics_athlete_summary;          -- dipende dalla colonna
+**1. Settimana vera.** `npx vitest run src/lib/program/__tests__/weekAdherence.test.ts` — la
+fixture ha le quattro date `2026-08-22..25` e 4 sedute concluse il 25/08 (carichi 3 · 2.52 ·
+1.5 · 2 = 9,02; sRPE 9/8/9/8 = 8,5), finestra 24→30, oggi 28:
+`prescribedCount 2 · honouredCount 1 · compliancePct 50 · sessions_completed 4 · off_plan 0 ·
+total_volume 9.02 · avg_rpe "8.5" · missed 1 · remaining 0` — 23/23 verdi col test di
+partizione aggiunto in `dda6669` (v. anche R1 sotto: gli stessi test, rossi, nominano i valori).
+**Aggiornamento 2026-08-29**: il file porta ora **31 `it`** (23 + gli 8 della coda test-bordi).
 
-ALTER TABLE public.workout_logs DROP COLUMN total_load_au;
-ALTER TABLE public.workout_logs
-  ADD COLUMN total_load_au numeric GENERATED ALWAYS AS
-    (srpe::numeric * duration_seconds::numeric / 60.0) STORED;
+**2. Non oltre il 100%.** Stesso file: `1 giorno onorato + 1 seduta fuori programma →
+compliancePct 100, offPlanCount 1`; e `4 sedute su 1 di 2 giorni → 50, mai 200` — verdi.
 
-COMMENT ON COLUMN public.workout_logs.total_load_au IS '…';
-CREATE OR REPLACE VIEW public.analytics_athlete_summary … ;  -- BYTE-IDENTICA alla 20260214204708
-```
+**3. L'assenza è assenza.** Stesso file: `!("compliance_pct" in snapshot)` e
+`!("workouts_scheduled" in snapshot)` con documento null E con rilascio fuori finestra; le
+stringhe del modello (`weekDataLines` + `weekPaceContext` + `fallbackSummaryText`) non
+contengono `0%` né `(0/0)` e contengono «nessuna seduta programmata» — verdi.
 
-**Il tipo: `numeric`, col perché.** `integer` su `srpe×secondi/60` arrotonda 6,0666… → 6 — lo
-stesso difetto della colonna vecchia in scala più piccola; `real`/`double` metterebbero float
-binario in un dato che il FE confronta col mirror JS. `numeric` è esatto, e l'arrotondamento
-appartiene alla VISTA (`formatDurataSeduta`), mai al dato. **Niente COALESCE**: srpe o durata
-mancanti → NULL — la stessa semantica di `computeAcwr`, che ESCLUDE la seduta invece di azzerarla.
+**4. La UI non fabbrica il denominatore.**
+`npx vitest run src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` → 3/3:
+con `workouts_scheduled: 2` la card rende «Sessioni 1/2»; senza, rende «Sessioni —» e nessun
+`N/0` compare nel testo; l'assenza non accende «Indici di rischio elevati».
 
-**Cosa succede alle 16 righe esistenti** (misura live 27/08: 6 con secondi, 4 con srpe, 4 con
-entrambi, 0 con minuti, 0 con carico ≠ 0): STORED ricalcola al `ADD COLUMN` — le **4 righe con
-srpe+durata ricevono il carico vero**, le **altre 12 passano da 0 a NULL** (assenza dichiarata).
-La 52 s × sRPE 7 del criterio varrà 364/60 = **6,0666… AU** (≈ 6,07 alla vista).
+**5. Parità fra le due porte.**
+`npx vitest run src/lib/program/__tests__/weekAdherence.parita.test.ts` → 2/2 (v1 E v2, 28
+giorni, entrambe le funzioni importate dai sorgenti). Rosso di prova in R3.
 
-**La view**: la mattina ricreata byte-identica alla 20260214204708 (definizione live verificata
-via `pg_get_viewdef` prima di scrivere; `security_invoker=true` preservato; grant = default
-Supabase, verificati via `role_table_grants`, tornano dai default privileges). **In serata, su
-decisione presa, i due rami del carico sono stati corretti dentro la stessa migration** — v.
-APPENDICE in coda: tutto il resto della view resta identico al vivo.
+**6. Determinismo.** Doppia esecuzione stesso input → output `toEqual` (test dedicato); e
+`grep -nE "Date\.now|new Date\(|Math\.random"` sul modulo → **0 occorrenze** (exit 1); stesso
+grep sui due file di test nuovi → **0 occorrenze** (i pattern nei test sono spezzati apposta).
+In più, prova empirica degli helper di fuso della edge (Node, 8/8 OK): mezzanotte di Roma in
+CET, CEST e nei due giorni di switch DST; `romeDayOf("2026-08-25T23:30:00Z") = 2026-08-26`.
 
-## 5. Il viaggio della durata
+**7. Nessuna scrittura.** `git diff 3bbf063..HEAD | grep -nE "^\+.*\.(insert|update)\("` →
+**exit 1 (zero righe aggiunte)**; `git diff 3bbf063..HEAD -- supabase/migrations/ | wc -l` →
+**0**. L'unica scrittura della edge resta l'upsert su `weekly_checkins` preesistente e non
+toccato.
 
-```
-timer      useAthleteWorkoutStore.elapsedTime (:49-50, tick del cronometro)
-   ↓       PostWorkoutDebrief.tsx:340        duration_seconds: elapsedTime
-scrittura  useAthleteWorkoutHooks.ts:176     UPDATE workout_logs SET duration_seconds
-   ‖       useOfflineSync.ts:189             (coda offline, modulo scollegato: ora stessi secondi)
-colonna    workout_logs.duration_seconds     — UNA colonna, quella che A-02 nomina
-   ↓       migration 20260827130000          total_load_au = srpe × secondi / 60  (numeric, NULL-onesta)
-carico     generate-batch-checkins:180       somma di total_load_au → metrics_snapshot.total_volume (:201→:272)
-   ‖       acwr.ts:144                       load = srpe × (durationSeconds/60)   (stessa formula, inchiodata)
-schermo    AthleteContextPane.tsx:89         select duration_seconds
-   ↓       durataSeduta.ts                   minuti ARROTONDATI SOLO IN VISTA
-           AthleteContextPane.tsx:423        «52 min» — o NIENTE quando manca, mai «0 min»
-```
-
-## 6. Le due formule, inchiodate
-
-Vivono in: **la colonna generata** (migration `20260827130000`) e **`acwr.ts:144`**
-(`s.srpe * (s.durationSeconds / 60)`). Il test `src/lib/math/__tests__/caricoParita.test.ts` le
-inchioda **derivando entrambe dai sorgenti a ogni esecuzione** (regex sul file di migration →
-tipo + espressione; regex su acwr.ts → l'espressione del load; un riferimento che invecchia non
-si scrive, si deriva): pin delle due espressioni · stessa cifra su griglia di input (52 s×7;
-3600×10; 1×1; 0×5; 90×8) · stessa semantica delle assenze (mirror → NULL; computeAcwr →
-`excluded.senzaSrpe`/`senzaDurata` = 1, mai uno zero; durata 0 = DATO, nessuna esclusione).
-
-## 7. Acceptance — comando ed esito
-
-1. 🔴 **La prova rossa sulla scala**: incollata in §8 — il rosso nomina il valore troncato e a cosa.
-2. **Le due formule danno lo stesso numero**: `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`
-   → 4 passed (pin derivati, griglia, assenze).
-3. **Nessuno scrive più i minuti**: `grep -rn "duration_minutes" src supabase/functions` →
-   restano SOLO `types.ts` (specchio dello schema: la colonna esiste ancora, per scelta),
-   2 commenti-documentazione e il pin negativo del test di parità. **Zero scritture, zero select.**
-   (`src/types/training.ts:121` è `estimated_duration_minutes`: la STIMA del template, un'altra
-   grandezza — dichiarato, non toccato.)
-4. **Il coach vede la durata derivata dai secondi, e non la vede quando manca**:
-   `npx vitest run src/components/coach/messages/__tests__/AthleteContextPane.durata.render.test.ts`
-   → 2 passed: con 3120 s legge «52 min»; con NULL la riga della seduta c'è (ancora «Upper A»)
-   e la durata no — e mai «0 min» (più il property-test del formatter: nessun input produce «0 min»).
-5. **`rpe_global` fuori dalle select**: `grep -n "rpe_global\|duration_minutes" supabase/functions/analyze-athlete-week/index.ts supabase/functions/generate-batch-checkins/index.ts`
-   → solo 2 righe di commento («legacy and no longer written»), zero nelle select.
-6. **I 5 gate** (miei + code-test-verifier in contesto proprio, exit code nudi):
-   `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **452/452 in 47 file**
-   (baseline 442/44 + i 10 test nuovi in 3 file: divergenza = la fetta, dichiarata) ·
-   `npx eslint .` → **64 = baseline 64** · `npm run build` → 0 · `npm run verify:css` → 0
-   (245/245). Più le suite Deno: metodo **50** · release **36** · intake **54** (su main è
-   cresciuta 52→54 prima di questa fetta).
-7. **Perimetro**: `git diff origin/main..HEAD --stat` → 10 file (+ i 3 doc al commit finale),
-   tutti nel manifesto §2; unico oltre la lista del prompt: la fixture del test render
-   preesistente, scoperta dal grep dell'acceptance 3 — senza l'allineamento avrebbe tenuto in
-   vita l'ultima occorrenza scritta di `duration_minutes`.
-
-## 8. La prova rossa (backup per copia + `cmp`, mai `git checkout --`)
-
-`integer` al posto di `numeric` nella migration → `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`:
+**8. I cinque cancelli** (baseline misurata sul tree pulito PRIMA di toccare: 454/47 · 64
+errori+13 warning · 245/245):
 
 ```
-FAIL  … > 52 secondi × sRPE 7 valgono 6,07 AU — la scala non si tronca
-AssertionError: 52 s × sRPE 7: attesi 6.0667 AU, la colonna «integer» li ha resi 6 —
-il tipo ha troncato 6.0667 a 6: expected 6 to be close to 6.07 …
-(+ rosso anche la parità caso-per-caso: 2 failed)
+TSC_EXIT=0
+VITEST: Tests  482 passed (482)  [50 file; 481×3 run consecutivi su 39abff6, 482 su dda6669]
+ESLINT: ✖ 77 problems (64 errors, 13 warnings)   ← identico alla baseline
+BUILD_EXIT=0
+VERIFYCSS: 245/245 classi con modificatore di alpha tutte emesse e a canali
 ```
 
-**Verde dopo il ripristino** (cmp col backup = identico): 4 passed. In più il falso-verde
-smascherato durante la costruzione: il test render è nato verde per fortuna di timing (flush
-solo-microtask) e l'ancora sul titolo l'ha fatto cadere — chiuso col macrotask hop e 4 run
-verdi consecutivi (v. RETRO).
+In più (non richiesto dai cinque): `npx deno test --no-lock supabase/functions/_shared/program/`
+→ 13 passed; `npx deno check --no-lock` sul modulo nuovo → pulito (v. §8 per il preesistente).
 
-## 9. Non fatto / divergenze
-
-0. **Esito delle passate indipendenti.** **code-reviewer**: «committabile no» per UN motivo,
-   confermato e fondato — `generate-batch-checkins:182` sommava con `l.total_load_au || 0`, e
-   con la colonna ora NULL-abile quel `|| 0` trasformava l'assenza in «0 UA» nel prompt AI, nel
-   riassunto per il coach e in `metrics_snapshot`: l'invariante della fetta violato nel percorso
-   appena toccato. **Chiuso in-branch** (4° commit): somma sui soli carichi presenti, arrotondata
-   a 2 decimali (la colonna è numeric, lo snapshot è una vista), e con ZERO sedute misurate il
-   campo resta ASSENTE (`undefined` → la key cade dal JSON → l'inbox mostra già «—»,
-   `CoachCheckinInbox.tsx:712`) e i testi dicono «N/A» come il vicino `avgRpe`. Il resto del suo
-   verdetto: scope pulito, view byte-identica transazionale, mirror JS fedele (`Math.round` ≡ cast
-   Postgres per srpe CHECK 1-10), `formatDurataSeduta(0)`→«<1 min», zero file vietati toccati.
-   **supabase-rls-auditor**: PASS con 1 media DELLA fetta — la decisione sul reperto-view va
-   PRIMA dell'apply (recepito: §10.0) — più 2 preesistenti chip-flaggate (`analyze-athlete-week`
-   parsa il body prima dell'auth e non usa `assertUuid`; `console.error` con possibili frammenti
-   in `generate-batch-checkins`) e 1 bassa (ri-verifica dei grant post-apply, aggiunta a §10.2).
-   **code-test-verifier**: 8 comandi, tutti verdi con gli exit code (i 5 gate + 3 suite Deno).
-   **aura-theme-auditor NON lanciato, con motivo misurato**: v. §9.4.
-1. **Il reperto-view si attiva** → ✅ **RISOLTO in serata, decisione presa da Nicolò** (misura
-   Cowork: acute 7d 6,08 oggi → 45,08 col ramo doppio → 9,02 corretto): i due rami sono stati
-   corretti DENTRO la stessa migration — v. l'**APPENDICE 27/08 sera** in coda a questo file.
-   [Testo storico: il ramo `total_load_au * COALESCE(rpe_global,5)` moltiplicava il carico per
-   un RPE fabbricato — il doppio conteggio censito il 25/08; ricrearla identica era il mandato
-   della mattina.]
-2. **`useOfflineSync` è un modulo scollegato** (0 importatori, censito già il 25/08): la
-   riscrittura ai secondi lo tiene coerente per quando verrà ricablato, ma NON c'è un percorso
-   vivo che la eserciti — il percorso vivo è il debrief, che i secondi li scrive da prima.
-3. **`types.ts` non rigenerato** (dichiarato in §2): `numeric` mappa su `number|null` come
-   `integer`; regen dopo l'apply.
-4. **Aura-theme-auditor non lanciato, con motivo misurato**: il diff non tocca UNA className
-   (`git diff … | grep -c className` → 0) — cambiano solo dati e testo derivato.
-5. **`estimated_duration_minutes`** (`src/types/training.ts:121`): grandezza diversa (stima del
-   template, non misura della seduta) — fuori scope, nominata perché il grep la trova.
-
-## 10. Resta a Nicolò
-
-- **Merge della PR** ([crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/durata-unica)).
-- **Il blocco SQL che prepara Cowork** (dopo il merge, col benestare di Nicolò): 0. ✅ La decisione pre-apply chiesta dall'auditor È PRESA (27/08 sera): i due rami sono
-  corretti nella migration stessa — v. appendice. L'apply procede col file così com'è; i numeri
-  attesi della view cambiano di conseguenza (carico = somma delle `total_load_au` presenti,
-  niente fattore RPE, niente stima per le sedute senza sRPE).
-  1. `apply_migration` con ESATTAMENTE il file `20260827130000_durata_unica_carico_sui_secondi.sql`
-     (stesso nome/versione — workflow §8.2).
-  2. Verifica post-apply:
-     `SELECT count(*) FILTER (WHERE total_load_au IS NOT NULL) AS con_carico, count(*) FILTER (WHERE total_load_au IS NULL) AS senza, round(avg(total_load_au) FILTER (WHERE total_load_au IS NOT NULL), 2) AS media FROM workout_logs;`
-     → attesi: 4 con carico, 12 senza (e la seduta 52 s × sRPE 7, se presente, a ≈6,07). E il
-     check dei grant chiesto dall'auditor:
-     `SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_name='analytics_athlete_summary';`
-     → attesi identici ai default pre-apply (misurati il 27/08: anon/authenticated/service_role/postgres, tutti i privilegi).
-  3. `get_advisors(security)` di rito dopo il DDL.
-  4. **Deploy delle due edge** (`analyze-athlete-week`, `generate-batch-checkins`) via connettore —
-     le select ridotte sono compatibili anche PRIMA dell'apply (togliere colonne da una select non
-     rompe), quindi l'ordine apply/deploy è libero.
-- **L'ultimo miglio a occhio** (C9): atleta chiude una seduta col cronometro vero → Cowork
-  interroga `SELECT srpe, duration_seconds, total_load_au FROM workout_logs ORDER BY started_at DESC LIMIT 1`
-  → il carico è `srpe×secondi/60` con due decimali sensati, e il coach nel pannello messaggi
-  legge la durata in minuti — o niente, se l'atleta non ha chiuso col debrief.
-- **La rimozione di `duration_minutes`**: secondo passo, dopo che la produzione gira sui secondi.
-
----
-
-## APPENDICE 27/08 sera — i due rami della view, corretti su decisione presa
-
-### 1. Commit
-
-`607903f` — migration + test estesi (stesso ramo `claude/durata-unica`, stessa PR).
-
-### 2. I due rami, prima e dopo (in ENTRAMBE le finestre, acute ≤7 e chronic ≤28)
-
-```sql
--- PRIMA (ereditati byte-identici dalla 0214):
-WHEN total_load_au IS NOT NULL AND total_load_au > 0
-  THEN total_load_au * COALESCE(rpe_global, 5)               -- ramo 1: RPE contato DUE volte
-WHEN duration_seconds IS NOT NULL AND duration_seconds > 0
-  THEN COALESCE(rpe_global, 5) * (duration_seconds / 60.0)   -- ramo 2: RPE FABBRICATO (B-09)
-ELSE 0
-
--- DOPO:
-WHEN total_load_au IS NOT NULL AND total_load_au > 0
-  THEN total_load_au                                          -- la colonna È già srpe×minuti
-ELSE 0                                                        -- assenza → niente, non una stima
-```
-
-Misura che ha deciso (Cowork, vivo, acute 7d): oggi 6,08 · col ramo doppio 45,08 · corretto **9,02**
-= identico ad `acwr.ts:144`.
-
-### 3. Cosa succede a `rpe_global` nella view
-
-**ESCE dalla CTE `recent_logs`** (mandato del prompt: selezionata-e-mai-usata dopo la correzione,
-nessun altro punto della view la legge). **Con lo stesso principio, e dichiarandola, esce anche
-`duration_seconds`**: il ramo 2 era il suo unico lettore — lasciarla sarebbe stato lo stesso
-selezionato-e-mai-usato appena vietato per `rpe_global`. Colonne in USCITA della view: invariate.
-
-### 4. Acceptance
-
-1. **Prova rossa sul doppio conteggio**: incollata in §5 — il rosso nomina l'espressione e i numeri.
-2. **Nessun ramo fabbrica un carico**: `npx vitest run src/lib/math/__tests__/caricoParita.test.ts`
-   → 6 passed; il test deriva il blocco `load_windows` dal file e asserisce ZERO
-   `COALESCE(rpe_global` (e zero `rpe_global`/`duration_seconds` residue) nel calcolo.
-3. **La view resta identica al vivo nel resto**: `diff view-0214 view-corretta` → SOLO: i 2 rami
-   (×2 finestre), le 2 righe di CTE dichiarate al punto 3, e il blocco di commento che documenta
-   la correzione. CTE, finestra 42 giorni, `security_invoker`, colonne in uscita: identiche.
-4. **Gate**: `npx tsc --noEmit -p tsconfig.app.json` → 0 · `npx vitest run` → **454/454 in 47
-   file** (452 + i 2 test nuovi della view — vince la misura, causa dichiarata) · `npx eslint .`
-   → **64 = baseline** · `npm run build` → 0 · `npm run verify:css` → 0.
-5. **Perimetro**: `git diff` del commit `607903f` = solo la migration e il test; questo documento
-   nel commit successivo.
-
-### 5. La prova rossa
-
-`* COALESCE(rpe_global, 5)` rimesso sul ramo acute (backup per copia + `cmp` al ripristino):
+**Ri-misura dei cinque cancelli, coda 2026-08-29** (worktree ricreato: `node_modules` era vuoto,
+`npm ci` con la guardia Fragilità #5 — directory reale, nessuna junction):
 
 ```
-FAIL  … > total_load_au non è moltiplicata per un RPE — sarebbe contarlo due volte
-AssertionError: total_load_au È GIÀ srpe × minuti: «total_load_au * COALESCE(rpe_global, 5)»
-conta l'RPE DUE VOLTE (misurato live: il carico acuto salterebbe da 9,02 a 45,08 AU)
+Baseline tree pulito: VITEST 482/482 (50 file), exit 0   ← identica alla misura del prompt
+Col file di test nuovo: VITEST_EXIT=0  Tests 490 passed (490)  [50 file]
+TSC_EXIT=0 · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline · BUILD_EXIT=0 ·
+VERIFYCSS 245/245
 ```
 
-Verde dopo il ripristino: 6 passed.
+**9. Perimetro.** `git diff 3bbf063..HEAD --name-only` (al tip di codice `39abff6`):
 
-### 6. Non fatto / divergenze
+```
+src/hooks/useWeeklyCheckins.ts
+src/lib/program/__tests__/weekAdherence.parita.test.ts
+src/lib/program/__tests__/weekAdherence.test.ts
+src/pages/coach/CoachCheckinInbox.tsx
+src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts
+supabase/functions/_shared/program/weekAdherence.ts
+supabase/functions/generate-batch-checkins/index.ts
+```
 
-- **`duration_seconds` fuori dalla CTE** oltre al mandato esplicito su `rpe_global` (v. §3):
-  stessa classe, stessa passata, dichiarata — se Cowork la rivuole dentro è una riga.
-- I punti §9.1 e §10.0 del ritorno della mattina sono stati aggiornati per non dire il falso
-  (la decisione è presa, l'apply procede col file così com'è); il testo storico resta citato.
-- Il resto della fetta (colonna, tipo, edge, FE, test della mattina) è INTATTO: il diff del
-  commit lo prova.
+Vietati: **0 righe di diff** (misurati uno per uno, `VIETATI_DIFF_LINES=0`). I file `docs/**`
+di questo ritorno si aggiungono col commit dei documenti, come in ogni fetta (protocollo
+«cosa rimandi indietro» + chiusura di CLAUDE.md §6.0).
+
+## 5. Le tre prove rosse (mutazione su copia, ripristino per copia + `cmp` byte-identico)
+
+**R1 — il filtro.** Rimessa la selezione su `scheduled_date` nel punto in cui il filtro ora
+vive — `completedLogsInWindow` nel modulo (la riga letterale della edge non è raggiungibile da
+NESSUN runner: la cartella non ha test Deno, come dichiarato dal prompt stesso; l'equivalenza è
+1:1, stessa colonna, stessa finestra). Rosso: **7 test morti**, i due chiesti nominano i valori:
+
+```
+AssertionError: attese 4 sedute concluse (le righe del 25/08), il filtro ne ha lasciate passare 0
+AssertionError: atteso total_volume 9.02, trovato undefined
+```
+
+**R2 — l'assenza.** Rimesso `: 0` al posto di `null` in `weekAdherence`. Rosso: **7 test morti
+in due famiglie**, le due chieste:
+
+```
+AssertionError: senza prescrizioni la chiave compliance_pct NON deve esistere nello snapshot:
+expected true to be false
+AssertionError: expected '…' not to contain 'Indici di rischio elevati'
+Received (estratto): «…Indici di rischio elevatiCompliance sotto soglia (0%). Valutare scarico
+o approfondimento.…Compliance0%Sessioni0/0…»
+```
+
+Il secondo è il render della pagina VERA con lo snapshot costruito dal modulo mutato: la card
+malata («Compliance 0% · Sessioni 0/0») riappare identica alla misura del 28/08.
+
+**R3 — la porta unica.** Spostata di un giorno la mappatura v1 (`(mondayIndex+1) % 7`). Rosso:
+
+```
+AssertionError: le due porte non sono d'accordo sulla data 2026-08-12:
+prescribedDatesInWindow dice false, sessionForDate dice true
+```
+
+Dopo ogni prova: ripristino per copia dal backup del file committato, `cmp` → exit 0, tree
+pulito, run verde di conferma.
+
+## 5-bis. La matrice delle nove mutazioni (coda 2026-08-29)
+
+Il censimento del 29/08 contava **9 confronti d'ordine su date in 6 siti, 3 tenuti e 6 no**
+(i tre tenuti erano tutti bordi VICINI: la fixture parte di lunedì e non arriva mai a `toIso`).
+Con gli 8 test nuovi: **9 su 9 uccise**. Protocollo per OGNI riga: occorrenza unica della
+stringa verificata prima di mutare · `git diff --numstat` non vuoto come prova di applicazione ·
+`npx vitest run` intera con verdetto dall'exit code nudo · ripristino per copia dalla pristina +
+confronto byte-identico + `git diff --exit-code` = 0 prima della successiva.
+
+| #   | sito               | mutazione               | rossi 28/08 | rossi 29/08 | un messaggio (estratto)                                                                                                          |
+| --- | ------------------ | ----------------------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `:167` guardia     | `>` → `>=`              | ⛔ 0        | **1**       | «la finestra 2026-08-24→2026-08-24 è legittima: deve restituire quel giorno, non []: expected [] to deeply equal ['2026-08-24']» |
+| 2   | `:175` v2 vicino   | `>=` → `>`              | 7           | **10**      | «…mai 2026-08-23 né 2026-08-31: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»                            |
+| 3   | `:175` v2 lontano  | `<=` → `<`              | ⛔ 0        | **3**       | «…dentro esattamente gli estremi…: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»                         |
+| 4   | `:181` v1 vicino   | `fromIso` → `+1 giorno` | 2           | **3**       | «le due porte non sono d'accordo sulla data 2026-08-10: prescribedDatesInWindow dice false, sessionForDate dice true»            |
+| 5   | `:181` v1 lontano  | `<=` → `<`              | ⛔ 0        | **1**       | «finestra 2026-08-24→2026-08-30: sette giorni esatti, da 2026-08-24 a 2026-08-30: expected […(6)] to deeply equal […(7)]»        |
+| 6   | `:228` log vicino  | `>=` → `>`              | 1           | **4**       | «finestra 2026-08-24→2026-08-30: contano gli estremi…: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»     |
+| 7   | `:229` log lontano | `<=` → `<`              | ⛔ 0        | **2**       | «…contano gli estremi, mai 2026-08-23 né 2026-08-31: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»       |
+| 8   | `:256` mancati     | `<` → `<=`              | ⛔ 0        | **2**       | «solo il 2026-08-26 è saltato: il 2026-08-28 (oggi) non lo è ancora: expected 2 to be 1»                                         |
+| 9   | `:259` in arrivo   | `>=` → `>`              | ⛔ 0        | **2**       | «il 2026-08-28 (oggi) e il 2026-08-29 sono ancora in programma: expected 1 to be 2»                                              |
+
+**Controllo negativo (il bordo provato da ENTRAMBI i lati)**: le sei mutazioni-allargamento
+(`fromIso → addDaysIso(fromIso, -1)` e `toIso → addDaysIso(toIso, 1)` su v2/v1/log) producono
+**tutte almeno un rosso** — in particolare `toIso+1` sul filtro dei log:
+«…mai 2026-08-23 né 2026-08-31: expected ['2026-08-24', '2026-08-30', …(1)] to deeply equal
+['2026-08-24', '2026-08-30']» (l'elemento in più è il 2026-08-31). Totale matrice: **15
+mutazioni, 0 sopravvissute**; log completi per-mutazione in scratchpad di sessione
+(`mutazioni/M1..M9,W1..W6.log` + `summary.json`).
+
+**Divergenza dichiarata sul conteggio di ieri**: il prompt del 28/08 dava «1 e 4» rossi per i
+bordi vicini (2) e (4); ri-misurati oggi sull'intera suite sono 7 e 2 — già annotato dal prompt
+del 29/08 come «vale quello di oggi»; i valori in tabella (colonna 28/08) sono quelli
+ri-misurati dal prompt stesso.
+
+**Lo stesso bordo in ALTRI moduli (nominati, NON toccati — fuori perimetro):**
+
+- `src/lib/math/acwr.ts:165` — `s.age >= ACWR_BASELINE_DAYS`: il bordo lontano della finestra
+  baseline, lo stesso sito del reperto 24/08; non ho ri-misurato se oggi sia inchiodato.
+- `supabase/functions/_shared/nutrition/dailySeries.ts:110` — `row.date < startIso ||
+row.date > endIso`: finestra a due bordi della stessa forma.
+- `src/components/coach/messages/AthleteContextPane.tsx:119` — `w.scheduled_date < todayIso`:
+  il gemello UI del confronto «mancati vs oggi» (su `scheduled_date`, la colonna morta che
+  questa fetta ha abbandonato lato edge).
+- `supabase/functions/publish-program-block/index.ts:99` e
+  `src/components/coach/program/PublishProgramDialog.tsx:74` — guardie a un solo lato
+  (`date < startDate`).
+
+## 6. Passata indipendente (workflow: 4 auditor di progetto + 2 refuter per rilievo, 12 agenti)
+
+**Verdetto reviewer: «committabile-no» → i rilievi confermati sono CHIUSI in-branch (`dda6669`).**
+
+- 🔴 **CONFERMATO 2/2 (con repro eseguito sul modulo vivo): `remainingCount` contava anche
+  oggi se già onorato** — con prescritti 24·26·28 e allenati 24·26, oggi 26: onorati 2 +
+  saltati 0 + rimanenti 2 = 4 su 3 prescritti, e il prompt diceva «ancora 2 in programma»
+  quando ne restava uno. Chiuso: la partizione è disgiunta
+  (`day >= todayIso && !completedSet.has(day)`), test nuovo nato rosso
+  («trovati 2, expected 1») + pin `onorati+saltati+rimanenti === prescritti`.
+- 🔴 **CONFERMATO 2/2: `program_releases` senza `limit` tronca in silenzio al cap PostgREST
+  (1000, `config.toml` non lo ridefinisce)** — a scala, gli atleti oltre il cap leggerebbero
+  «mai prescritto»: un'assenza fabbricata dal troncamento. Chiuso: `limit` esplicito + guardia
+  che FALLISCE il batch al cap invece di tacere.
+- **Auditor RLS (medium): le tre query batch ignoravano `.error`** (supabase-js non lancia:
+  `data || []` su un errore scriveva uno snapshot indistinguibile dall'assenza legittima —
+  la malattia della fetta, un piano sotto). Il refuter-contratto lo declassava a «preesistente»
+  (vero: su `main` l'errore fabbricava `0%`), ma preesistente ≠ coerente con l'invariante:
+  chiuso — il batch fallisce forte su qualunque errore delle tre letture.
+- **CONFUTATO (dal contratto stesso): «la card Sessioni rende un rapporto a giorni sotto
+  un'etichetta da sedute»** — il criterio-contratto chiede esattamente «Sessioni 1/2» coi
+  giorni; osservazione lessicale vera, rimedio che violerebbe il contratto. Non toccato
+  (un refuter perso per un errore API del provider, il voto rimasto è di confutazione).
+- **Dichiarato, non corretto (parere del reviewer stesso: «va decisa, non corretta di
+  nascosto»): il documento v1 non scade mai** — un rilascio v1 prescrive i suoi giorni-feriali
+  OGNI settimana, per sempre; è la semantica di `sessionForDate` che la parità (acceptance 5)
+  impone di ereditare. Un atleta il cui ULTIMO rilascio è v1 avrà compliance calcolata (e
+  bassa) a tempo indefinito. Decisione di prodotto per la fetta della famiglia relazionale.
+- **Auditor Aura: tutto conforme** (le due modifiche sono logica/testo, zero classi).
+- **Test-verifier: «VERDE NETTO»** (tsc 0 · vitest verde · eslint 64/13 = baseline ·
+  deno test `_shared/program/` 13/13).
+- **Rilievi minori dell'auditor RLS su pattern PREESISTENTI, flaggati e non toccati** (fuori
+  scope, stessa casa del `error.message:368`): log del full error object (`:343`, `:363`),
+  body d'errore OpenAI loggato intero (`:322`), `full_name` interpolato nel prompt (vettore
+  prompt-injection/PII), nessun rate-limit sull'endpoint AI. Candidati a una fetta-pulizia
+  dell'error handling della edge.
+
+## 7. Non fatto
+
+1. **PR non aperta** (motivo misurato in §1: `gh` assente + credenziali negate all'agente).
+2. **La conversione `completed_at` → giorno di Roma della edge non ha un test in un runner**:
+   vive in `romeDayOf`/`utcOfRomeMidnight` (Deno, fuori dal modulo puro perché usa l'orologio
+   del chiamante e Intl); verificata empiricamente 8/8 in Node (§4.6), non cementata da vitest.
+3. **`deno check` sull'intera edge resta rosso per un difetto PREESISTENTE**: `error.message`
+   su `unknown` a `index.ts:350` — misurato IDENTICO sul file di `main` (`:320`). Non toccato:
+   fuori scope, nessun test lo copre, e la CI Deno esegue i test delle tre suite, non il check
+   di questa funzione.
+4. **Il ramo RPE≥8 di `isAnomalous` non è stato toccato** (v. DIVERGENZE 1).
+5. **(coda 29/08) I bordi gemelli negli ALTRI moduli** (elenco in §5-bis) **sono nominati, non
+   inchiodati**: il perimetro della coda era `weekAdherence.ts` e basta — allargare di
+   iniziativa avrebbe violato il mandato. In particolare non ho ri-misurato se
+   `acwr.ts:165` sia oggi coperto. `docs/HANDOFF.md` non è stato ritoccato: lo stato utile al
+   trasferimento sta in questo file — la sua riga «vitest 482/50» resta indietro di questa
+   coda (490/50), da allineare al prossimo aggiornamento di HANDOFF.
+
+## 8. Divergenze — dove il prompt diceva una cosa e il repo un'altra (vince la misura)
+
+1. 🔴 **«Senza il riquadro Indici di rischio elevati» non è raggiungibile con l'RPE vero.**
+   Il criterio-contratto presume che il riquadro nasca solo dalla compliance fabbricata, ma
+   `isAnomalous` ha un SECONDO ramo vero — `CoachCheckinInbox.tsx:91-94`, `avg_rpe >= 8` — e
+   l'RPE medio del caso-contratto è **8,5 reale**: il riquadro comparirà citando il SOLO RPE
+   («RPE medio 8.5/10 — carico interno elevato»), mai più la compliance. La parte fabbricata
+   del criterio è chiusa (il render-test asserisce «niente 'Compliance sotto soglia'» a 50%);
+   silenziare un segnale VERO per soddisfare la lettera sarebbe la malattia opposta a quella
+   che la fetta cura (un'assenza travestita, stavolta di un allarme). Decisione di prodotto
+   flaggata come chip («Decidere la soglia RPE dell'allarme nell'inbox coach») e qui a §9.
+   Nello stesso modo l'atleta resta nel filtro «Anomalie» via RPE — via misura, non via zero.
+2. **«4/0» non era il render dell'assenza**: con lo snapshot onesto `workouts_completed` vale
+   i giorni onorati (0 sull'assenza), quindi il vecchio `?? 0` avrebbe reso «0/0», non «4/0».
+   Il render-test asserisce la classe intera (`not.toMatch(/\d+\/0(?!\d)/)`), che copre
+   entrambi.
+3. **R1 letterale vs R1 testabile**: il prompt chiede di rimettere `.gte("scheduled_date"…)`
+   sulla query della edge, ma nessun runner esegue quella query (nessun test Deno della
+   cartella); il filtro onesto ora vive nel modulo e la mutazione è stata fatta LÌ, stessa
+   colonna e stessa semantica — il rosso chiesto (4 vs 0 · 9,02 vs assente) è quello mostrato.
+4. **`grep` di acceptance 6 «sui due file nuovi»**: i file nuovi sono quattro; il grep è stato
+   eseguito sul modulo E sui due test di libreria (0 occorrenze ovunque; nei test i tre
+   pattern compaiono solo spezzati, apposta).
+5. **`remainingCount` diverge dalla LETTERA del prompt** («remainingCount = giorni prescritti
+   con data >= todayStr»): la definizione letterale conta due volte il giorno di oggi già
+   onorato — riprodotto dai refuter col modulo vivo (onorati+saltati+rimanenti = prescritti+1,
+   e il prompt del modello mentiva di un allenamento). Vince il criterio (numeri onesti
+   all'IA): rimanente = prescritto, da oggi in poi, NON ancora onorato. Test dedicato.
+6. **`workouts_completed` cambia significato** (da «sedute completate» a «giorni prescritti
+   onorati», coerente col denominatore accanto): è la scelta del prompt, ma va detto che i
+   due soli lettori FE (`CoachCheckinInbox:480`/`:705`) lo rendono come numeratore del
+   rapporto — nessun altro consumatore in `src/**` (misurato col grep dei lettori di
+   `metrics_snapshot`). Le sedute vere restano in `sessions_completed`.
+
+## 9. Resta a Nicolò (e a Cowork)
+
+1. **Merge** della PR (che Nicolò apre dal link in testa).
+2. **Deploy** della edge `generate-batch-checkins` (v33 → v34; il connettore legga
+   l'`entrypoint_path` dopo il deploy, come da spec §Verifica).
+3. **Collaudo su `/coach/inbox`**: bottone «Analizza» → card dell'atleta `cfb31e82`:
+   Compliance 50% · Sessioni 1/2 · Volume 9.02 UA · RPE medio 8.5. ⚠️ Il riquadro «Indici di
+   rischio elevati» COMPARIRÀ citando il solo RPE 8,5 (vero) — v. Divergenza 1: non è la
+   compliance, ed è la decisione-chip da prendere.
+4. **Cowork, verifica live** dopo il collaudo: `select metrics_snapshot from weekly_checkins`
+   → `compliance_pct: 50, workouts_scheduled: 2, workouts_completed: 1, sessions_completed: 4,
+off_plan_sessions: 0, total_volume: 9.02, avg_rpe: "8.5"`; e su una settimana senza
+   prescrizioni la chiave `compliance_pct` NON deve esserci.
+5. **Chip aperte in questa fetta**: soglia RPE dell'allarme (Divergenza 1) · pulizia error
+   handling della edge (`error.message:350` preesistente + i rilievi di log-scrubbing della
+   passata, v. §6).

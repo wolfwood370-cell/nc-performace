@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
+import { addDaysIso } from "../_shared/program/coachRelease.ts";
+import {
+  buildWeekReport,
+  fallbackSummaryText,
+  weekDataLines,
+  weekPaceContext,
+  type WeekLogRow,
+} from "../_shared/program/weekAdherence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,6 +63,49 @@ function getItalianWeekBounds() {
     timeStr: timeFormatter.format(now),
     localDay: romeDay, // 0=Sun, 6=Sat
   };
+}
+
+// PostgREST's default max_rows (config.toml sets none): past this many rows
+// the read would truncate SILENTLY — the guard below turns that into an error.
+const RELEASES_BATCH_CAP = 1000;
+
+const ROME_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Rome",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Civil YYYY-MM-DD in Europe/Rome of a timestamp. NOT toISOString(): that
+ *  is UTC, and at 00:30 in Rome it would still say yesterday. */
+function romeDayOf(timestamp: string): string {
+  return ROME_DAY_FORMATTER.format(new Date(timestamp));
+}
+
+/** UTC instant of 00:00 Europe/Rome of a civil day — the completed_at query
+ *  window must open and close on Rome's day boundaries, not UTC's. Rome is
+ *  +01:00 or +02:00: the candidate that formats back to midnight of the
+ *  same civil day is the real one. */
+function utcOfRomeMidnight(dayIso: string): string {
+  for (const offset of ["+01:00", "+02:00"]) {
+    const candidate = new Date(`${dayIso}T00:00:00${offset}`);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Rome",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(candidate);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const civilDay = `${get("year")}-${get("month")}-${get("day")}`;
+    if (civilDay === dayIso && get("hour") === "00" && get("minute") === "00") {
+      return candidate.toISOString();
+    }
+  }
+  // Unreachable for real Rome days: DST switches at 02:00/03:00, never 00:00.
+  return `${dayIso}T00:00:00.000Z`;
 }
 
 Deno.serve(async (req) => {
@@ -121,23 +172,61 @@ Deno.serve(async (req) => {
 
     const athleteIds = athletes.map((a) => a.id);
 
-    const [logsRes, nutritionRes] = await Promise.all([
+    // The window runs on completed_at (Rome day boundaries expressed as UTC
+    // instants): scheduled_date has no writer and is NULL on every live row
+    // (measured 2026-08-28) — filtering on it returns nothing, ever.
+    const weekStartUtc = utcOfRomeMidnight(weekStartStr);
+    const weekEndUtcExclusive = utcOfRomeMidnight(addDaysIso(weekEndStr, 1));
+
+    const [logsRes, nutritionRes, releasesRes] = await Promise.all([
       supabase
         .from("workout_logs")
         .select("athlete_id, completed_at, total_load_au, status, scheduled_date, srpe")
         .in("athlete_id", athleteIds)
-        .gte("scheduled_date", weekStartStr)
-        .lte("scheduled_date", weekEndStr),
+        .eq("status", "completed")
+        .not("completed_at", "is", null)
+        .gte("completed_at", weekStartUtc)
+        .lt("completed_at", weekEndUtcExclusive),
       supabase
         .from("nutrition_logs")
         .select("athlete_id, calories, protein, carbs, fats, date")
         .in("athlete_id", athleteIds)
         .gte("date", weekStartStr)
         .lte("date", weekEndStr),
+      // ONE query for the whole batch: the adherence denominator lives in the
+      // release document, the only owner of prescribed dates.
+      supabase
+        .from("program_releases")
+        .select("athlete_id, program_document, released_at")
+        .in("athlete_id", athleteIds)
+        .order("released_at", { ascending: false })
+        .limit(RELEASES_BATCH_CAP),
     ]);
+
+    // A failed batch read must FAIL the batch, not impersonate an absence:
+    // supabase-js resolves query errors as {data: null, error} without
+    // throwing, so `data || []` would write "no prescription / no sessions"
+    // snapshots nothing could tell apart from the truth (review 2026-08-28).
+    if (logsRes.error) throw logsRes.error;
+    if (nutritionRes.error) throw nutritionRes.error;
+    if (releasesRes.error) throw releasesRes.error;
+    // Hitting the cap means rows silently vanished for SOMEONE: an athlete
+    // whose releases were cut off would read as "never prescribed". Fail loud.
+    if ((releasesRes.data || []).length >= RELEASES_BATCH_CAP) {
+      throw new Error("program_releases oltre il cap di lettura del batch");
+    }
 
     const allLogs = logsRes.data || [];
     const nutritionLogs = nutritionRes.data || [];
+    // Rows arrive released_at-descending: the first seen per athlete is the
+    // most recent — the same "latest" the athlete door reads
+    // (useProgramRelease.ts: order released_at desc, limit 1).
+    const latestDocByAthlete = new Map<string, unknown>();
+    for (const row of releasesRes.data || []) {
+      if (!latestDocByAthlete.has(row.athlete_id)) {
+        latestDocByAthlete.set(row.athlete_id, row.program_document);
+      }
+    }
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
@@ -162,49 +251,24 @@ Deno.serve(async (req) => {
             const athleteLogs = allLogs.filter((l) => l.athlete_id === athlete.id);
             const athleteNutrition = nutritionLogs.filter((n) => n.athlete_id === athlete.id);
 
-            const completed = athleteLogs.filter((l) => l.status === "completed");
-            const missed = athleteLogs.filter(
-              (l) =>
-                l.status === "missed" ||
-                (l.status === "scheduled" && l.scheduled_date && l.scheduled_date < todayStr),
-            );
-            const remaining = athleteLogs.filter(
-              (l) => l.status === "scheduled" && l.scheduled_date && l.scheduled_date >= todayStr,
-            );
-
-            const completedCount = completed.length;
-            const missedCount = missed.length;
-            const remainingCount = remaining.length;
-            const totalScheduled = completedCount + missedCount + remainingCount;
-            const compliance =
-              totalScheduled > 0 ? Math.round((completedCount / totalScheduled) * 100) : 0;
-
-            // A missing load is an absence, not a 0 — same rule as avgRpe
-            // below. Since migration 20260827130000 total_load_au is NULL on
-            // every session without sRPE or duration: those leave the sum,
-            // and zero measured sessions leave the metric ABSENT (the inbox
-            // already renders "—" for a missing field) — never a fabricated
-            // «0 UA». Two decimals: the column is numeric, the snapshot is a
-            // view of it.
-            const loadValues = completed
-              .map((l) => l.total_load_au)
-              .filter((v): v is number => v != null);
-            const totalVolume =
-              loadValues.length > 0
-                ? Math.round(loadValues.reduce((sum, v) => sum + v, 0) * 100) / 100
-                : null;
-            const totalVolumeText = totalVolume != null ? `${totalVolume} UA` : "N/A";
-            // A missing RPE is an absence, not a 0: it must leave numerator
-            // AND denominator, or the weekly mean silently drops. Zero valid
-            // values → the existing "N/A" sentinel (already guarded by the
-            // FE before Number()).
-            // Reads srpe — the session column the athlete writes since
-            // B-22; rpe_global is legacy and no longer written.
-            const rpeValues = completed.map((l) => l.srpe).filter((r): r is number => r != null);
-            const avgRpe =
-              rpeValues.length > 0
-                ? (rpeValues.reduce((sum, r) => sum + r, 0) / rpeValues.length).toFixed(1)
-                : "N/A";
+            // Every number the snapshot and the model receive comes from the
+            // pure module (CORE §0.11: the AI decides words, never numbers):
+            // denominator = prescribed days of the latest release document,
+            // numerator/volume/effort = completed sessions by Rome civil day.
+            const logRows: WeekLogRow[] = athleteLogs.map((l) => ({
+              status: l.status,
+              completedDate: l.completed_at ? romeDayOf(l.completed_at) : null,
+              scheduledDate: l.scheduled_date ?? null,
+              totalLoadAu: l.total_load_au ?? null,
+              srpe: l.srpe ?? null,
+            }));
+            const report = buildWeekReport({
+              document: latestDocByAthlete.get(athlete.id) ?? null,
+              fromIso: weekStartStr,
+              toIso: weekEndStr,
+              todayIso: todayStr,
+              logs: logRows,
+            });
 
             const avgCalories =
               athleteNutrition.length > 0
@@ -214,30 +278,14 @@ Deno.serve(async (req) => {
                   )
                 : null;
 
+            // compliance_pct / workouts_scheduled / total_volume are ABSENT
+            // keys (never 0, never null) when there is nothing to measure:
+            // the module never sets them, JSON carries no key, the inbox
+            // renders "—" and isAnomalous stays silent.
             const metricsSnapshot = {
-              compliance_pct: compliance,
-              // undefined (not null) so JSON.stringify DROPS the key: the
-              // inbox shows "—" for a missing field, "null UA" for a null.
-              total_volume: totalVolume ?? undefined,
-              workouts_completed: completedCount,
-              workouts_missed: missedCount,
-              workouts_remaining: remainingCount,
-              workouts_scheduled: totalScheduled,
-              avg_rpe: avgRpe,
+              ...report.snapshot,
               avg_daily_calories: avgCalories,
             };
-
-            // Time-aware context for the AI
-            let weekDoneContext: string;
-            if (isSundayOrMonday && remainingCount === 0) {
-              weekDoneContext =
-                "La settimana di allenamento è conclusa. Fornisci un riepilogo completo della settimana appena terminata.";
-            } else if (remainingCount === 0) {
-              weekDoneContext =
-                "Tutti gli allenamenti programmati sono stati completati o saltati. Fornisci un riepilogo.";
-            } else {
-              weekDoneContext = `Ci sono ancora ${remainingCount} allenament${remainingCount === 1 ? "o" : "i"} in programma. Motiva l'atleta a dare il massimo nelle sessioni rimanenti.`;
-            }
 
             const prompt = `Sei un coach sportivo italiano esperto. Analizza la settimana corrente per ${athlete.full_name || "l'atleta"}.
 
@@ -246,15 +294,14 @@ Contesto temporale: Oggi è ${dayName}, ore ${timeStr} (fuso orario: Europe/Rome
 NOTA IMPORTANTE: I dati sono basati sul fuso orario italiano (Europe/Rome). Se l'ultimo allenamento è stato fatto oggi o nelle ultime 24 ore, considera la settimana ancora in corso per l'atleta. Se oggi è domenica o lunedì, fai un riepilogo della settimana COMPLETA appena trascorsa.
 
 Dati settimana:
-- Allenamenti completati: ${completedCount}
-- Allenamenti saltati: ${missedCount}
-- Allenamenti ancora in programma: ${remainingCount}
-- Compliance attuale: ${compliance}% (${completedCount}/${totalScheduled})
-- Volume totale: ${totalVolumeText}
-- RPE medio: ${avgRpe}
+${weekDataLines(report)}
 - Calorie medie giornaliere: ${avgCalories ? avgCalories + " kcal" : "Non registrate"}
 
-${weekDoneContext}
+${weekPaceContext({
+  prescribedCount: report.adherence.prescribedCount,
+  remainingCount: report.remainingCount,
+  weekClosed: isSundayOrMonday,
+})}
 
 Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggiante. Non usare emoji.`;
 
@@ -277,7 +324,8 @@ Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggi
               aiSummary = aiData.choices?.[0]?.message?.content?.trim() || "";
             } else {
               console.error("AI error:", aiResponse.status, await aiResponse.text());
-              aiSummary = `Compliance: ${compliance}%. Completati: ${completedCount}/${totalScheduled}. Volume: ${totalVolumeText}. RPE medio: ${avgRpe}.`;
+              // Same absence rule as the prompt: no fabricated 0% here either.
+              aiSummary = fallbackSummaryText(report);
             }
 
             const { error: upsertError } = await supabase.from("weekly_checkins").upsert(
