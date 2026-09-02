@@ -172,11 +172,23 @@ describe("la settimana vera: finestra 24→30, documento con date 22..25", () =>
   });
 
   it("le righe della stringa-dati per il modello citano i numeri veri", () => {
-    const dati = weekDataLines(report);
+    const dati = weekDataLines(report, 2);
     expect(dati).toContain("Compliance attuale: 50% (1/2)");
     expect(dati).toContain("Sedute concluse: 4");
     expect(dati).toContain("Volume totale: 9.02 UA");
     expect(dati).toContain("RPE medio: 8.5");
+  });
+
+  it("la riga delle sedute oltre la soglia d'attenzione è il conteggio del watchdog e precede il carico", () => {
+    const dati = weekDataLines(report, 2);
+    expect(dati).toContain("- Sedute oltre la soglia d'attenzione: 2");
+    expect(
+      dati.indexOf("Sedute oltre la soglia d'attenzione"),
+      "l'attenzione si legge prima del carico",
+    ).toBeLessThan(dati.indexOf("Volume totale"));
+    // Nessuna soglia numerica entra nella riga: si contano gli avvisi.
+    const rigaSoglia = dati.split("\n").find((l) => l.includes("soglia"));
+    expect(rigaSoglia).toBe("- Sedute oltre la soglia d'attenzione: 2");
   });
 });
 
@@ -264,7 +276,7 @@ describe("nessun giorno prescritto: l'assenza resta assenza", () => {
 
   it("le stringhe per il modello non contengono 0% né (0/0) e dichiarano l'assenza", () => {
     const testo = [
-      weekDataLines(assenza),
+      weekDataLines(assenza, 0),
       weekPaceContext({ prescribedCount: 0, remainingCount: 0, weekClosed: false }),
       fallbackSummaryText(assenza),
     ].join("\n");

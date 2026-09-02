@@ -315,9 +315,14 @@ export function buildWeekReport(input: {
 const volumeText = (totalVolume: number | null): string =>
   totalVolume === null ? "N/A" : `${totalVolume} UA`;
 
-/** The "Dati settimana" block of the model prompt (and of nothing else). */
-export function weekDataLines(report: WeekReport): string {
+/** The "Dati settimana" block of the model prompt (and of nothing else).
+ *  `overThresholdSessions` is the watchdog's count of this week's sessions
+ *  over the attention threshold (checkinReading.ts): a count of events read,
+ *  always present — it precedes the load, because adherence and attention
+ *  come before any word on the load (R6 of the method). */
+export function weekDataLines(report: WeekReport, overThresholdSessions: number): string {
   const tail = [
+    `- Sedute oltre la soglia d'attenzione: ${overThresholdSessions}`,
     `- Volume totale: ${volumeText(report.totalVolume)}`,
     `- RPE medio: ${report.avgRpe}`,
   ];
