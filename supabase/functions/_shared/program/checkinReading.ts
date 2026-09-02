@@ -8,12 +8,16 @@
 //      first — under the gate the programme is not judged and the load is
 //      not commented; the threshold is DATA, exported, tunable in one place);
 //   2. the cage around the model's prose, from both sides — the prompt
-//      (buildCheckinPrompt) dictates the numbers and forbids load actions,
-//      and the vet (vetSummary) refuses any ratio, fraction or percentage
-//      that is not in the data, and any load-action word. A refusal costs
-//      the deterministic fallback line; a fabricated number would cost the
-//      coach's trust. The vet is conservative BY DESIGN (a «24/08» date
-//      trips it): CORE §0.8, free text can only raise caution;
+//      (buildCheckinPrompt) dictates the numbers, GIVES today's date and
+//      forbids load actions; the vet (vetSummary) refuses any ratio, fraction
+//      or percentage that is not in the data, any load-action word, and ANY
+//      NUMBER the prompt did not give. The numbers the prompt gave are read
+//      from ONE source — the data block the prompt itself carries, verbatim
+//      (CheckinPrompt.dataBlock) — never from a second list that could drift
+//      from the text the model received. A refusal costs the deterministic
+//      fallback line; a fabricated number would cost the coach's trust. The
+//      vet is conservative BY DESIGN (a «24/08» date trips it): CORE §0.8,
+//      free text can only raise caution;
 //   3. the count of sessions over the attention threshold — read from the
 //      watchdog's alerts (coach_alerts.type = 'risk_alert'), DISTINCT by
 //      workout_log_id. The threshold itself lives in the watchdog and is
@@ -24,6 +28,7 @@
 // reads the same reading from the snapshot instead of re-deriving a verdict.
 // =============================================================================
 
+import { isIsoDate } from "./coachRelease.ts";
 import { fallbackSummaryText, weekDataLines, type WeekReport } from "./weekAdherence.ts";
 
 // ---- constants (data, not scattered numbers) ---------------------------------
@@ -37,6 +42,26 @@ export const ADHERENCE_GATE_PCT = 70;
  *  prescritto su 2 non onorato»): on two days «50%» is a pompous way of
  *  saying «one skipped». */
 export const ADHERENCE_DAYS_WORDING_BELOW = 4;
+
+/** The RPE scale is known to the model: «8.5/10» is not a new number. */
+const RPE_SCALE = 10;
+
+/** The twelve month names — a table, not Intl: the module stays pure and
+ *  deterministic across runtimes. */
+const MONTHS_IT = [
+  "gennaio",
+  "febbraio",
+  "marzo",
+  "aprile",
+  "maggio",
+  "giugno",
+  "luglio",
+  "agosto",
+  "settembre",
+  "ottobre",
+  "novembre",
+  "dicembre",
+] as const;
 
 // ---- types --------------------------------------------------------------------
 
@@ -183,11 +208,25 @@ export interface PromptContext {
   athleteName: string;
   dayName: string;
   timeStr: string;
+  /** Civil YYYY-MM-DD of today in Europe/Rome — the caller owns the clock.
+   *  Written in words in the prompt so the model does not DERIVE the date
+   *  from the weekday (the live line of 2026-09-02, a Wednesday, said
+   *  «3 settembre»: one day off, deduced from «mercoledì» alone). */
+  todayIso: string;
   weekStartIso: string;
   weekEndIso: string;
   avgCalories: number | null;
   /** weekPaceContext(...) — the caller owns the clock that decides it. */
   paceContext: string;
+}
+
+/** What buildCheckinPrompt hands back: the text the model receives, and the
+ *  data block it carries VERBATIM — the only place the vet reads the numbers
+ *  the prompt gave. One object, so the edge cannot vet against a set other
+ *  than the one it sent. */
+export interface CheckinPrompt {
+  text: string;
+  dataBlock: string;
 }
 
 /** The rules dictated to the model, verbatim: tests pin them by text. */
@@ -200,11 +239,23 @@ export const PROMPT_RULES = {
   datesInWords: "Scrivi le date in lettere (24 agosto), mai con la barra.",
 } as const;
 
-export function buildCheckinPrompt(
-  reading: WeekReading,
-  report: WeekReport,
-  ctx: PromptContext,
-): string {
+/** «2026-09-02» → «2 settembre 2026». A string that is not a calendar date
+ *  is returned as it is: no invented date, and its digits still belong to
+ *  the block the vet reads. */
+function dateInWords(iso: string): string {
+  if (!isIsoDate(iso)) return iso;
+  const month = MONTHS_IT[Number(iso.slice(5, 7)) - 1];
+  return `${Number(iso.slice(8, 10))} ${month} ${iso.slice(0, 4)}`;
+}
+
+/**
+ * The DATA of the prompt — temporal context, the reading, the week's lines,
+ * calories, pace — and nothing that is not a datum: the note, the rules and
+ * the closing instruction carry «24 ore», «24 agosto» and «280 caratteri»,
+ * and stay out. Every number the model may write is read from HERE, by the
+ * vet, with the same regex; buildCheckinPrompt embeds this block verbatim.
+ */
+function promptDataBlock(reading: WeekReading, report: WeekReport, ctx: PromptContext): string {
   // Order is the contract: adherence -> sessions over threshold -> load ->
   // average RPE as a number. The adherence line precedes every load line.
   const readingLines = [
@@ -213,19 +264,7 @@ export function buildCheckinPrompt(
     `- Carico: ${reading.load.text}`,
     `- RPE medio: ${report.avgRpe}`,
   ];
-  const rules = [
-    PROMPT_RULES.onlyListedNumbers,
-    PROMPT_RULES.noNewRatios,
-    PROMPT_RULES.noLoadActions,
-    ...(reading.adherence.gate === "below" ? [PROMPT_RULES.belowGate] : []),
-    PROMPT_RULES.datesInWords,
-  ].map((rule, i) => `${i + 1}. ${rule}`);
-
-  return `Sei un coach sportivo italiano esperto. Analizza la settimana corrente per ${ctx.athleteName}.
-
-Contesto temporale: Oggi è ${ctx.dayName}, ore ${ctx.timeStr} (fuso orario: Europe/Rome). Settimana dal ${ctx.weekStartIso} al ${ctx.weekEndIso}.
-
-NOTA IMPORTANTE: I dati sono basati sul fuso orario italiano (Europe/Rome). Se l'ultimo allenamento è stato fatto oggi o nelle ultime 24 ore, considera la settimana ancora in corso per l'atleta. Se oggi è domenica o lunedì, fai un riepilogo della settimana COMPLETA appena trascorsa.
+  return `Contesto temporale: Oggi è ${ctx.dayName} ${dateInWords(ctx.todayIso)}, ore ${ctx.timeStr} (fuso orario: Europe/Rome). Settimana dal ${ctx.weekStartIso} al ${ctx.weekEndIso}.
 
 Lettura della settimana:
 ${readingLines.join("\n")}
@@ -234,15 +273,40 @@ Dati settimana:
 ${weekDataLines(report, reading.overThresholdSessions)}
 - Calorie medie giornaliere: ${ctx.avgCalories ? ctx.avgCalories + " kcal" : "Non registrate"}
 
-${ctx.paceContext}
+${ctx.paceContext}`;
+}
+
+export function buildCheckinPrompt(
+  reading: WeekReading,
+  report: WeekReport,
+  ctx: PromptContext,
+): CheckinPrompt {
+  const rules = [
+    PROMPT_RULES.onlyListedNumbers,
+    PROMPT_RULES.noNewRatios,
+    PROMPT_RULES.noLoadActions,
+    ...(reading.adherence.gate === "below" ? [PROMPT_RULES.belowGate] : []),
+    PROMPT_RULES.datesInWords,
+  ].map((rule, i) => `${i + 1}. ${rule}`);
+  const dataBlock = promptDataBlock(reading, report, ctx);
+
+  // The note precedes the data block (it used to sit inside it): its «24
+  // ore» is not a datum, and the block must stay one contiguous piece.
+  const text = `Sei un coach sportivo italiano esperto. Analizza la settimana corrente per ${ctx.athleteName}.
+
+NOTA IMPORTANTE: I dati sono basati sul fuso orario italiano (Europe/Rome). Se l'ultimo allenamento è stato fatto oggi o nelle ultime 24 ore, considera la settimana ancora in corso per l'atleta. Se oggi è domenica o lunedì, fai un riepilogo della settimana COMPLETA appena trascorsa.
+
+${dataBlock}
 
 Regole:
 ${rules.join("\n")}
 
 Scrivi un breve report (max 280 caratteri) in italiano. Sii tecnico ma incoraggiante. Non usare emoji.`;
+
+  return { text, dataBlock };
 }
 
-// ---- the vet: every ratio and percentage must already be in the data ---------
+// ---- the vet: every number must already be in the prompt ----------------------
 
 const DECIMAL = "\\d+(?:[.,]\\d+)?";
 /** «N su M», with up to three words in between («4 sedute su 5»,
@@ -251,6 +315,12 @@ const RATIO_SU = new RegExp(`(${DECIMAL})\\s+(?:\\p{L}+\\s+){0,3}su\\s+(${DECIMA
 /** «N/M» — a «24/08» date matches too, on purpose: caution only rises. */
 const RATIO_SLASH = new RegExp(`(${DECIMAL})\\s*/\\s*(${DECIMAL})`, "g");
 const PERCENT = new RegExp(`(${DECIMAL})\\s*%`, "g");
+/** One number as it is written — «8.5», «8,5», «9,02», «2026», «50» — and a
+ *  clock time («15:03») as ONE token: split on the colon, the minutes of
+ *  «ore 15:03» would hand the model a «3» the prompt never gave as a datum
+ *  (the live line of 2026-09-02, written at 15:03, said «3 settembre»).
+ *  The SAME regex reads the candidate and the data block. */
+const NUMBER_TOKEN = /\d+(?:[.,:]\d+)?/g;
 /** Stems of the load actions the model must not propose (case-insensitive):
  *  the same four the prompt rule forbids — scarico, deload, alleggerire,
  *  aumentare. A stem the rule names but the vet lets through is a hole
@@ -258,6 +328,26 @@ const PERCENT = new RegExp(`(${DECIMAL})\\s*%`, "g");
 const FORBIDDEN_STEMS = ["scaric", "deload", "allegger", "aument"] as const;
 
 const toNumber = (s: string): number => Number(s.replace(",", "."));
+
+/** «1.000» is «mille» in Italian, not 1: a separator followed by exactly
+ *  three digits is ambiguous, and Number() would read it as ONE — the only
+ *  place the canonical form would LOWER caution (independent review,
+ *  2026-09-02). Such a token stays literal: allowed only if the block
+ *  writes it the same way. */
+const THOUSANDS_SHAPE = /^\d+[.,]\d{3}$/;
+
+/** «06» and «6», «8,5» and «8.5» and «8.50» are one number; a clock time and
+ *  a thousands-shaped token are themselves. Both sides pass through here. */
+const canonicalNumber = (token: string): string =>
+  token.includes(":") || THOUSANDS_SHAPE.test(token) ? token : String(toNumber(token));
+
+/** The numbers the prompt gave, read from its data block with NUMBER_TOKEN,
+ *  plus the RPE scale. Not a second list: the block itself. */
+function allowedNumbers(dataBlock: string): Set<string> {
+  const out = new Set<string>([String(RPE_SCALE)]);
+  for (const m of dataBlock.matchAll(NUMBER_TOKEN)) out.add(canonicalNumber(m[0]));
+  return out;
+}
 
 /** The ratios the prompt itself writes: honoured/prescribed, the ones the
  *  adherence wording carries (e.g. «1 giorno prescritto su 2 non onorato»),
@@ -271,13 +361,20 @@ function allowedRatios(report: WeekReport): Array<[number, number]> {
     for (const m of wording.matchAll(RATIO_SU)) out.push([toNumber(m[1]), toNumber(m[2])]);
   }
   const rpe = toNumber(report.avgRpe);
-  if (report.avgRpe !== "N/A" && Number.isFinite(rpe)) out.push([rpe, 10]);
+  if (report.avgRpe !== "N/A" && Number.isFinite(rpe)) out.push([rpe, RPE_SCALE]);
   return out;
 }
 
+/**
+ * `prompt` is the CheckinPrompt that was sent: its data block is the only
+ * source of the numbers the candidate may contain. The ratio, percentage
+ * and load-word checks come first (their reasons read better); the number
+ * check names every number the prompt did not give, once each.
+ */
 export function vetSummary(
   text: string,
   report: WeekReport,
+  prompt: CheckinPrompt,
 ): { ok: true } | { ok: false; reasons: string[] } {
   const reasons: string[] = [];
   const ratios = allowedRatios(report);
@@ -303,6 +400,14 @@ export function vetSummary(
     const hit = text.match(new RegExp(`\\p{L}*${stem}\\p{L}*`, "iu"));
     if (hit) reasons.push(`parola vietata «${hit[0]}»`);
   }
+  const allowed = allowedNumbers(prompt.dataBlock);
+  const named = new Set<string>();
+  for (const m of text.matchAll(NUMBER_TOKEN)) {
+    const canonical = canonicalNumber(m[0]);
+    if (allowed.has(canonical) || named.has(canonical)) continue;
+    named.add(canonical);
+    reasons.push(`numero «${m[0]}» assente dal prompt`);
+  }
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
@@ -313,17 +418,18 @@ export function vetSummary(
  * whitespace only) is an absence, not a false ratio: it is not the vet's
  * business, and it takes the same road as a refusal — the criterion of C-15
  * is «the deterministic line of the numbers, never a void». `reason` is null
- * only when the candidate itself is saved.
+ * only when the candidate itself is saved. `prompt` is the one that was sent.
  */
 export function chooseSummary(
   candidate: string,
   report: WeekReport,
+  prompt: CheckinPrompt,
 ): { text: string; reason: string | null } {
   const trimmed = candidate.trim();
   if (trimmed.length === 0) {
     return { text: fallbackSummaryText(report), reason: "riepilogo IA vuoto" };
   }
-  const vet = vetSummary(trimmed, report);
+  const vet = vetSummary(trimmed, report, prompt);
   if (vet.ok !== false) return { text: trimmed, reason: null };
   return { text: fallbackSummaryText(report), reason: vet.reasons.join("; ") };
 }

@@ -1,371 +1,309 @@
-# ULTIMO RITORNO — fetta checkin-che-non-giudica
+# ULTIMO RITORNO — coda checkin-numeri-dal-prompt
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
-> Fetta: `claude/checkin-che-non-giudica` · 2026-09-02 · base `origin/main` = `7111cfb` (la stessa
-> della ricognizione di Cowork) · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-che-non-giudica)
+> Coda: `claude/checkin-numeri-dal-prompt` · 2026-09-02 · base `origin/main` = `ccf1450` (la stessa
+> del collaudo di Cowork delle 15:03) · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-numeri-dal-prompt)
 > — `gh` non installata e credenziali negate all'agente, come dal 20/08).
 
 ## 1. Ramo e commit
 
-`claude/checkin-che-non-giudica`, da `7111cfb`: 2 commit di codice, 1 di review, 1 di documenti, poi la **coda del 02/09** (codice + documenti, tip):
-
-- `9068bf6` — **backend, coerente da solo**: il modulo puro `checkinReading.ts` (cancello
-  dell'aderenza, conteggio distinto degli avvisi del watchdog, prompt con la lettura in testa,
-  vaglio), la riga in più di `weekDataLines`, la edge `generate-batch-checkins` (quarta lettura,
-  snapshot con `sessions_over_threshold`, `vetSummary` prima dell'upsert) e i due test di libreria.
-- `89d9d60` — **frontend**: via `isAnomalous` e tutte le sue tinte, `weekReading(...).attention`
-  guida filtro/contatore/tono, riquadro «Lettura della settimana», card RPE senza tinta, tipo del
-  hook esteso, render test con l'acceptance 4.
-- `32ee547` — **esito della passata indipendente**: il vaglio ferma anche «aumentare», la quarta
-  parola che la regola (3) del prompt vieta (v. §6); test che lega le due liste.
-- `b2d3142` — commit dei documenti della fetta: prompt-file conservato, questo file, `HANDOFF.md`, RETRO.
-- `8c617ab` — **coda del 02/09 (misura di Cowork sul tip `b2d3142`)**: la riga legacy senza
-  `sessions_over_threshold` non fabbrica sedute oltre soglia (fixture con la chiave OPZIONALE + 2
-  render test; `CoachCheckinInbox.tsx` a zero righe di diff) e il candidato vuoto del modello prende
-  la strada della bocciatura (`chooseSummary`, modulo puro, 4 test; `vetSummary` invariata).
-- **(tip) commit dei documenti della coda**: questo file (§1, §2, §4, §5, §7, §8, §9).
-
-**Perché 2 commit di codice e non 3 (spec: modulo · edge · FE).** `weekDataLines` cambia firma
-(secondo parametro obbligatorio): un commit «solo modulo» lascerebbe la edge a un argomento
-per un commit, con `deno check` rosso su quel commit. Ogni commit di questo ramo compila da solo.
+`claude/checkin-numeri-dal-prompt`, da `ccf1450`: **un commit solo**, come da task, che porta il
+modulo, il suo test, la edge e questo file. L'hash di quel commit non può stare dentro il file che
+il commit contiene: è il tip del ramo (`git log --oneline -1 claude/checkin-numeri-dal-prompt`) ed è
+riportato nel messaggio di chiusura della sessione e nella PR.
 
 **PR: non aperta.** Motivo misurato: `gh` assente; la via API col token del credential manager è
 negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa.
 
 ## 2. Manifesto
 
-**NUOVI:** `supabase/functions/_shared/program/checkinReading.ts` (329 righe) ·
-`src/lib/program/__tests__/checkinReading.test.ts` (39 `it`) ·
-`docs/prompts/2026-09-02-checkin-che-non-giudica.md` (il prompt, conservato).
+**MODIFICATI** (`git diff ccf1450 --numstat`, tree pre-commit):
 
-**MODIFICATI:** `supabase/functions/_shared/program/weekAdherence.ts` (solo `weekDataLines`: la
-riga «Sedute oltre la soglia d'attenzione: N» prima del carico, e il suo JSDoc) ·
-`supabase/functions/generate-batch-checkins/index.ts` · `src/pages/coach/CoachCheckinInbox.tsx` ·
-`src/hooks/useWeeklyCheckins.ts` (solo il tipo di `metrics_snapshot`) ·
-`src/lib/program/__tests__/weekAdherence.test.ts` (+1 `it`, due chiamate col secondo argomento) ·
-`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` (+4 `it`, fixture con la chiave del conteggio OPZIONALE) ·
-`docs/ULTIMO-RITORNO.md` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md`.
+```
+269	24	src/lib/program/__tests__/checkinReading.test.ts   (39 → 54 `it`, +15)
+132	26	supabase/functions/_shared/program/checkinReading.ts (329 → 435 righe)
+7	2	supabase/functions/generate-batch-checkins/index.ts  (todayIso · prompt.text · chooseSummary col prompt)
+```
 
-**VIETATI, misurati a zero righe di diff** (`git diff 7111cfb..HEAD -- <f> | wc -l`, uno per uno):
+più `docs/ULTIMO-RITORNO.md` (questo file). Nessun file nuovo.
+
+**VIETATI, misurati a zero righe di diff** (`git diff HEAD -- <f> | wc -l`, uno per uno):
+`src/pages/coach/CoachCheckinInbox.tsx` · `supabase/functions/_shared/program/weekAdherence.ts` ·
 `supabase/migrations/**` · `src/lib/program/releaseView.ts` · `src/lib/math/acwr.ts` ·
 `supabase/functions/analyze-athlete-week/**` · `src/hooks/useCoachAlerts.ts` ·
 `src/pages/coach/CoachHome.tsx` · `src/integrations/supabase/types.ts` ·
-`src/lib/effort/sessionRpe.ts` → `VIETATI_DIFF_LINES=0`.
+`src/lib/effort/sessionRpe.ts` → tutti **0**.
 
-## 3. Rituale d'apertura — le `deny` provate (prima riga di lavoro, prima di ogni modifica)
+**Il perimetro della edge è quello dichiarato:** `git diff HEAD -- supabase/functions/generate-batch-checkins/index.ts`
+= una riga `todayIso: todayStr,` nel contesto del prompt · `content: prompt` → `content: prompt.text` ·
+`chooseSummary(…, report)` → `chooseSummary(…, report, prompt)`. Nessun commento toccato, nessuna
+lettura nuova, l'upsert è quello di prima.
 
-Repo di scarto in scratchpad (`prova-deny`: un commit, un file modificato, un untracked, uno
-stash), comandi nella forma `cd <scarto> && <cmd>` (il matcher spezza i composti):
+## 3. Le firme scelte (punto 2 del task: «la forma la decidi tu, dichiarandola»)
 
-| comando                    | esito         |
-| -------------------------- | ------------- |
-| `git checkout .`           | **RIFIUTATO** |
-| `git checkout -- *`        | **RIFIUTATO** |
-| `git restore f.txt`        | **RIFIUTATO** |
-| `git restore` (nudo)       | **RIFIUTATO** |
-| `git clean -fd`            | **RIFIUTATO** |
-| `git clean` (nudo)         | **RIFIUTATO** |
-| `git stash drop`           | **RIFIUTATO** |
-| `git stash drop stash@{0}` | **RIFIUTATO** |
-| `git stash clear`          | **RIFIUTATO** |
-| `gh pr merge 1`            | **RIFIUTATO** |
+```ts
+export interface CheckinPrompt {
+  text: string; // il testo che il modello riceve
+  dataBlock: string; // il blocco-dati, VERBATIM dentro `text`: l'unica sorgente dei numeri ammessi
+}
+export function buildCheckinPrompt(reading, report, ctx: PromptContext): CheckinPrompt;
+export function vetSummary(
+  text,
+  report,
+  prompt: CheckinPrompt,
+): { ok: true } | { ok: false; reasons };
+export function chooseSummary(candidate, report, prompt: CheckinPrompt): { text; reason };
+```
 
-10 su 10 rifiutati (13 delle 16 `deny` ora provate, contando le 3 di ieri). I vicini passano:
-`git status --short` · `git stash list` · `git log --oneline -1` · `git diff --stat` → il repo di
-scarto è ancora intatto (` M f.txt`, `?? untracked.txt`, `stash@{0}` presente). `mcp__github__*`
-non è provabile: il server GitHub non si è connesso in sessione (400 sull'header Authorization).
+- **Perché l'oggetto e non il blocco nudo.** La edge fa `const prompt = buildCheckinPrompt(…)`, manda
+  `prompt.text` e vaglia con `prompt`: la sorgente del vaglio è per costruzione il prompt inviato,
+  non un secondo argomento che potrebbe venire da un'altra chiamata con un altro contesto.
+- **Una funzione produce il blocco** (`promptDataBlock`, privata): contesto temporale (con la data
+  in lettere) · le quattro righe della lettura · `weekDataLines` · calorie · `paceContext`.
+  `buildCheckinPrompt` la interpola nel testo; il vaglio la legge da `prompt.dataBlock`. Il test che
+  lega le due sorgenti: `p.text` contiene `p.dataBlock` per entrambi i prompt della fixture, e il
+  blocco NON contiene «NOTA IMPORTANTE», «24 ore», «Regole:», «24 agosto», «280 caratteri» (che il
+  testo completo invece porta).
+- **`PromptContext.todayIso`** (civil `YYYY-MM-DD` di Roma, la edge lo aveva già come `todayStr`,
+  `index.ts:66`): `dateInWords` (privata) lo scrive «2 settembre 2026» con la tabella `MONTHS_IT`
+  dei dodici nomi; una stringa che non è una data di calendario (`isIsoDate` di `coachRelease.ts`)
+  resta com'è: nessuna data inventata, e le sue cifre restano comunque nel blocco.
+- **Il token numerico** `NUMBER_TOKEN = /\d+(?:[.,:]\d+)?/g` legge il candidato E il blocco (la stessa
+  regex, come chiesto), con la forma canonica `canonicalNumber`: «06» ≡ «6», «8,5» ≡ «8.5» ≡ «8.50»,
+  un orario («15:03») è uguale solo a sé stesso (v. §8.1), e così un token con tre cifre dopo il
+  separatore («1.000», mille: `THOUSANDS_SHAPE`, v. §6 e §8.9). L'insieme ammesso è
+  `allowedNumbers(prompt.dataBlock)` + `RPE_SCALE = 10`. Ogni numero estraneo dà UNA ragione
+  «numero «3» assente dal prompt», dopo le ragioni dei controlli esistenti (rapporti, percentuali,
+  parole vietate: restano tutti, e `allowedRatios` usa la stessa costante `RPE_SCALE`).
+- **Costanti nuove:** `RPE_SCALE`, `MONTHS_IT`, `NUMBER_TOKEN` (private). Nessuna esportazione nuova
+  oltre a `CheckinPrompt`; il frontend (`CoachCheckinInbox.tsx`) importa solo `overThresholdText`,
+  `readingSourceFromSnapshot`, `weekReading`, `WeekReading`: firme invariate, zero righe di diff.
 
 ## 4. Acceptance — ogni criterio col suo comando e l'output
 
-Tutti eseguiti nel worktree `.claude/worktrees/checkin-che-non-giudica` sul tip di codice `89d9d60` e
-**ri-misurati sul tip finale `32ee547`** (dopo il fix della review: stessi numeri, v. fine del punto 7)
-(baseline misurata sul tree pulito `7111cfb` PRIMA di toccare: tsc 0 · vitest 490/490 in 50 file ·
-eslint ✖ 77 problems (64 errors, 13 warnings) · build ok · verify:css 245/245 · deno test
-`_shared/program/` 13/13 · `deno check` della edge rosso SOLO per il preesistente `:368`).
+Tutto eseguito nel worktree `.claude/worktrees/checkin-numeri-dal-prompt` sul tree in stage (baseline
+su `ccf1450` pulito, dalla fetta precedente: vitest 534/534 in 51 file · eslint 64 · verify:css 243/243 ·
+deno `_shared/program` 13/13).
 
-**1. `weekReading`.** `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 39/39 (35 + i 4 di `chooseSummary`, coda).
-1/2 → `below` e «1 giorno prescritto su 2 non onorato» · 3/4 → `ok` «aderenza 75% (3 su 4)» (4
-prescritti = forma in percentuale, D2) · 3/3 → `ok` «3 giorni prescritti su 3 onorati» · 0
-prescritti → `none` «nessun giorno prescritto questa settimana» (nessuna cifra) · 5/7 → `ok`
-«aderenza 71% (5 su 7)» · 2/3 → `below` «1 giorno prescritto su 3 non onorato» · `attention` vero
-con `overThresholdSessions = 1` a gate `ok`, falso con 0 · a metà settimana (1 di 3 onorato, 2 in
-arrivo) → `ok` «…, 2 ancora in programma»; (0 di 4, 3 saltati, 1 in arrivo) → `below` (v. §8.3) ·
-carico assente → `ua null`, «non misurato», mai «0 UA» · il report VERO della 24→30 → `below`,
-«9,02 UA», `overThresholdSessions 2`, `attention true`.
+**1. `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 54/54** (39 + 15 nuovi, di
+cui 1 dalla passata: le migliaia, §6).
+Fixture nuova: il report della settimana VUOTA (documento del 22/08 coi giorni 22–25/08, finestra
+31/08→06/09, `todayIso` `2026-09-02`, zero log → 0 prescritti, `compliancePct null`, 0 sedute,
+RPE `N/A`) e il contesto `mercoledì · 15:03 · 2026-08-31 → 2026-09-06` con il `weekPaceContext`
+della settimana senza prescrizione.
 
-**2. `vetSummary` sul report VERO della 24→30** (stesso file): **boccia** «Settimana conclusa: 4
-sedute su 5 (50% compliance), 1 giorno saltato. Recupera il giorno perso.» con la ragione
-`rapporto «4 sedute su 5» assente dai dati` (nomina il 5) · **boccia** «valuta uno scarico» con
-`parola vietata «scarico»` · **accetta** «1 giorno su 2 non onorato, 4 sedute concluse, 9.02 UA,
-RPE medio 8.5» · **accetta** «Aderenza 1/2 (50%). RPE medio 8.5/10» e anche «8,5/10» · **boccia**
-«9/10» · **boccia** «24/08» (conservativo per disegno, §0.8) · **boccia** «DELOAD», «Alleggerire»,
-«75%» · senza prescrizione **boccia** «1 su 1» e **accetta** «7.0/10».
+- **(a)** la frase viva del 02/09 («Settimana 31 agosto 2026–6 settembre 2026: nessuna seduta
+  programmata e sedute concluse: 0. A oggi mercoledì 3 settembre, …») → **bocciata**, ragioni
+  esattamente `["numero «3» assente dal prompt"]`; e `chooseSummary` la manda sulla riga
+  deterministica con quella ragione.
+- **(b)** la stessa frase con «2 settembre» → **passa** (`{ ok: true }`): 31, 2026, 6 (da «06»),
+  0 e 2 (da «2 settembre 2026») stanno nel prompt.
+- **(c)** «Settimana conclusa: 4 sedute su 5 (50% compliance), 1 giorno saltato…» sul report vero
+  della 24→30 → **resta bocciata**: `rapporto «4 sedute su 5» assente dai dati` + `numero «5»
+assente dal prompt` (una sola ragione numerica: 4, 50 e 1 sono nel prompt).
+- **(d)** «RPE medio 8.5/10» → **passa** (8.5 nel prompt, 10 = scala); anche «8,5/10» e «8,50».
+- **(e)** il prompt costruito con `todayIso` `2026-09-02` contiene «mercoledì 2 settembre 2026» e la
+  riga intera «Contesto temporale: Oggi è mercoledì 2 settembre 2026, ore 15:03 (fuso orario:
+  Europe/Rome). Settimana dal 2026-08-31 al 2026-09-06.»; gennaio e dicembre dalla tabella
+  («5 gennaio 2026», «31 dicembre 2026»); `2026-02-30` resta `2026-02-30`, nessun «undefined».
+- In più: l'ora è un token solo («Analisi delle ore 15:03.» passa; «Alle 15 e al minuto 3.» boccia
+  15 e 3) · un numero estraneo è nominato una volta anche se ricorre · «Ci sono ancora 2
+  allenamenti in programma» del `paceContext` è un dato (il 2 passa su una settimana aperta) · sulla
+  settimana vuota «24 agosto» e «280 caratteri» sono bocciati nominando 24 e 280 · il sorgente del
+  modulo non contiene `Date.now`, `new Date(`, `Math.random`, `fetch(` **né `Intl.`**.
 
-**3. `buildCheckinPrompt`** (stesso file): l'indice del testo dell'aderenza è minore dell'indice
-di «Carico», «UA» e «Volume totale»; ordine `- Aderenza:` < `- Sedute oltre la soglia
-d'attenzione: 2` < `- Carico:` < `- RPE medio: 8.5`; le regole (1)(2)(3)(5) presenti
-testualmente; la (4) presente con gate `below` e ASSENTE con gate `ok` (75%).
+**2. Il test che lega le due sorgenti** (`CheckinPrompt — il blocco-dati che il vaglio legge compare
+verbatim nel testo inviato`): per `promptVero` e `promptVuoto`, `p.dataBlock.length > 0` e
+`p.text` contiene `p.dataBlock`. Prova rossa M3 in §5.
 
-**4. Render test.** `npx vitest run src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` →
-7/7 (5 + i 2 della riga legacy, coda). Con `{compliance_pct 50, avg_rpe "8.5", sessions_over_threshold 2, …}` (snapshot DERIVATO da
-`buildWeekReport`): assente «Indici di rischio elevati», assente «Valutare scarico», assente
-«rischio» in ogni forma, presente «Lettura della settimana», «1 giorno prescritto su 2 non
-onorato», «2 sedute oltre la soglia», «9,02 UA», badge «Attenzione»; la card «RPE medio» non
-porta classi `destructive|error|warning`, la card «Compliance» porta `warning` (gate `below`).
-Caso in più: 3/4 (75%) con 1 seduta oltre soglia → «Attenzione» acceso, compliance senza tinta. I
-tre test preesistenti restano verdi (il terzo riformulato: l'assenza non accende l'attenzione e
-la lettura dichiara «nessun giorno prescritto», senza riga delle sedute oltre soglia).
+**3. Prove rosse:** le tre del task nelle due direzioni, più la quarta nata dalla passata, in §5 —
+ogni ripristino byte-identico e `git diff --exit-code` = 0.
 
-**5. Distinto.** Stesso file di test del modulo: due `risk_alert` sullo stesso `workout_log_id`
-→ `sessions_over_threshold = 1`; due su id diversi → 2 (la misura viva del 25/08); id fuori
-settimana o `workout_log_id` nullo → 0.
-
-**6. Perimetro.** `git diff 7111cfb..HEAD --name-only` (tip di codice):
-
-```
-src/hooks/useWeeklyCheckins.ts
-src/lib/program/__tests__/checkinReading.test.ts
-src/lib/program/__tests__/weekAdherence.test.ts
-src/pages/coach/CoachCheckinInbox.tsx
-src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts
-supabase/functions/_shared/program/checkinReading.ts
-supabase/functions/_shared/program/weekAdherence.ts
-supabase/functions/generate-batch-checkins/index.ts
-```
-
-Vietati: **0 righe** (§2). In più: `git diff 7111cfb..HEAD | grep -E "^\+.*\.(insert|update|delete|upsert)\("`
-→ **exit 1, zero righe** (nessuna scrittura nuova; l'upsert resta quello preesistente) ·
-`grep -E "srpe\s*>=?\s*9|>= 8|< 50"` sui tre file (modulo, FE, edge) al tip → **zero** (la soglia
-del watchdog non è ricopiata, le due vecchie soglie del FE sono sparite) ·
-`grep -E "Date\.now|new Date\(|Math\.random|fetch\("` sul modulo → **zero**.
-
-**7. I cinque cancelli** (sul tip di codice `89d9d60`, tree pulito):
+**4. I cinque cancelli** (tree in stage, prima del commit):
 
 ```
 TSC_EXIT=0
-VITEST: Test Files 51 passed (51) · Tests 528 passed (528)   [baseline 490/50: +35 modulo, +1 weekAdherence, +2 render]
-ESLINT: ✖ 77 problems (64 errors, 13 warnings)              ← identico alla baseline (.eslint-baseline = 64)
-BUILD_EXIT=0
-VERIFYCSS: ✓ check 7: 243/243 classi con modificatore di alpha … · VERIFYCSS_EXIT=0
-           ℹ 2 note (non bloccanti): bg-error-container/30 e /20 «non più usate nei sorgenti: voce da togliere da EXPECTED»
+VITEST: Test Files 51 passed (51) · Tests 549 passed (549)     [baseline 534: +15, tutti nel modulo]
+ESLINT: files 456 · errors 64 · warnings 13                      ← 64 = .eslint-baseline
+BUILD_EXIT=0 (vite: ✓ built in 8.96s)
+VERIFYCSS: ✓ … 243 classi con modificatore di alpha tutte emesse e a canali · VERIFYCSS_EXIT=0
+           ℹ 2 note preesistenti (bg-error-container/30 e /20 «da togliere da EXPECTED», chip aperta il 02/09)
+DENO: npx deno test --no-lock supabase/functions/_shared/program/ → ok | 13 passed | 0 failed
+      npx deno check --no-lock …/checkinReading.ts → pulito
+      npx deno check --no-lock …/generate-batch-checkins/index.ts → SOLO il preesistente TS18046
+        («'error' is of type 'unknown'», ora a :424; su origin/main è la stessa riga a :419)
+      suite Deno intera come in CI (--allow-all --no-check supabase/functions/) → ok | 496 passed | 0 failed
 ```
 
-⚠️ **243/243 e non 245/245** (v. §8.6): la cifra è derivata N/N (numero di classi con alpha
-DISTINTE nei sorgenti); le due `bg-error-container/*` vivevano SOLO nel verdetto rimosso. Il
-cancello è verde; le due voci di `EXPECTED` sono un chip. In più (non richiesti): `npx deno test
---no-lock supabase/functions/_shared/program/` → 13 passed · `npx deno check --no-lock` sul modulo
-nuovo → pulito · sulla edge → il SOLO preesistente `TS18046 'error' is of type 'unknown'` (`:368`,
-identico su `main`) · suite Deno intera come in CI (`--allow-all --no-check`) → **496 passed**.
+## 5. Le prove rosse — tre del task più una della passata (protocollo 29/08: occorrenza unica · `git diff --numstat` · vitest sul file · ripristino per copia dal backup · byte-identico · `git diff --exit-code` = 0)
 
-**Ri-misura sul tip finale `32ee547`** (dopo il fix della review, tree pulito salvo i documenti):
+Eseguite sul tree in stage (le tre modifiche erano in index: `git diff --exit-code` misura
+worktree-contro-index, 0 prima e dopo ogni mutazione). Runner e log in scratchpad
+(`mutazioni/runner.py`, `M1..M3.log`, `summary.json`).
 
-```
-TSC_EXIT=0 · VITEST: 51 file, 528 passed (528) · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline
-BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito
-```
+| #   | mutazione (una occorrenza)                                                                                                                            | numstat | esito                     | il rosso nomina…                                                                                                                                                                                                                                                                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M1  | via il blocco del controllo dei numeri da `vetSummary` (8 righe) → (a) **diventa verde**                                                              | 0 8     | **ROSSO** (6 su 53 morti) | «(a) boccia la frase viva del 02/09 nominando il «3»» · «chooseSummary manda la frase viva del 02/09 sulla riga deterministica» · «l'ora è un token solo» · «un numero estraneo è nominato una volta sola» · «24 e 280 restano fuori» · «(c) … nominando il 5» (la ragione numerica) |
+| M2  | via la data dal contesto temporale (`Oggi è ${dayName} ${dateInWords(todayIso)}` → `Oggi è ${dayName}`)                                               | 1 1     | **ROSSO** (5 su 53 morti) | «(e) con todayIso 2026-09-02 il contesto temporale dice «mercoledì 2 settembre 2026»» · i dodici mesi · la todayIso non di calendario · «il blocco porta contesto temporale…» · **(b)**: senza la data il «2» di «2 settembre» non è più nel prompt                                  |
+| M3  | blocco-dati alterato in un punto solo: nel testo `${dataBlock.replace("Sedute concluse: 0", "Sedute concluse: 3")}` (il modello legge 3, il vaglio 0) | 1 1     | **ROSSO** (1 su 54 morto) | «il blocco-dati compare verbatim nel prompt costruito con gli stessi argomenti» — esattamente il test 2, e solo quello                                                                                                                                                               |
+| M4  | (dopo la passata) via la guardia delle migliaia: `THOUSANDS_SHAPE.test(token)` tolto da `canonicalNumber` → «1.000» torna a valere 1                  | 1 1     | **ROSSO** (1 su 54 morto) | ««1.000» è mille, non 1: tre cifre dopo il separatore restano letterali» — e solo quello                                                                                                                                                                                             |
 
-**Ri-misura sul tip della coda `8c617ab`** (tree pulito salvo questo file):
+Le quattro rieseguite insieme sul codice finale (54 test): M1 **7 su 54** morti (si aggiunge il
+test delle migliaia, che dipende dal controllo), M2 5, M3 1, M4 1. Dopo ognuna: `ripristino
+byte-identico: True · git diff --exit-code: 0`; a fine runner `git status --short` = le tre `M` in
+stage, nient'altro.
 
-```
-TSC_EXIT=0 · VITEST: 51 file, 534 passed (534) [+2 render, +4 modulo] · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline
-BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito · edge: solo il preesistente TS18046
-```
+## 6. Passata indipendente (workflow: 3 auditor di progetto + 3 refuter per rilievo + 4 cacciatori)
 
-**Acceptance della coda.** (1) vitest verde con +2 nel render test e +4 nel modulo ✓ · (2) le due
-prove rosse R6/R7, nelle due direzioni (§5) ✓ · (3) `git diff b2d3142..HEAD -- src/pages/coach/CoachCheckinInbox.tsx | wc -l`
-→ **0** (e `weekAdherence.ts` → 0; vietati della fetta ancora a 0) ✓ · (4) i cinque cancelli qui
-sopra ✓. Perimetro della coda: `git diff b2d3142..HEAD --name-only` = render test · modulo · edge ·
-test del modulo, più questo file.
+**Workflow: 52 agenti, 0 errori, 15 minuti.** Tre auditor di progetto (`supabase-rls-auditor`,
+`code-reviewer`, `code-test-verifier`; `aura-theme-auditor` non richiesto: nessuna UI toccata) →
+23 rilievi grezzi (7 + 5 + 11), i primi 5 per auditor passati ciascuno a 3 refuter (lenti repro ·
+contratto · base) con mandato di CONFUTARE = 45 voti, 26 confutazioni; 4 cacciatori di numeri che
+sfuggono (lettere/ordinali · formati · coincidenze · settimana piena), con l'obbligo di eseguire
+ogni candidato via script Deno sul modulo del worktree.
 
-## 5. Le prove rosse — quattro della fetta, una della review, due della coda (protocollo 29/08: quattro guardie, runner in scratchpad)
+**Verdetti.** rls: «VERDE condizionato — checklist §5 piena sulla edge (CORS/auth/role/ownership/
+secret server-side, nessun ID da payload), nuova firma coerente (una sola sorgente per costruzione),
+modulo deterministico verificato; restano due limiti del vaglio da dichiarare (numeri in lettere;
+«1.000» ≡ «1» via Number())» · reviewer: «VERDE condizionato — il codice è committabile (scope
+pulito, cancelli verdi verificati, nessun test indebolito, il vaglio si stringe soltanto); la
+condizione è il commit dei documenti che aggiorna ULTIMO-RITORNO» · tests: «VERDE — tutti i
+cancelli passano, copertura a-b-c-d-e completa, falsificabile, deterministica».
 
-Per ognuna: occorrenza UNICA verificata prima di mutare · `git diff --numstat` non vuoto come prova
-di applicazione · verdetto dall'exit code nudo di `npx vitest run <file>` · ripristino per copia dal
-backup + confronto byte-identico + `git diff --exit-code` = 0 prima della successiva. Eseguite sul
-codice COMMITTATO (`89d9d60`), tree pulito prima e dopo.
+- 🔴 **CONFERMATO 3/3 e CHIUSO in questo stesso commit — «1.000» valeva 1.** `canonicalNumber`
+  passava ogni token per `Number()`: «1.000» (mille, in italiano) diventava «1», e «Circa 1.000
+  kcal al giorno.» PASSAVA sulla 24→30 (il 1 c'è: «1 giorno prescritto»), come «2.000 kcal» e
+  «6.000 passi» sulla settimana vuota (dal «2 settembre» e dal «06»); `chooseSummary` salvava la
+  frase inventata (`reason: null`). L'unico punto in cui la forma canonica ABBASSAVA la cautela
+  (contro §0.8) e faceva entrare un numero non dato (contro §0.11). Causa: l'equivalenza dichiarata
+  copriva «06» ≡ «6» e «8,5» ≡ «8.5» ≡ «8.50», non il separatore delle migliaia — effetto
+  collaterale non dichiarato di `Number()`. Chiuso con `THOUSANDS_SHAPE = /^\d+[.,]\d{3}$/`: un
+  token con tre cifre dopo il separatore resta LETTERALE, ammesso solo se il blocco lo scrive così
+  com'è; test dedicato (+1, ««1.000» è mille, non 1») e prova rossa M4 (§5). Costo dichiarato: il
+  dato vero «2500 kcal» riscritto dal modello «2.500 kcal» è bocciato (conservativo: la cautela
+  sale, costa la riga deterministica).
+- **Reggono come NOTE, non difetti, tutte dichiarate qui**: numeri in lettere fuori portata
+  (§7.A) · le date ISO degli estremi mettono nell'insieme anno, mese e giorni (§7.B) · il
+  controllo è di appartenenza, non di senso (§7) · `paceContext` è testo del chiamante e allarga
+  l'insieme (è `weekPaceContext`, deterministico: «Ci sono ancora N allenamenti» è un dato) · il
+  vaglio boccia numeri che il modello ha LETTO nel prompt ma fuori dal blocco («nelle ultime 24
+  ore» della nota, «24 agosto» della regola, cifre nel nome dell'atleta): conservativo per
+  disegno, il task voleva 24 e 280 fuori · «una sorgente sola» vale per i numeri; rapporti e
+  percentuali restano derivati dal `report` (`allowedRatios`, come nella fetta) · il
+  `console.warn` con le ragioni è preesistente e accettabile (§10.2: UUID e frammenti del
+  candidato, mai body né nome) · 428+ righe (§8.5) · il ritorno era alle misure vecchie al momento
+  della passata (questo file le aggiorna).
+- **Confutati 3/3 o preesistenti identici a `main`**: `error.message` nel 500 (censito il 28/08) ·
+  nessun rate limit sull'endpoint AI · gli 11 «rilievi» del test-verifier erano conferme di
+  misura (548/548, 13/13, tsc 0, acceptance a-e coperta), letti come tali dai refuter.
+- **Le quattro cacce** (Deno, fixture 1:1 del test): 44 · 65 · 54 · 59 candidati eseguiti. Le
+  classi trovate sono in §7, comprese quelle che non avevo misurato da solo: orario con i secondi,
+  `RATIO_SU` che ammette al massimo tre parole fra N e «su», «N di M», «sù» accentato, percentuali
+  in lettere, cifre Unicode «a portata» di `\p{Nd}`. Nessuna toccata.
 
-| #   | mutazione                                                                                                   | numstat | esito                     | il rosso nomina…                                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------------------- | ------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | FE: torna un blocco «Indici di rischio elevati — Valutare scarico…» condizionato a `Number(m.avg_rpe) >= 8` | 3 0     | **ROSSO** (1 su 5 morto)  | `expected '…' not to contain 'Indici di rischio elevati'` (render test, acceptance 4)                                                     |
-| R2  | `vetSummary` con `return { ok: true };` in testa                                                            | 1 0     | **ROSSO** (7 su 35 morti) | «boccia la frase viva del 30/08 nominando il 5 che non esiste: expected true to be false» (+ scarico, 9/10, 24/08, DELOAD, 75%, «1 su 1») |
-| R3  | la riga `- Aderenza:` spostata DOPO `- Carico:` nel prompt                                                  | 2 2     | **ROSSO** (2 su 35 morti) | «l'aderenza deve venire prima di «Carico»: expected 606 to be less than 518» e l'ordine della lettura                                     |
-| R4  | `return new Set(hits).size` → `return hits.length`                                                          | 1 1     | **ROSSO** (1 su 35 morto) | «il watchdog può duplicare su UPDATE: una seduta, un conteggio: expected 2 to be 1»                                                       |
+## 7. Ciò che sfugge ancora (trovato, dichiarato, NON toccato — «dillo e non toccarlo»)
 
-**R5 (dopo la review, sul tip `32ee547`)** — via lo stem `aument` dal vaglio → **ROSSO**: «boccia
-«deload», «alleggerire» e «aumentare», in qualunque maiuscola: Puoi aumentare il carico la
-prossima settimana.: expected true to be false» (1 su 35 morto); R1-R4 rieseguite sullo stesso
-tip: tutte ancora ROSSE. Dopo ognuna: `ripristino byte-identico: true · git diff --exit-code: 0`;
-a fine runner `git status` pulito (salvo i documenti). Log completi in scratchpad
-(`mutazioni/R1..R5.log` + `summary.json`).
+Misurato di prima mano con uno script Deno (`scratchpad/sfugge.ts`) che importa il modulo del
+worktree e costruisce i due prompt della fixture, più i quattro cacciatori del workflow (§6). Il
+vaglio verifica la **presenza** di un numero nel prompt, non il suo **senso**: questo è il limite
+dichiarato di una regex sulle cifre, e nessuna delle righe qui sotto è stata toccata.
 
-**R6 e R7 (coda, sul tip `8c617ab`).** **R6** — `?? 0` → `?? 1` su `sessions_over_threshold` in
-`CoachCheckinInbox.tsx:99` → **ROSSO, 2 su 7 morti**: «la 24→30 com'è nel database: nessuna riga
-«oltre la soglia», attenzione SOLO per il cancello — expected '…' not to contain 'oltre la soglia'»
-e «una riga legacy con l'aderenza a posto non accende nulla — … not to contain 'oltre la soglia'»
-(numstat `1 1`, ripristino byte-identico, `git diff --exit-code` 0). **R7** — via il fallback sul
-candidato vuoto (`if (trimmed.length === 0)` → `if (false)`: il vuoto passa) → **ROSSO, 2 su 39
-morti**: «vuoto → la riga deterministica, con la ragione «riepilogo IA vuoto»: expected { text: '',
-reason: null } to deeply equal { …(2) }» e «solo spazi → la riga deterministica» (numstat `1 1`,
-ripristino byte-identico, `git diff --exit-code` 0). Log in `mutazioni/R6.log`, `R7.log`.
+**A. Fuori dalla portata di una regex sulle cifre (per costruzione):**
 
-## 6. Passata indipendente (workflow: 4 auditor di progetto + 3 refuter per rilievo, 22 agenti)
+- numeri **in lettere** («Tre sedute concluse», «Sedute concluse: zero») e **ordinali in lettere**
+  («un terzo giorno», «il primo settembre») → PASSANO. Le regole (1) e (5) del prompt spingono il
+  modello alle cifre per i numeri e alle lettere solo per il mese («2 settembre»): il giorno resta
+  in cifre. Un modello che scrivesse «tre settembre» passerebbe.
+- **numeri romani** («Il III giorno»), **frazioni Unicode** («½ carico»), **cifre non ASCII**
+  (fullwidth «３ sedute») → PASSANO (`\d` è solo `[0-9]`).
+- Gli **ordinali in cifre** invece sono fermati: «3° giorno» → `numero «3» assente dal prompt`.
 
-**Verdetti.** `supabase-rls-auditor`: «VERDE condizionato — una riserva major sul vaglio (stem
-`aument` mancante) da chiudere prima del merge» · `aura-theme-auditor`: «VERDE — nessuna violazione
-Aura introdotta dalla fetta; solo residui preesistenti minori» · `code-reviewer`: «ROSSO per una
-riga: il vaglio lascia passare "aumentare il carico" — la parola che il prompt stesso vieta; tutto
-il resto (scope, contratto additivo, gate strutturali, cancelli) è pulito» · `code-test-verifier`:
-«VERDE — tsc 0, vitest 528/51 file, deno 13/13, TS18046 preesistente confermato identico su
-main». 16 rilievi grezzi, 6 non-note, ciascuno passato a tre refuter (lenti repro · contratto ·
-base) con mandato di CONFUTARE.
+**B. A portata della regex ma ammessi per coincidenza** (il numero STA nel blocco, in un altro senso):
 
-- 🔴 **CONFERMATO 3/3, due volte (rls + reviewer, con repro sul modulo vivo)**: `FORBIDDEN_STEMS`
-  fermava `scaric/deload/allegger`, ma la regola (3) del prompt vieta QUATTRO parole («… o
-  aumentare»): «Puoi aumentare il carico la prossima settimana» → `{ok: true}` → `ai_summary`,
-  contro l'invariante 3 e CORE §0.11 — e nella direzione peggiore per §0.8: il vaglio fermava le
-  raccomandazioni prudenti e lasciava passare l'unica che ABBASSA la cautela. Causa: ho copiato la
-  lista di tre stem della spec invece di DERIVARLA dalla regola dettata al modello. **Chiuso in
-  `32ee547`**: stem `aument` + test che lega le due liste (ognuna delle quattro parole della regola
-  è bocciata) + prova rossa R5. Un refuter (lente contratto) aggiunge, a ragione, che l'invariante
-  3 preso alla lettera non è raggiungibile per lista di stem («spingi di più», «incrementa»
-  passano): il vaglio fa rispettare LESSICALMENTE la regola che il prompt detta; il coach legge e
-  decide (§0.1). Dichiarato in §8.13.
-- **CONFUTATI 3/3 (quattro)**: `text-white`/`bg-white/20` nel pill del filtro (Aura, preesistente
-  byte-identico a `main:326,337`, fuori perimetro) · copy «zona ottimale» dello stato vuoto
-  (preesistente identica, già in §7.5, D6 della spec) · «il vaglio non vede il conteggio delle
-  sedute oltre soglia» (`vetSummary(text, report)` è la firma della spec; un «0 sedute oltre la
-  soglia» col conteggio vero 2 passerebbe: ampliamento di perimetro, non difetto → chip) ·
-  risposta IA vuota → `ai_summary: ""` (preesistente identico a `main:324`, stesso modello e
-  stesso limite di token).
-- **Note, non bloccanti, tutte dichiarate**: il `console.warn` del vaglio porta fino a tre parole
-  del testo del modello nelle ragioni (mai body né nome) · `full_name` nel prompt (preesistente,
-  censito il 28/08) · quarta lettura: scope e fail-loud verificati positivamente · ombre con RGB
-  raw e `ShieldAlert` sul filtro (Aura, preesistenti) · token nuovi verificati (alpha-value,
-  canali, scala coerente su badge/MiniStat/MetricCard/header/riquadro, zero residui) · **falso
-  positivo per disegno**: «9.02 UA su 4 sedute concluse» viene bocciato (rapporto 9.02/4 assente
-  dai dati) — il costo è la riga deterministica, mai un numero falso · l'attenzione legge
-  `workouts_remaining` congelato al momento del batch (lo snapshot è una foto; il batch è
-  manuale: una settimana persa DOPO l'ultimo «Analizza» resta «ok» fino al successivo) · gli
-  avvisi `dismissed` dal coach contano lo stesso (si contano gli eventi del watchdog, non lo stato
-  dell'inbox: archiviare un avviso non annulla la seduta) · il prefiltro `created_at ≥ lunedì − 1
-giorno` perde un avviso solo con l'orologio del client avanti di più di due giorni.
+- Le date ISO della settimana mettono nell'insieme, ogni settimana, l'anno, il mese e i due giorni
+  degli estremi: sulla settimana vuota 31/08→06/09 passano «RPE medio 9» (RPE reale: N/A; il 9 è
+  il mese «09»), «Hai concluso 6 sedute» (dal «06»), «8 giorni prescritti» (dal «08»), «31 sedute
+  in programma», «Riposo dal 2 al 6». Sulla 24→30 passano «RPE 8» (dal mese «08»), «24 sedute»,
+  «50 UA» (dal 50%), «Sedute: 9,02» (il carico), «Compliance 50,0%» (≡ 50), «1 su 2 onorati, 2
+  saltati» (rapporto ammesso; il 2 è nel prompt). Il costo di ammettere i giorni in cifre per la
+  regola (5) è questo, ed è per disegno; chiudere questa classe richiederebbe un vaglio semantico
+  (numero + unità), fuori dalla coda.
 
-## 7. Non fatto
+**C. Ambiguità del token:**
 
-1. **PR non aperta** (§1).
-2. **Nessuna ri-misura del DB vivo**: l'MCP Supabase in sessione risponde `Unauthorized` (token
-   assente): i due `risk_alert` del 25/08, lo snapshot della 24→30 e la versione v34 della edge
-   sono la misura di Cowork dell'01/09, non mia.
-3. **La riga 24→30 di `weekly_checkins` non viene ri-analizzata da «Analizza»** (§8.2): il batch
-   calcola SOLO la settimana corrente. Il collaudo «snapshot live con `sessions_over_threshold: 2`
-   sulla riga 24→30» non è raggiungibile senza un parametro di settimana (fuori perimetro).
-4. **`fallbackSummaryText` non porta le sedute oltre soglia**: quando il vaglio boccia, la
-   `ai_summary` è la riga deterministica preesistente (compliance, sedute, volume, RPE) — il
-   conteggio resta nello snapshot e nel riquadro della UI. Scelta letterale della spec; estendere
-   `weekAdherence.ts` oltre `weekDataLines` era vietato.
-5. **La copy dello stato vuoto del filtro «Anomalie»** («Tutti gli atleti sono in zona
-   ottimale», `CoachCheckinInbox.tsx`, `FeedEmpty`) resta com'era: è un giudizio senza dato, ma
-   D6 dice che il testo del filtro resta — flaggato, non toccato.
-6. **`deno check` della edge resta rosso per il preesistente `:368`** (`error.message` su
-   `unknown`), identico su `main`, già censito il 28/08.
-7. **(coda) Un terzo ramo dello stesso tipo, trovato e NON toccato**: una riga di
-   `weekly_checkins` con `metrics_snapshot: null`. `readingOf` restituisce `null`
-   (`CoachCheckinInbox.tsx:96-100`) e la feed card salta le mini-metriche, ma nessun render test
-   monta una riga SENZA snapshot: un mutante che leggesse `readingSourceFromSnapshot(null)`
-   mostrerebbe «Lettura della settimana — Nessun giorno prescritto … Carico settimanale non
-   misurato» su una riga che non ha una settimana, un'assenza travestita da lettura. Fuori dal
-   mandato della coda («nient'altro»): da inchiodare in una coda sua.
-8. **(coda) `docs/HANDOFF.md` non ritoccato**: la sua riga «vitest 528/528» resta indietro di
-   questa coda (534/534) — non era fra i file dichiarati.
+- **Separatore delle migliaia**: CHIUSO in questo commit (§6): «1.000», «2.000», «1,000» restano
+  letterali e sono bocciati se il blocco non li scrive così. Il rovescio, dichiarato: il dato vero
+  «2500 kcal» riscritto «2.500 kcal» è bocciato (conservativo).
+- **Orari scritti diversamente**: solo «15:03» è un token unico; «15.03», «15h03», «alle 15» sono
+  bocciati (conservativo, la cautela sale). Un orario **con i secondi** («15:03:09») si spezza in
+  «15:03» + «09»: il 9 passa per coincidenza sulla settimana di settembre (dal mese «09»), un
+  altro secondo no. Il prompt non scrive mai i secondi.
+- **Cifre nel nome dell'atleta** (`athleteName` non è nel blocco, come da task): un modello che
+  ricopiasse «Atleta 2» verrebbe bocciato se il 2 non è un dato. Conservativo.
 
-## 8. Divergenze — dove la spec diceva una cosa e il repo un'altra (vince la misura)
+**D. Limiti PREESISTENTI dei controlli sui rapporti** (non della coda, identici a `main`, trovati
+dalle cacce e non toccati): `RATIO_SU` ammette al massimo tre parole fra N e «su» («4 sedute
+molto intense di forza su 2» sfugge al controllo dei rapporti; 4 e 2 sono nel prompt e il
+controllo dei numeri non li ferma) · «N di M» e «N ogni M» non sono rapporti per `RATIO_SU` ·
+«sù» accentato idem · percentuali in lettere («metà», «un terzo») fuori portata.
 
-1. **La quarta lettura non può filtrare per gli id dei log DENTRO lo stesso `Promise.all`**:
-   gli id esistono solo dopo la prima lettura. Implementato: prefiltro server `type = 'risk_alert'`
-   - `athlete_id in (atleti del coach)` + `created_at ≥ mezzanotte di Roma del giorno PRIMA del
-lunedì` + `limit(ALERTS_BATCH_CAP)` con fail-loud al cap come `program_releases`
-     (`index.ts:192`, `:217-226`, `:244-250`); il criterio preciso — `workout_log_id` fra gli id dei log
-     conclusi della settimana, DISTINTI — sta nel modulo puro (`countSessionsOverThreshold`,
-     `checkinReading.ts:167-176`) e si applica per atleta (`index.ts:305-308`); il vaglio corre a `index.ts:366` prima dell'upsert. Il margine di un giorno: il watchdog
-     scrive l'avviso nella stessa UPDATE che scrive `srpe` E `completed_at`
-     (`useAthleteWorkoutHooks.ts:174-186`, orologio del client), quindi `created_at` ≥
-     `completed_at` salvo skew: un giorno lo assorbe, l'intersezione tiene la precisione.
-2. **Il batch calcola SEMPRE la settimana corrente di Roma** (`getItalianWeekBounds`,
-   `index.ts:24-66`, nessun body/parametro): il 02/09 «Analizza» scrive la riga **31/08→06/09**.
-   La riga 24→30 resta quella del 30/08 (senza `sessions_over_threshold`, con la vecchia
-   `ai_summary`). L'ultimo miglio della spec va letto sulla settimana corrente o rinviato a una
-   fetta col parametro di settimana.
-3. **Il cancello a metà settimana**: la regola letterale (`below` se `compliancePct < 70`)
-   accenderebbe «Attenzione» a un martedì con 1 di 3 onorato e 2 in arrivo (33% «attuale»), cioè
-   a chi è in regola. Completata, non contraddetta: `below` se `compliancePct < 70` **e** i giorni
-   rimanenti non possono più riportare sopra la soglia (`checkinReading.ts:106-115`); coincide
-   con la spec ovunque `remaining = 0` (tutti i casi dell'acceptance). Test dedicato.
-4. **Tredici punti di tinta, non dieci**: oltre ai censiti, `MiniStat` della compliance
-   (`highlight={compliance < 50}`, ex `:472`) e dell'RPE (`Number(rpe) >= 8`, ex `:475`) nella
-   feed card, e l'header del workspace che confrontava la stringa `bg-error-container/30`
-   (ex `:603`). Riparata TUTTA la scala (Fragilità #6): badge, header, riquadro, MetricCard e
-   MiniStat leggono la stessa `attention`/`gate`; nessun residuo `destructive|error-container|
-critical|Rischio` nel file (grep = 0).
-5. **L'insieme ammesso dal vaglio include i rapporti che la lettura stessa scrive** (es.
-   «1 giorno prescritto su 3 non onorato» → (1,3), che NON è onorati/prescritti = (2,3)):
-   altrimenti il modello che ricopia la riga del prompt verrebbe bocciato. Derivato dal
-   `report` in modo deterministico (`allowedRatios`, `checkinReading.ts`), mai dal testo del
-   modello. Il «4 su 5» resta bocciato.
-6. **verify:css 243/243, non 245/245**: la cifra è derivata (classi con alpha DISTINTE nei
-   sorgenti); `bg-error-container/30` e `/20` vivevano solo nel verdetto rimosso (misura del panel
-   pre-piano: `verify-css-tokens.mjs:501-518`, `:588`). Verde per costruzione, due note non
-   bloccanti → chip.
-7. **Due commit di codice, non tre** (§1): ogni commit compila da solo.
-8. **Il riquadro «Lettura della settimana» è reso con OGNI snapshot**, non solo con attenzione:
-   una lettura che appare solo quando c'è attenzione tornerebbe a leggersi come allarme. Tono
-   neutro senza attenzione, warning con. Decisione dichiarata nel piano.
-9. **`weekReading(report, n)` conservata via supertipo strutturale** (`WeekReadingSource`): il
-   FE non ha un `WeekReport`, ha lo snapshot → adattatore `readingSourceFromSnapshot` (chiavi
-   assenti = assenza, mai zero). Test: dallo snapshot vero e dal report esce la STESSA lettura.
-10. **`N su M` con fino a TRE parole in mezzo** (spec: «anche con una parola»): «1 giorno
-    prescritto su 2» ne ha due. La cautela può solo salire.
-11. **Righe legacy senza `sessions_over_threshold`** (scritte prima del deploy): il FE legge
-    `?? 0` SOLO per non mostrare la riga delle sedute oltre soglia — nessun «0 sedute» a video.
-12. **`Co-Authored-By`**: i commit portano il trailer di progetto (`Claude <noreply@anthropic.com>`,
-    legge #9) E quello richiesto dall'harness della sessione (`Claude Fable 5.1`).
-13. **Il vaglio è lessicale, l'invariante 3 è assoluto**: dopo la review il vaglio ferma le
-    QUATTRO parole della regola (3) del prompt (`scaric`, `deload`, `allegger`, `aument`), non
-    ogni raccomandazione sul carico che si possa formulare («spingi di più», «incrementa»,
-    «ridurre» passano). Coprire l'intera classe con una lista di radici non è possibile; la
-    regola e la lista vanno derivate da UNA costante (chip), e la mossa resta del coach (§0.1).
-14. **(coda) La fixture del render test diceva «`sessions_over_threshold` SEMPRE presente»**,
-    come la spec; ma le righe scritte prima del deploy (la 24→30 compresa) non hanno la chiave, e
-    il caso non era mai esercitato: `?? 0` → `?? 1` restava verde (misura di Cowork). La fixture
-    prende ora la chiave come OPZIONALE e due test inchiodano la riga legacy; il `?? 0` del FE non
-    cambia.
-15. **(coda) Il candidato vuoto non è affare del vaglio**: `vetSummary("")` è `ok` per
-    costruzione (nessun rapporto falso, un'assenza); la scelta di cosa salvare sta in
-    `chooseSummary` (modulo puro), che manda il vuoto — e ogni contenuto non-stringa — sulla stessa
-    strada della bocciatura, con la ragione «riepilogo IA vuoto». La edge decide in un punto solo;
-    `vetSummary` invariata; il modulo sale a 329 righe (convenzione delle 300, dichiarata).
+**Un campione di ciò che il vaglio FERMA** (per non far sembrare il colabrodo più largo di quel che
+è): «Sedute concluse 0 su 0» (rapporto), «Aderenza 0%» (percentuale, con compliance assente), «2 su
+2 onorati», «Aderenza al 30%», «2 sedute oltre soglia su 4» (rapporto), «Il 9 di settembre» sulla
+24→30, «Sono le 15», «3° giorno», «1.000 kcal» sulla settimana vuota.
+
+## 8. Divergenze — dove il task diceva una cosa e la misura un'altra (vince la misura, dichiarata)
+
+1. **L'ora è un token solo** (`\d+(?:[.,:]\d+)?`, non la regex nuda `\d+(?:[.,]\d+)?` del task). Con
+   la regex nuda «ore 15:03» del contesto temporale regala «15» e «03» → «3»: la frase viva del
+   02/09, scritta proprio alle 15:03, sarebbe PASSATA al vaglio, e il test (a) sarebbe stato verde
+   solo perché la fixture usava un altro orario. Il candidato viene letto con la STESSA regex (come
+   chiesto): «ore 15:03» scritto intero passa, «alle 15» no. Test dedicato.
+2. **Confronto in forma canonica, non testuale**: il task dà per buono che «6» stia nel prompt, ma
+   il prompt scrive «2026-09-06»: «06» ≡ «6» (e «8,5» ≡ «8.5» ≡ «8.50»). Corollario onesto: il mese
+   «09» ammette un «9» e «08» un «8» in ogni settimana di settembre/agosto — v. §7.
+3. **La NOTA IMPORTANTE si sposta di un paragrafo** (sopra il contesto temporale, prima stava sotto):
+   porta «24 ore», che non è un dato, e il blocco-dati deve essere contiguo per comparire verbatim
+   nel testo. Testo della nota byte-identico; «Niente altro cambia nel testo del prompt» vale per il
+   resto (regole, istruzione finale, righe della lettura e dei dati invariate).
+4. **`CheckinPrompt` al posto della stringa**: `buildCheckinPrompt` non restituisce più una `string`.
+   Il frontend non la usa (zero righe di diff nell'inbox); la edge cambia due espressioni.
+5. **Il modulo sale a 428 righe** (convenzione delle 300, legge #10): la coda poteva toccare solo
+   `checkinReading.ts`, non aprire file nuovi. Da spezzare in una fetta dedicata (chip).
+6. **Un commit solo, quindi l'hash non è nel file** (§1).
+7. **Il `todayIso` della fixture della 24→30 è `2026-08-30`** (domenica, come il `dayName` del
+   contesto), non il `2026-08-28` della finestra del report: il contesto temporale del prompt di
+   test dice «domenica 30 agosto 2026», coerente con «La settimana di allenamento è conclusa».
+8. **`Co-Authored-By`**: il commit porta il trailer di progetto (`Claude <noreply@anthropic.com>`,
+   legge #9) E quello richiesto dall'harness della sessione (`Claude Fable 5.1`).
+9. **Tre cifre dopo il separatore = token letterale** (`THOUSANDS_SHAPE`, esito della passata,
+   §6). Non era nel task, ma è un difetto della coda e non «un altro numero che sfugge»: la mia
+   forma canonica faceva entrare «1.000» come 1, cioè un numero che il prompt non aveva dato, in
+   direzione opposta a §0.8. Le classi fuori portata della regex (lettere, ordinali, romani,
+   Unicode) restano invece dichiarate e NON toccate, come chiesto.
 
 ## 9. Resta a Nicolò (e a Cowork)
 
 1. **PR** dal link in testa e **merge**.
-2. **Deploy** di `generate-batch-checkins` (v34 → v35) **controllando che la versione salga**
-   (`list_edge_functions` → v35 e `updated_at` di oggi; il 30/08 un «Deployed» con `No change
-found` non aveva caricato nulla). Nessuna migration, nessun FE da deployare oltre alla
-   pubblicazione ordinaria di `main`.
-3. **Collaudo su `/coach/inbox`**: «Analizza» scrive la settimana **corrente** (§8.2). Sulla card
-   della settimana corrente: riquadro «Lettura della settimana», nessun «Indici di rischio»,
-   nessun «Valutare scarico», card RPE senza tinta. Sulla card **24→30** (riga vecchia): la
-   lettura si ricava dallo snapshot esistente — «1 giorno prescritto su 2 non onorato» ·
-   «Carico settimanale 9,02 UA» · «Attenzione» (gate below) — ma SENZA la riga «2 sedute oltre la
-   soglia» (chiave assente nella riga scritta il 30/08 — comportamento ora inchiodato dal render test della coda: nessun conteggio fabbricato dall'assenza) e con la vecchia `ai_summary` («4 sedute
-   su 5»): non è un difetto del codice, è la riga di prima.
-4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start,
-metrics_snapshot, ai_summary from weekly_checkins order by week_start desc` → sulla riga
-   corrente `sessions_over_threshold` presente (0 se nessun avviso della settimana) e una
-   `ai_summary` che passa `vetSummary` (o la riga deterministica, con il `console.warn`
-   `[vetSummary] atleta …` nei log della function).
-5. **Chip aperte in questa fetta**: parametro di settimana per il batch (§8.2) · le due voci
-   `bg-error-container/*` da togliere da `EXPECTED` in `scripts/verify-css-tokens.mjs` (§8.6) ·
-   copy dello stato vuoto «zona ottimale» (§7.5) · `fallbackSummaryText` senza le sedute oltre
-   soglia (§7.4) · `error.message:368` preesistente e `full_name` nel prompt (già censiti il 28/08).
+2. **Deploy** di `generate-batch-checkins` (v35 → v36) **controllando che la versione salga**
+   (`list_edge_functions` → v36 e `updated_at` di oggi). Nessuna migration, nessun FE da deployare
+   oltre alla pubblicazione ordinaria di `main`.
+3. **Collaudo**: «Analizza» sulla settimana corrente. Atteso sulla riga 31/08→06/09: una
+   `ai_summary` senza numeri estranei al prompt e con la data giusta se la cita («2 settembre»), o
+   la riga deterministica con il `console.warn` `[vetSummary] atleta …: riepilogo IA scartato —
+numero «…» assente dal prompt` nei log della function.
+4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start, ai_summary from
+weekly_checkins order by week_start desc` → nessun numero della `ai_summary` corrente fuori dal
+   prompt (i log della function dicono se il candidato è stato scartato e perché).
+5. **Decisione aperta, non di questa coda:** se chiamare il modello su una settimana vuota (0
+   prescritti, 0 sedute) abbia senso. Oggi la chiamata parte comunque; il vaglio garantisce i numeri,
+   non l'utilità della frase.
+6. **Chip aperte**: spezzare `checkinReading.ts` (428 righe) · parametro di settimana per il batch ·
+   le due voci `bg-error-container/*` in `EXPECTED` di `verify-css-tokens.mjs` · `fallbackSummaryText`
+   senza le sedute oltre soglia · `error.message` preesistente della edge · `full_name` nel prompt.
+7. **RETRO non scritta in `docs/auto-miglioramento.md`**: fuori dal perimetro dei file della coda.
+   La lezione di processo di oggi (le prove rosse su codice non committato: mettere in stage prima,
+   così `git diff --exit-code` misura worktree-contro-index) è salvata nella memoria di progetto
+   dell'agente; da promuovere nel Log alla prossima fetta che apre quel file.

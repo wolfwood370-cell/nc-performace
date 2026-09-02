@@ -332,6 +332,7 @@ Deno.serve(async (req) => {
               athleteName: athlete.full_name || "l'atleta",
               dayName,
               timeStr,
+              todayIso: todayStr,
               weekStartIso: weekStartStr,
               weekEndIso: weekEndStr,
               avgCalories,
@@ -350,7 +351,7 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({
                 model: "gpt-5.4-nano",
-                messages: [{ role: "user", content: prompt }],
+                messages: [{ role: "user", content: prompt.text }],
                 max_completion_tokens: 200,
               }),
             });
@@ -366,7 +367,11 @@ Deno.serve(async (req) => {
               // refusal costs the deterministic line; a fabricated number
               // («4 sedute su 5», 2026-08-30) or a void would cost the
               // coach's trust.
-              const chosen = chooseSummary(typeof content === "string" ? content : "", report);
+              const chosen = chooseSummary(
+                typeof content === "string" ? content : "",
+                report,
+                prompt,
+              );
               if (chosen.reason !== null) {
                 console.warn(
                   `[vetSummary] atleta ${athlete.id}: riepilogo IA scartato — ${chosen.reason}`,
