@@ -251,8 +251,11 @@ const RATIO_SU = new RegExp(`(${DECIMAL})\\s+(?:\\p{L}+\\s+){0,3}su\\s+(${DECIMA
 /** «N/M» — a «24/08» date matches too, on purpose: caution only rises. */
 const RATIO_SLASH = new RegExp(`(${DECIMAL})\\s*/\\s*(${DECIMAL})`, "g");
 const PERCENT = new RegExp(`(${DECIMAL})\\s*%`, "g");
-/** Stems of the load actions the model must not propose (case-insensitive). */
-const FORBIDDEN_STEMS = ["scaric", "deload", "allegger"] as const;
+/** Stems of the load actions the model must not propose (case-insensitive):
+ *  the same four the prompt rule forbids — scarico, deload, alleggerire,
+ *  aumentare. A stem the rule names but the vet lets through is a hole
+ *  (independent review, 2026-09-02). */
+const FORBIDDEN_STEMS = ["scaric", "deload", "allegger", "aument"] as const;
 
 const toNumber = (s: string): number => Number(s.replace(",", "."));
 

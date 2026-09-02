@@ -383,10 +383,19 @@ describe("vetSummary — ogni rapporto e percentuale deve già essere nei dati",
     expect(v.reasons.join(" ")).toContain("24/08");
   });
 
-  it("boccia «deload» e «alleggerire», in qualunque maiuscola", () => {
-    for (const frase of ["Consiglio un DELOAD.", "Meglio Alleggerire il volume."]) {
+  it("boccia «deload», «alleggerire» e «aumentare», in qualunque maiuscola", () => {
+    for (const frase of [
+      "Consiglio un DELOAD.",
+      "Meglio Alleggerire il volume.",
+      "Puoi aumentare il carico la prossima settimana.",
+    ]) {
       const v = vetSummary(frase, reportVero);
       expect(v.ok, frase).toBe(false);
+    }
+    // Le quattro parole della regola (3) del prompt sono tutte fermate dal vaglio.
+    for (const parola of ["scarico", "deload", "alleggerire", "aumentare"]) {
+      expect(PROMPT_RULES.noLoadActions).toContain(parola);
+      expect(vetSummary(`Ti suggerisco di ${parola}.`, reportVero).ok, parola).toBe(false);
     }
   });
 
