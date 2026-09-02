@@ -9,7 +9,7 @@
 
 ## 1. Ramo e commit
 
-`claude/checkin-che-non-giudica`, da `7111cfb`, 2 commit di codice + 1 di review + il commit dei documenti (tip):
+`claude/checkin-che-non-giudica`, da `7111cfb`: 2 commit di codice, 1 di review, 1 di documenti, poi la **coda del 02/09** (codice + documenti, tip):
 
 - `9068bf6` — **backend, coerente da solo**: il modulo puro `checkinReading.ts` (cancello
   dell'aderenza, conteggio distinto degli avvisi del watchdog, prompt con la lettura in testa,
@@ -20,7 +20,12 @@
   hook esteso, render test con l'acceptance 4.
 - `32ee547` — **esito della passata indipendente**: il vaglio ferma anche «aumentare», la quarta
   parola che la regola (3) del prompt vieta (v. §6); test che lega le due liste.
-- **(tip) commit dei documenti**: prompt-file conservato, questo file, `HANDOFF.md`, RETRO.
+- `b2d3142` — commit dei documenti della fetta: prompt-file conservato, questo file, `HANDOFF.md`, RETRO.
+- `8c617ab` — **coda del 02/09 (misura di Cowork sul tip `b2d3142`)**: la riga legacy senza
+  `sessions_over_threshold` non fabbrica sedute oltre soglia (fixture con la chiave OPZIONALE + 2
+  render test; `CoachCheckinInbox.tsx` a zero righe di diff) e il candidato vuoto del modello prende
+  la strada della bocciatura (`chooseSummary`, modulo puro, 4 test; `vetSummary` invariata).
+- **(tip) commit dei documenti della coda**: questo file (§1, §2, §4, §5, §7, §8, §9).
 
 **Perché 2 commit di codice e non 3 (spec: modulo · edge · FE).** `weekDataLines` cambia firma
 (secondo parametro obbligatorio): un commit «solo modulo» lascerebbe la edge a un argomento
@@ -31,8 +36,8 @@ negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal l
 
 ## 2. Manifesto
 
-**NUOVI:** `supabase/functions/_shared/program/checkinReading.ts` (307 righe) ·
-`src/lib/program/__tests__/checkinReading.test.ts` (35 `it`) ·
+**NUOVI:** `supabase/functions/_shared/program/checkinReading.ts` (329 righe) ·
+`src/lib/program/__tests__/checkinReading.test.ts` (39 `it`) ·
 `docs/prompts/2026-09-02-checkin-che-non-giudica.md` (il prompt, conservato).
 
 **MODIFICATI:** `supabase/functions/_shared/program/weekAdherence.ts` (solo `weekDataLines`: la
@@ -40,7 +45,7 @@ riga «Sedute oltre la soglia d'attenzione: N» prima del carico, e il suo JSDoc
 `supabase/functions/generate-batch-checkins/index.ts` · `src/pages/coach/CoachCheckinInbox.tsx` ·
 `src/hooks/useWeeklyCheckins.ts` (solo il tipo di `metrics_snapshot`) ·
 `src/lib/program/__tests__/weekAdherence.test.ts` (+1 `it`, due chiamate col secondo argomento) ·
-`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` (+2 `it`, fixture col conteggio) ·
+`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` (+4 `it`, fixture con la chiave del conteggio OPZIONALE) ·
 `docs/ULTIMO-RITORNO.md` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md`.
 
 **VIETATI, misurati a zero righe di diff** (`git diff 7111cfb..HEAD -- <f> | wc -l`, uno per uno):
@@ -80,7 +85,7 @@ Tutti eseguiti nel worktree `.claude/worktrees/checkin-che-non-giudica` sul tip 
 eslint ✖ 77 problems (64 errors, 13 warnings) · build ok · verify:css 245/245 · deno test
 `_shared/program/` 13/13 · `deno check` della edge rosso SOLO per il preesistente `:368`).
 
-**1. `weekReading`.** `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 35/35.
+**1. `weekReading`.** `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 39/39 (35 + i 4 di `chooseSummary`, coda).
 1/2 → `below` e «1 giorno prescritto su 2 non onorato» · 3/4 → `ok` «aderenza 75% (3 su 4)» (4
 prescritti = forma in percentuale, D2) · 3/3 → `ok` «3 giorni prescritti su 3 onorati» · 0
 prescritti → `none` «nessun giorno prescritto questa settimana» (nessuna cifra) · 5/7 → `ok`
@@ -104,7 +109,7 @@ d'attenzione: 2` < `- Carico:` < `- RPE medio: 8.5`; le regole (1)(2)(3)(5) pres
 testualmente; la (4) presente con gate `below` e ASSENTE con gate `ok` (75%).
 
 **4. Render test.** `npx vitest run src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` →
-5/5. Con `{compliance_pct 50, avg_rpe "8.5", sessions_over_threshold 2, …}` (snapshot DERIVATO da
+7/7 (5 + i 2 della riga legacy, coda). Con `{compliance_pct 50, avg_rpe "8.5", sessions_over_threshold 2, …}` (snapshot DERIVATO da
 `buildWeekReport`): assente «Indici di rischio elevati», assente «Valutare scarico», assente
 «rischio» in ogni forma, presente «Lettura della settimana», «1 giorno prescritto su 2 non
 onorato», «2 sedute oltre la soglia», «9,02 UA», badge «Attenzione»; la card «RPE medio» non
@@ -161,7 +166,20 @@ TSC_EXIT=0 · VITEST: 51 file, 528 passed (528) · ESLINT ✖ 77 problems (64 er
 BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito
 ```
 
-## 5. Le quattro prove rosse (protocollo 29/08: quattro guardie, runner in scratchpad)
+**Ri-misura sul tip della coda `8c617ab`** (tree pulito salvo questo file):
+
+```
+TSC_EXIT=0 · VITEST: 51 file, 534 passed (534) [+2 render, +4 modulo] · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline
+BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito · edge: solo il preesistente TS18046
+```
+
+**Acceptance della coda.** (1) vitest verde con +2 nel render test e +4 nel modulo ✓ · (2) le due
+prove rosse R6/R7, nelle due direzioni (§5) ✓ · (3) `git diff b2d3142..HEAD -- src/pages/coach/CoachCheckinInbox.tsx | wc -l`
+→ **0** (e `weekAdherence.ts` → 0; vietati della fetta ancora a 0) ✓ · (4) i cinque cancelli qui
+sopra ✓. Perimetro della coda: `git diff b2d3142..HEAD --name-only` = render test · modulo · edge ·
+test del modulo, più questo file.
+
+## 5. Le prove rosse — quattro della fetta, una della review, due della coda (protocollo 29/08: quattro guardie, runner in scratchpad)
 
 Per ognuna: occorrenza UNICA verificata prima di mutare · `git diff --numstat` non vuoto come prova
 di applicazione · verdetto dall'exit code nudo di `npx vitest run <file>` · ripristino per copia dal
@@ -181,6 +199,16 @@ prossima settimana.: expected true to be false» (1 su 35 morto); R1-R4 riesegui
 tip: tutte ancora ROSSE. Dopo ognuna: `ripristino byte-identico: true · git diff --exit-code: 0`;
 a fine runner `git status` pulito (salvo i documenti). Log completi in scratchpad
 (`mutazioni/R1..R5.log` + `summary.json`).
+
+**R6 e R7 (coda, sul tip `8c617ab`).** **R6** — `?? 0` → `?? 1` su `sessions_over_threshold` in
+`CoachCheckinInbox.tsx:99` → **ROSSO, 2 su 7 morti**: «la 24→30 com'è nel database: nessuna riga
+«oltre la soglia», attenzione SOLO per il cancello — expected '…' not to contain 'oltre la soglia'»
+e «una riga legacy con l'aderenza a posto non accende nulla — … not to contain 'oltre la soglia'»
+(numstat `1 1`, ripristino byte-identico, `git diff --exit-code` 0). **R7** — via il fallback sul
+candidato vuoto (`if (trimmed.length === 0)` → `if (false)`: il vuoto passa) → **ROSSO, 2 su 39
+morti**: «vuoto → la riga deterministica, con la ragione «riepilogo IA vuoto»: expected { text: '',
+reason: null } to deeply equal { …(2) }» e «solo spazi → la riga deterministica» (numstat `1 1`,
+ripristino byte-identico, `git diff --exit-code` 0). Log in `mutazioni/R6.log`, `R7.log`.
 
 ## 6. Passata indipendente (workflow: 4 auditor di progetto + 3 refuter per rilievo, 22 agenti)
 
@@ -242,6 +270,15 @@ giorno` perde un avviso solo con l'orologio del client avanti di più di due gio
    D6 dice che il testo del filtro resta — flaggato, non toccato.
 6. **`deno check` della edge resta rosso per il preesistente `:368`** (`error.message` su
    `unknown`), identico su `main`, già censito il 28/08.
+7. **(coda) Un terzo ramo dello stesso tipo, trovato e NON toccato**: una riga di
+   `weekly_checkins` con `metrics_snapshot: null`. `readingOf` restituisce `null`
+   (`CoachCheckinInbox.tsx:96-100`) e la feed card salta le mini-metriche, ma nessun render test
+   monta una riga SENZA snapshot: un mutante che leggesse `readingSourceFromSnapshot(null)`
+   mostrerebbe «Lettura della settimana — Nessun giorno prescritto … Carico settimanale non
+   misurato» su una riga che non ha una settimana, un'assenza travestita da lettura. Fuori dal
+   mandato della coda («nient'altro»): da inchiodare in una coda sua.
+8. **(coda) `docs/HANDOFF.md` non ritoccato**: la sua riga «vitest 528/528» resta indietro di
+   questa coda (534/534) — non era fra i file dichiarati.
 
 ## 8. Divergenze — dove la spec diceva una cosa e il repo un'altra (vince la misura)
 
@@ -298,6 +335,16 @@ critical|Rischio` nel file (grep = 0).
     ogni raccomandazione sul carico che si possa formulare («spingi di più», «incrementa»,
     «ridurre» passano). Coprire l'intera classe con una lista di radici non è possibile; la
     regola e la lista vanno derivate da UNA costante (chip), e la mossa resta del coach (§0.1).
+14. **(coda) La fixture del render test diceva «`sessions_over_threshold` SEMPRE presente»**,
+    come la spec; ma le righe scritte prima del deploy (la 24→30 compresa) non hanno la chiave, e
+    il caso non era mai esercitato: `?? 0` → `?? 1` restava verde (misura di Cowork). La fixture
+    prende ora la chiave come OPZIONALE e due test inchiodano la riga legacy; il `?? 0` del FE non
+    cambia.
+15. **(coda) Il candidato vuoto non è affare del vaglio**: `vetSummary("")` è `ok` per
+    costruzione (nessun rapporto falso, un'assenza); la scelta di cosa salvare sta in
+    `chooseSummary` (modulo puro), che manda il vuoto — e ogni contenuto non-stringa — sulla stessa
+    strada della bocciatura, con la ragione «riepilogo IA vuoto». La edge decide in un punto solo;
+    `vetSummary` invariata; il modulo sale a 329 righe (convenzione delle 300, dichiarata).
 
 ## 9. Resta a Nicolò (e a Cowork)
 
@@ -311,7 +358,7 @@ found` non aveva caricato nulla). Nessuna migration, nessun FE da deployare oltr
    nessun «Valutare scarico», card RPE senza tinta. Sulla card **24→30** (riga vecchia): la
    lettura si ricava dallo snapshot esistente — «1 giorno prescritto su 2 non onorato» ·
    «Carico settimanale 9,02 UA» · «Attenzione» (gate below) — ma SENZA la riga «2 sedute oltre la
-   soglia» (chiave assente nella riga scritta il 30/08) e con la vecchia `ai_summary` («4 sedute
+   soglia» (chiave assente nella riga scritta il 30/08 — comportamento ora inchiodato dal render test della coda: nessun conteggio fabbricato dall'assenza) e con la vecchia `ai_summary` («4 sedute
    su 5»): non è un difetto del codice, è la riga di prima.
 4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start,
 metrics_snapshot, ai_summary from weekly_checkins order by week_start desc` → sulla riga
