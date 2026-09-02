@@ -26,6 +26,11 @@ export interface WeeklyCheckin {
     sessions_completed?: number;
     off_plan_sessions?: number;
     avg_rpe?: string;
+    // The watchdog's per-session judgements, COUNTED (distinct workout_log_id
+    // among coach_alerts.type = 'risk_alert' of the week). Written on every
+    // row since the checkin-che-non-giudica slice; optional here only because
+    // older rows predate it — the UI shows the count only when > 0.
+    sessions_over_threshold?: number;
     avg_daily_calories?: number | null;
   } | null;
   created_at: string;

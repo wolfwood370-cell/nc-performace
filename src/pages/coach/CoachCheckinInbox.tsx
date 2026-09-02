@@ -14,10 +14,11 @@
  *   └──────────────────────┴──────────────────────────────────────┘
  *
  * Card types in the feed:
- *   1. Critical Risk Alert — soft error-red tint for compliance
- *      drops, RPE spikes or risk-flagged check-ins.
+ *   1. Attention — soft warning tint when the week's READING asks for the
+ *      coach's eye: adherence under the gate, or sessions the watchdog
+ *      flagged. Never a verdict on the average RPE (checkinReading.ts).
  *   2. Standard Weekly Check-in — neutral Aura card.
- *   3. Compliance/FMS event — soft warning tint.
+ *   3. Sent / skipped — success / muted tone.
  *
  * State management:
  *   - useWeeklyCheckins → checkins + mutations (live data preserved 1:1).
@@ -46,6 +47,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useWeeklyCheckins, type WeeklyCheckin } from "@/hooks/useWeeklyCheckins";
+import {
+  overThresholdText,
+  readingSourceFromSnapshot,
+  weekReading,
+  type WeekReading,
+} from "../../../supabase/functions/_shared/program/checkinReading.ts";
 
 import {
   Zap,
@@ -81,26 +88,32 @@ const FILTERS: Array<{ key: FilterKey; label: string; icon: LucideIcon }> = [
   { key: "archived", label: "Archiviati", icon: Archive },
 ];
 
-/** Bucketing logic — a single checkin is "anomalous" when compliance drops
- *  under 50% or the avg RPE rises above 8. The same heuristic also drives
- *  the critical-tint card style in the feed. */
-function isAnomalous(c: WeeklyCheckin): boolean {
+/** The reading of the week, derived from the persisted snapshot by the SAME
+ *  pure module the edge used to write it: this page reads, it never
+ *  re-judges (no threshold lives here). No snapshot → no reading: a missing
+ *  week is not an anomaly. Rows older than the watchdog count carry no key:
+ *  the flagged-sessions line is simply not shown for them. */
+function readingOf(c: WeeklyCheckin): WeekReading | null {
   const m = c.metrics_snapshot;
-  if (!m) return false;
-  if (typeof m.compliance_pct === "number" && m.compliance_pct < 50) return true;
-  if (m.avg_rpe && m.avg_rpe !== "N/A") {
-    const rpe = Number(m.avg_rpe);
-    if (!Number.isNaN(rpe) && rpe >= 8) return true;
-  }
-  return false;
+  if (!m) return null;
+  return weekReading(readingSourceFromSnapshot(m), m.sessions_over_threshold ?? 0);
 }
+
+/** «Anomalie» = the reading asks for attention: adherence under the gate, or
+ *  at least one session over the watchdog's threshold. */
+function needsAttention(c: WeeklyCheckin): boolean {
+  return readingOf(c)?.attention === true;
+}
+
+/** First letter up, for a reading sentence rendered on its own row. */
+const ucFirst = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 function filterCheckins(list: WeeklyCheckin[], key: FilterKey): WeeklyCheckin[] {
   switch (key) {
     case "review":
       return list.filter((c) => c.status === "pending");
     case "anomalies":
-      return list.filter(isAnomalous);
+      return list.filter(needsAttention);
     case "archived":
       return list.filter((c) => c.status === "sent" || c.status === "skipped");
     case "all":
@@ -130,6 +143,7 @@ function formatWeek(weekStart: string): string {
 }
 
 interface CardTone {
+  kind: "attention" | "sent" | "skipped" | "pending";
   // Surface bg + border for the feed row + side accent strip.
   bg: string;
   border: string;
@@ -144,26 +158,28 @@ interface CardTone {
 /**
  * Map a checkin → visual tone for the feed card.
  *
- * - Anomalous (compliance<50 or RPE≥8): soft error-red tint
+ * - Attention (reading.attention): soft warning tint — attention, not risk
  * - Pending standard: neutral Aura card
  * - Sent / approved: success tint
  * - Skipped: muted tone
  */
 function toneOf(c: WeeklyCheckin): CardTone {
-  if (isAnomalous(c)) {
+  if (needsAttention(c)) {
     return {
-      bg: "bg-error-container/30",
-      border: "border-destructive/30",
-      accent: "bg-destructive",
-      iconBg: "bg-destructive/15",
-      iconText: "text-destructive",
-      pillBg: "bg-destructive/10",
-      pillText: "text-destructive",
-      badge: { icon: AlertTriangle, label: "Rischio" },
+      kind: "attention",
+      bg: "bg-warning/5",
+      border: "border-warning/30",
+      accent: "bg-warning",
+      iconBg: "bg-warning/15",
+      iconText: "text-warning",
+      pillBg: "bg-warning/10",
+      pillText: "text-warning",
+      badge: { icon: AlertTriangle, label: "Attenzione" },
     };
   }
   if (c.status === "sent" || c.status === "approved") {
     return {
+      kind: "sent",
       bg: "bg-surface-container-lowest",
       border: "border-success/30",
       accent: "bg-success",
@@ -176,6 +192,7 @@ function toneOf(c: WeeklyCheckin): CardTone {
   }
   if (c.status === "skipped") {
     return {
+      kind: "skipped",
       bg: "bg-surface-container-low",
       border: "border-outline-variant/30",
       accent: "bg-outline-variant",
@@ -187,6 +204,7 @@ function toneOf(c: WeeklyCheckin): CardTone {
     };
   }
   return {
+    kind: "pending",
     bg: "bg-surface-container-lowest",
     border: "border-outline-variant/20",
     accent: "bg-primary",
@@ -235,7 +253,7 @@ export default function CoachCheckinInbox() {
     () => ({
       all: checkins.length,
       review: checkins.filter((c) => c.status === "pending").length,
-      anomalies: checkins.filter(isAnomalous).length,
+      anomalies: checkins.filter(needsAttention).length,
       archived: checkins.filter((c) => c.status === "sent" || c.status === "skipped").length,
     }),
     [checkins],
@@ -415,6 +433,7 @@ function FeedCard({
   const initials = initialsOf(checkin.athlete?.full_name);
   const compliance = checkin.metrics_snapshot?.compliance_pct;
   const rpe = checkin.metrics_snapshot?.avg_rpe;
+  const reading = readingOf(checkin);
 
   return (
     <button
@@ -469,11 +488,13 @@ function FeedCard({
           {checkin.metrics_snapshot && (
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {typeof compliance === "number" && (
-                <MiniStat icon={Target} value={`${compliance}%`} highlight={compliance < 50} />
+                <MiniStat
+                  icon={Target}
+                  value={`${compliance}%`}
+                  highlight={reading?.adherence.gate === "below"}
+                />
               )}
-              {rpe && rpe !== "N/A" && (
-                <MiniStat icon={Flame} value={`RPE ${rpe}`} highlight={Number(rpe) >= 8} />
-              )}
+              {rpe && rpe !== "N/A" && <MiniStat icon={Flame} value={`RPE ${rpe}`} />}
               {checkin.metrics_snapshot.workouts_completed !== undefined && (
                 <MiniStat
                   icon={Activity}
@@ -507,7 +528,7 @@ function MiniStat({
       className={cn(
         "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-bold tabular-nums",
         highlight
-          ? "bg-destructive/10 text-destructive"
+          ? "bg-warning/10 text-warning"
           : "bg-surface-container-low text-on-surface-variant",
       )}
     >
@@ -592,6 +613,7 @@ function Workspace({
   const BadgeIcon = tone.badge.icon;
   const initials = initialsOf(checkin.athlete?.full_name);
   const m = checkin.metrics_snapshot;
+  const reading = readingOf(checkin);
   const isPending = checkin.status === "pending";
 
   return (
@@ -600,7 +622,7 @@ function Workspace({
       <header
         className={cn(
           "flex items-center justify-between gap-4 px-6 py-5 border-b border-outline-variant/10 flex-shrink-0",
-          tone.bg === "bg-error-container/30" && "bg-error-container/20",
+          tone.kind === "attention" && "bg-warning/5",
         )}
       >
         <div className="flex items-center gap-4 min-w-0">
@@ -635,25 +657,46 @@ function Workspace({
       {/* ── Scrollable body ── */}
       <ScrollArea className="flex-1 custom-scrollbar">
         <div className="px-6 py-6 space-y-6">
-          {/* Critical banner */}
-          {isAnomalous(checkin) && (
-            <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-error-container/30 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/15 flex-shrink-0">
-                <ShieldAlert className="h-5 w-5 text-destructive" strokeWidth={1.75} />
+          {/* Reading of the week: facts in the method's order (adherence,
+              sessions the watchdog flagged, load). No recommended action —
+              the move stays with the coach. Warning tint = attention. */}
+          {reading && (
+            <div
+              className={cn(
+                "flex items-start gap-3 rounded-2xl border p-4",
+                reading.attention
+                  ? "border-warning/30 bg-warning/5"
+                  : "border-outline-variant/20 bg-surface-container-low",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-full flex-shrink-0",
+                  reading.attention ? "bg-warning/15" : "bg-primary-container/10",
+                )}
+              >
+                {reading.attention ? (
+                  <AlertTriangle className="h-5 w-5 text-warning" strokeWidth={1.75} />
+                ) : (
+                  <Activity className="h-5 w-5 text-primary" strokeWidth={1.75} />
+                )}
               </div>
               <div>
-                <p className="text-label-md font-bold text-destructive">
-                  Indici di rischio elevati
-                </p>
-                <p className="text-sm text-on-surface-variant mt-0.5 leading-relaxed">
-                  {typeof m?.compliance_pct === "number" && m.compliance_pct < 50 && (
-                    <>Compliance sotto soglia ({m.compliance_pct}%). </>
+                <p
+                  className={cn(
+                    "text-label-md font-bold",
+                    reading.attention ? "text-warning" : "text-on-surface",
                   )}
-                  {m?.avg_rpe && m.avg_rpe !== "N/A" && Number(m.avg_rpe) >= 8 && (
-                    <>RPE medio {m.avg_rpe}/10 — carico interno elevato. </>
-                  )}
-                  Valutare scarico o approfondimento.
+                >
+                  Lettura della settimana
                 </p>
+                <ul className="text-sm text-on-surface-variant mt-0.5 leading-relaxed">
+                  <li>{ucFirst(reading.adherence.text)}</li>
+                  {reading.overThresholdSessions > 0 && (
+                    <li>{overThresholdText(reading.overThresholdSessions)}</li>
+                  )}
+                  <li>{ucFirst(reading.load.text)}</li>
+                </ul>
               </div>
             </div>
           )}
@@ -696,11 +739,7 @@ function Workspace({
                 icon={Target}
                 label="Compliance"
                 value={typeof m?.compliance_pct === "number" ? `${m.compliance_pct}%` : "—"}
-                tone={
-                  typeof m?.compliance_pct === "number" && m.compliance_pct < 50
-                    ? "critical"
-                    : "default"
-                }
+                tone={reading?.adherence.gate === "below" ? "attention" : "default"}
               />
               <MetricCard
                 icon={Activity}
@@ -720,12 +759,9 @@ function Workspace({
               <MetricCard
                 icon={Flame}
                 label="RPE medio"
+                // A number, read as a number: the average RPE gets no tint
+                // (a mean of four short sessions is not a load, C-14).
                 value={m?.avg_rpe && m.avg_rpe !== "N/A" ? `${m.avg_rpe}/10` : "—"}
-                tone={
-                  m?.avg_rpe && m.avg_rpe !== "N/A" && Number(m.avg_rpe) >= 8
-                    ? "critical"
-                    : "default"
-                }
               />
             </div>
           </section>
@@ -796,14 +832,14 @@ function MetricCard({
   icon: LucideIcon;
   label: string;
   value: string;
-  tone?: "default" | "critical";
+  tone?: "default" | "attention";
 }) {
   return (
     <div
       className={cn(
         "rounded-2xl border p-4",
-        tone === "critical"
-          ? "bg-error-container/30 border-destructive/30"
+        tone === "attention"
+          ? "bg-warning/5 border-warning/30"
           : "bg-surface-container-low border-outline-variant/20",
       )}
     >
@@ -811,7 +847,7 @@ function MetricCard({
         <Icon
           className={cn(
             "h-3.5 w-3.5",
-            tone === "critical" ? "text-destructive" : "text-on-surface-variant",
+            tone === "attention" ? "text-warning" : "text-on-surface-variant",
           )}
         />
         <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
@@ -821,7 +857,7 @@ function MetricCard({
       <p
         className={cn(
           "font-display text-2xl font-bold tabular-nums",
-          tone === "critical" ? "text-destructive" : "text-on-surface",
+          tone === "attention" ? "text-warning" : "text-on-surface",
         )}
       >
         {value}

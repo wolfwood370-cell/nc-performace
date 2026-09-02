@@ -1,328 +1,371 @@
-# ULTIMO RITORNO — fetta checkin-onesto
+# ULTIMO RITORNO — fetta checkin-che-non-giudica
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
-> Fetta: `claude/checkin-onesto` · 2026-08-28, coda test-bordi 2026-08-29 · base `origin/main` = `3bbf063` (la stessa della
-> misura di Cowork) · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-onesto)
-> — `gh` non installata su questa macchina, ri-misurato oggi, e dal 20/08 il classificatore nega
-> le credenziali all'agente).
+> Fetta: `claude/checkin-che-non-giudica` · 2026-09-02 · base `origin/main` = `7111cfb` (la stessa
+> della ricognizione di Cowork) · PR verso `main` **da aprire da Nicolò**
+> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-che-non-giudica)
+> — `gh` non installata e credenziali negate all'agente, come dal 20/08).
 
 ## 1. Ramo e commit
 
-`claude/checkin-onesto`, da `3bbf063`, 3 commit di codice + eventuale commit di review + il
-commit dei documenti (tip del ramo):
+`claude/checkin-che-non-giudica`, da `7111cfb`: 2 commit di codice, 1 di review, 1 di documenti, poi la **coda del 02/09** (codice + documenti, tip):
 
-- `b94923d` — il modulo puro `weekAdherence.ts` + i suoi test (unit + parità con la porta atleta).
-- `9eb208c` — la edge `generate-batch-checkins`: finestra su `completed_at` ai confini del giorno
-  di Roma, lettura batch di `program_releases`, tutti i numeri dal modulo puro.
-- `39abff6` — l'inbox non fabbrica il denominatore («—» senza prescrizioni), tipo del hook
-  allineato, render-test con snapshot DERIVATI dal modulo.
-- `dda6669` — esiti della passata indipendente: partizione disgiunta dei giorni + il batch
-  fallisce forte su errore o troncamento delle letture (v. §6).
-- **(tip, 2026-08-29) — la coda dei test-bordi**: i NOVE confronti di data di
-  `weekAdherence.ts` inchiodati uno per uno con 8 test nuovi (matrice completa in §5-bis),
-  **zero righe di diff sul modulo**. Questo file e la RETRO viaggiano nello stesso commit.
+- `9068bf6` — **backend, coerente da solo**: il modulo puro `checkinReading.ts` (cancello
+  dell'aderenza, conteggio distinto degli avvisi del watchdog, prompt con la lettura in testa,
+  vaglio), la riga in più di `weekDataLines`, la edge `generate-batch-checkins` (quarta lettura,
+  snapshot con `sessions_over_threshold`, `vetSummary` prima dell'upsert) e i due test di libreria.
+- `89d9d60` — **frontend**: via `isAnomalous` e tutte le sue tinte, `weekReading(...).attention`
+  guida filtro/contatore/tono, riquadro «Lettura della settimana», card RPE senza tinta, tipo del
+  hook esteso, render test con l'acceptance 4.
+- `32ee547` — **esito della passata indipendente**: il vaglio ferma anche «aumentare», la quarta
+  parola che la regola (3) del prompt vieta (v. §6); test che lega le due liste.
+- `b2d3142` — commit dei documenti della fetta: prompt-file conservato, questo file, `HANDOFF.md`, RETRO.
+- `8c617ab` — **coda del 02/09 (misura di Cowork sul tip `b2d3142`)**: la riga legacy senza
+  `sessions_over_threshold` non fabbrica sedute oltre soglia (fixture con la chiave OPZIONALE + 2
+  render test; `CoachCheckinInbox.tsx` a zero righe di diff) e il candidato vuoto del modello prende
+  la strada della bocciatura (`chooseSummary`, modulo puro, 4 test; `vetSummary` invariata).
+- **(tip) commit dei documenti della coda**: questo file (§1, §2, §4, §5, §7, §8, §9).
 
-**PR: non aperta.** Motivo misurato: `gh` non esiste (`command not found`) e la via API col token
-del credential manager è negata dal classificatore dal 20/08 (memoria di progetto, ri-confermata
-dalla fetta durata-unica). Nicolò la apre dal link crea-PR qui sopra.
+**Perché 2 commit di codice e non 3 (spec: modulo · edge · FE).** `weekDataLines` cambia firma
+(secondo parametro obbligatorio): un commit «solo modulo» lascerebbe la edge a un argomento
+per un commit, con `deno check` rosso su quel commit. Ogni commit di questo ramo compila da solo.
+
+**PR: non aperta.** Motivo misurato: `gh` assente; la via API col token del credential manager è
+negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa.
 
 ## 2. Manifesto
 
-**NUOVI:** `supabase/functions/_shared/program/weekAdherence.ts` ·
-`src/lib/program/__tests__/weekAdherence.test.ts` ·
-`src/lib/program/__tests__/weekAdherence.parita.test.ts` ·
-`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` ·
-`docs/prompts/2026-08-28-checkin-onesto.md` (destinazione dichiarata dalla spec).
+**NUOVI:** `supabase/functions/_shared/program/checkinReading.ts` (329 righe) ·
+`src/lib/program/__tests__/checkinReading.test.ts` (39 `it`) ·
+`docs/prompts/2026-09-02-checkin-che-non-giudica.md` (il prompt, conservato).
 
-**MODIFICATI:** `supabase/functions/generate-batch-checkins/index.ts` ·
-`src/pages/coach/CoachCheckinInbox.tsx` (solo i due `?? 0`) · `src/hooks/useWeeklyCheckins.ts`
-(solo il tipo di `metrics_snapshot`) · `docs/HANDOFF.md` · `docs/auto-miglioramento.md` (RETRO) ·
-questo file.
+**MODIFICATI:** `supabase/functions/_shared/program/weekAdherence.ts` (solo `weekDataLines`: la
+riga «Sedute oltre la soglia d'attenzione: N» prima del carico, e il suo JSDoc) ·
+`supabase/functions/generate-batch-checkins/index.ts` · `src/pages/coach/CoachCheckinInbox.tsx` ·
+`src/hooks/useWeeklyCheckins.ts` (solo il tipo di `metrics_snapshot`) ·
+`src/lib/program/__tests__/weekAdherence.test.ts` (+1 `it`, due chiamate col secondo argomento) ·
+`src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` (+4 `it`, fixture con la chiave del conteggio OPZIONALE) ·
+`docs/ULTIMO-RITORNO.md` · `docs/HANDOFF.md` · `docs/auto-miglioramento.md`.
 
-**NEL PERIMETRO MA NON TOCCATI (VIETATI, misurati a zero righe di diff):**
-`src/lib/program/releaseView.ts` (letto dal test di parità, mai modificato) ·
-`supabase/functions/_shared/program/coachRelease.ts` (importati `isIsoDate`/`addDaysIso`) ·
-`src/hooks/athlete/**` · `src/lib/math/acwr.ts` · `src/lib/effort/sessionRpe.ts` ·
-`supabase/functions/analyze-athlete-week/**` · `AthleteContextPane.tsx` · `CoachCalendar.tsx` ·
-`supabase/migrations/**` · `src/integrations/supabase/types.ts`.
+**VIETATI, misurati a zero righe di diff** (`git diff 7111cfb..HEAD -- <f> | wc -l`, uno per uno):
+`supabase/migrations/**` · `src/lib/program/releaseView.ts` · `src/lib/math/acwr.ts` ·
+`supabase/functions/analyze-athlete-week/**` · `src/hooks/useCoachAlerts.ts` ·
+`src/pages/coach/CoachHome.tsx` · `src/integrations/supabase/types.ts` ·
+`src/lib/effort/sessionRpe.ts` → `VIETATI_DIFF_LINES=0`.
 
-## 3. Le prove dei permessi (rituale d'apertura — eseguito a metà fetta, dichiarato in RETRO)
+## 3. Rituale d'apertura — le `deny` provate (prima riga di lavoro, prima di ogni modifica)
 
-1. Repo di scarto in scratchpad: `git reset --hard HEAD~1` → **RIFIUTATO** ·
-   `git checkout -- f.txt` → **RIFIUTATO**.
-2. I vicini passano: `git status -sb` → `## master` · `git log --oneline -1` → il commit c'è.
-3. Reperto nuovo di sessione: il guard del worktree rifiuta anche i comandi composti che
-   `cd`-ano nel checkout principale con git — la lettura del file di `main` si fa per path
-   assoluto senza git.
+Repo di scarto in scratchpad (`prova-deny`: un commit, un file modificato, un untracked, uno
+stash), comandi nella forma `cd <scarto> && <cmd>` (il matcher spezza i composti):
+
+| comando                    | esito         |
+| -------------------------- | ------------- |
+| `git checkout .`           | **RIFIUTATO** |
+| `git checkout -- *`        | **RIFIUTATO** |
+| `git restore f.txt`        | **RIFIUTATO** |
+| `git restore` (nudo)       | **RIFIUTATO** |
+| `git clean -fd`            | **RIFIUTATO** |
+| `git clean` (nudo)         | **RIFIUTATO** |
+| `git stash drop`           | **RIFIUTATO** |
+| `git stash drop stash@{0}` | **RIFIUTATO** |
+| `git stash clear`          | **RIFIUTATO** |
+| `gh pr merge 1`            | **RIFIUTATO** |
+
+10 su 10 rifiutati (13 delle 16 `deny` ora provate, contando le 3 di ieri). I vicini passano:
+`git status --short` · `git stash list` · `git log --oneline -1` · `git diff --stat` → il repo di
+scarto è ancora intatto (` M f.txt`, `?? untracked.txt`, `stash@{0}` presente). `mcp__github__*`
+non è provabile: il server GitHub non si è connesso in sessione (400 sull'header Authorization).
 
 ## 4. Acceptance — ogni criterio col suo comando e l'output
 
-Tutti eseguiti nel worktree `.claude/worktrees/checkin-onesto`; le tre prove rosse su
-`39abff6`, i cancelli finali sul tip di codice `dda6669`.
+Tutti eseguiti nel worktree `.claude/worktrees/checkin-che-non-giudica` sul tip di codice `89d9d60` e
+**ri-misurati sul tip finale `32ee547`** (dopo il fix della review: stessi numeri, v. fine del punto 7)
+(baseline misurata sul tree pulito `7111cfb` PRIMA di toccare: tsc 0 · vitest 490/490 in 50 file ·
+eslint ✖ 77 problems (64 errors, 13 warnings) · build ok · verify:css 245/245 · deno test
+`_shared/program/` 13/13 · `deno check` della edge rosso SOLO per il preesistente `:368`).
 
-**1. Settimana vera.** `npx vitest run src/lib/program/__tests__/weekAdherence.test.ts` — la
-fixture ha le quattro date `2026-08-22..25` e 4 sedute concluse il 25/08 (carichi 3 · 2.52 ·
-1.5 · 2 = 9,02; sRPE 9/8/9/8 = 8,5), finestra 24→30, oggi 28:
-`prescribedCount 2 · honouredCount 1 · compliancePct 50 · sessions_completed 4 · off_plan 0 ·
-total_volume 9.02 · avg_rpe "8.5" · missed 1 · remaining 0` — 23/23 verdi col test di
-partizione aggiunto in `dda6669` (v. anche R1 sotto: gli stessi test, rossi, nominano i valori).
-**Aggiornamento 2026-08-29**: il file porta ora **31 `it`** (23 + gli 8 della coda test-bordi).
+**1. `weekReading`.** `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 39/39 (35 + i 4 di `chooseSummary`, coda).
+1/2 → `below` e «1 giorno prescritto su 2 non onorato» · 3/4 → `ok` «aderenza 75% (3 su 4)» (4
+prescritti = forma in percentuale, D2) · 3/3 → `ok` «3 giorni prescritti su 3 onorati» · 0
+prescritti → `none` «nessun giorno prescritto questa settimana» (nessuna cifra) · 5/7 → `ok`
+«aderenza 71% (5 su 7)» · 2/3 → `below` «1 giorno prescritto su 3 non onorato» · `attention` vero
+con `overThresholdSessions = 1` a gate `ok`, falso con 0 · a metà settimana (1 di 3 onorato, 2 in
+arrivo) → `ok` «…, 2 ancora in programma»; (0 di 4, 3 saltati, 1 in arrivo) → `below` (v. §8.3) ·
+carico assente → `ua null`, «non misurato», mai «0 UA» · il report VERO della 24→30 → `below`,
+«9,02 UA», `overThresholdSessions 2`, `attention true`.
 
-**2. Non oltre il 100%.** Stesso file: `1 giorno onorato + 1 seduta fuori programma →
-compliancePct 100, offPlanCount 1`; e `4 sedute su 1 di 2 giorni → 50, mai 200` — verdi.
+**2. `vetSummary` sul report VERO della 24→30** (stesso file): **boccia** «Settimana conclusa: 4
+sedute su 5 (50% compliance), 1 giorno saltato. Recupera il giorno perso.» con la ragione
+`rapporto «4 sedute su 5» assente dai dati` (nomina il 5) · **boccia** «valuta uno scarico» con
+`parola vietata «scarico»` · **accetta** «1 giorno su 2 non onorato, 4 sedute concluse, 9.02 UA,
+RPE medio 8.5» · **accetta** «Aderenza 1/2 (50%). RPE medio 8.5/10» e anche «8,5/10» · **boccia**
+«9/10» · **boccia** «24/08» (conservativo per disegno, §0.8) · **boccia** «DELOAD», «Alleggerire»,
+«75%» · senza prescrizione **boccia** «1 su 1» e **accetta** «7.0/10».
 
-**3. L'assenza è assenza.** Stesso file: `!("compliance_pct" in snapshot)` e
-`!("workouts_scheduled" in snapshot)` con documento null E con rilascio fuori finestra; le
-stringhe del modello (`weekDataLines` + `weekPaceContext` + `fallbackSummaryText`) non
-contengono `0%` né `(0/0)` e contengono «nessuna seduta programmata» — verdi.
+**3. `buildCheckinPrompt`** (stesso file): l'indice del testo dell'aderenza è minore dell'indice
+di «Carico», «UA» e «Volume totale»; ordine `- Aderenza:` < `- Sedute oltre la soglia
+d'attenzione: 2` < `- Carico:` < `- RPE medio: 8.5`; le regole (1)(2)(3)(5) presenti
+testualmente; la (4) presente con gate `below` e ASSENTE con gate `ok` (75%).
 
-**4. La UI non fabbrica il denominatore.**
-`npx vitest run src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` → 3/3:
-con `workouts_scheduled: 2` la card rende «Sessioni 1/2»; senza, rende «Sessioni —» e nessun
-`N/0` compare nel testo; l'assenza non accende «Indici di rischio elevati».
+**4. Render test.** `npx vitest run src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts` →
+7/7 (5 + i 2 della riga legacy, coda). Con `{compliance_pct 50, avg_rpe "8.5", sessions_over_threshold 2, …}` (snapshot DERIVATO da
+`buildWeekReport`): assente «Indici di rischio elevati», assente «Valutare scarico», assente
+«rischio» in ogni forma, presente «Lettura della settimana», «1 giorno prescritto su 2 non
+onorato», «2 sedute oltre la soglia», «9,02 UA», badge «Attenzione»; la card «RPE medio» non
+porta classi `destructive|error|warning`, la card «Compliance» porta `warning` (gate `below`).
+Caso in più: 3/4 (75%) con 1 seduta oltre soglia → «Attenzione» acceso, compliance senza tinta. I
+tre test preesistenti restano verdi (il terzo riformulato: l'assenza non accende l'attenzione e
+la lettura dichiara «nessun giorno prescritto», senza riga delle sedute oltre soglia).
 
-**5. Parità fra le due porte.**
-`npx vitest run src/lib/program/__tests__/weekAdherence.parita.test.ts` → 2/2 (v1 E v2, 28
-giorni, entrambe le funzioni importate dai sorgenti). Rosso di prova in R3.
+**5. Distinto.** Stesso file di test del modulo: due `risk_alert` sullo stesso `workout_log_id`
+→ `sessions_over_threshold = 1`; due su id diversi → 2 (la misura viva del 25/08); id fuori
+settimana o `workout_log_id` nullo → 0.
 
-**6. Determinismo.** Doppia esecuzione stesso input → output `toEqual` (test dedicato); e
-`grep -nE "Date\.now|new Date\(|Math\.random"` sul modulo → **0 occorrenze** (exit 1); stesso
-grep sui due file di test nuovi → **0 occorrenze** (i pattern nei test sono spezzati apposta).
-In più, prova empirica degli helper di fuso della edge (Node, 8/8 OK): mezzanotte di Roma in
-CET, CEST e nei due giorni di switch DST; `romeDayOf("2026-08-25T23:30:00Z") = 2026-08-26`.
-
-**7. Nessuna scrittura.** `git diff 3bbf063..HEAD | grep -nE "^\+.*\.(insert|update)\("` →
-**exit 1 (zero righe aggiunte)**; `git diff 3bbf063..HEAD -- supabase/migrations/ | wc -l` →
-**0**. L'unica scrittura della edge resta l'upsert su `weekly_checkins` preesistente e non
-toccato.
-
-**8. I cinque cancelli** (baseline misurata sul tree pulito PRIMA di toccare: 454/47 · 64
-errori+13 warning · 245/245):
-
-```
-TSC_EXIT=0
-VITEST: Tests  482 passed (482)  [50 file; 481×3 run consecutivi su 39abff6, 482 su dda6669]
-ESLINT: ✖ 77 problems (64 errors, 13 warnings)   ← identico alla baseline
-BUILD_EXIT=0
-VERIFYCSS: 245/245 classi con modificatore di alpha tutte emesse e a canali
-```
-
-In più (non richiesto dai cinque): `npx deno test --no-lock supabase/functions/_shared/program/`
-→ 13 passed; `npx deno check --no-lock` sul modulo nuovo → pulito (v. §8 per il preesistente).
-
-**Ri-misura dei cinque cancelli, coda 2026-08-29** (worktree ricreato: `node_modules` era vuoto,
-`npm ci` con la guardia Fragilità #5 — directory reale, nessuna junction):
-
-```
-Baseline tree pulito: VITEST 482/482 (50 file), exit 0   ← identica alla misura del prompt
-Col file di test nuovo: VITEST_EXIT=0  Tests 490 passed (490)  [50 file]
-TSC_EXIT=0 · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline · BUILD_EXIT=0 ·
-VERIFYCSS 245/245
-```
-
-**9. Perimetro.** `git diff 3bbf063..HEAD --name-only` (al tip di codice `39abff6`):
+**6. Perimetro.** `git diff 7111cfb..HEAD --name-only` (tip di codice):
 
 ```
 src/hooks/useWeeklyCheckins.ts
-src/lib/program/__tests__/weekAdherence.parita.test.ts
+src/lib/program/__tests__/checkinReading.test.ts
 src/lib/program/__tests__/weekAdherence.test.ts
 src/pages/coach/CoachCheckinInbox.tsx
 src/pages/coach/__tests__/CoachCheckinInbox.render.test.ts
+supabase/functions/_shared/program/checkinReading.ts
 supabase/functions/_shared/program/weekAdherence.ts
 supabase/functions/generate-batch-checkins/index.ts
 ```
 
-Vietati: **0 righe di diff** (misurati uno per uno, `VIETATI_DIFF_LINES=0`). I file `docs/**`
-di questo ritorno si aggiungono col commit dei documenti, come in ogni fetta (protocollo
-«cosa rimandi indietro» + chiusura di CLAUDE.md §6.0).
+Vietati: **0 righe** (§2). In più: `git diff 7111cfb..HEAD | grep -E "^\+.*\.(insert|update|delete|upsert)\("`
+→ **exit 1, zero righe** (nessuna scrittura nuova; l'upsert resta quello preesistente) ·
+`grep -E "srpe\s*>=?\s*9|>= 8|< 50"` sui tre file (modulo, FE, edge) al tip → **zero** (la soglia
+del watchdog non è ricopiata, le due vecchie soglie del FE sono sparite) ·
+`grep -E "Date\.now|new Date\(|Math\.random|fetch\("` sul modulo → **zero**.
 
-## 5. Le tre prove rosse (mutazione su copia, ripristino per copia + `cmp` byte-identico)
-
-**R1 — il filtro.** Rimessa la selezione su `scheduled_date` nel punto in cui il filtro ora
-vive — `completedLogsInWindow` nel modulo (la riga letterale della edge non è raggiungibile da
-NESSUN runner: la cartella non ha test Deno, come dichiarato dal prompt stesso; l'equivalenza è
-1:1, stessa colonna, stessa finestra). Rosso: **7 test morti**, i due chiesti nominano i valori:
+**7. I cinque cancelli** (sul tip di codice `89d9d60`, tree pulito):
 
 ```
-AssertionError: attese 4 sedute concluse (le righe del 25/08), il filtro ne ha lasciate passare 0
-AssertionError: atteso total_volume 9.02, trovato undefined
+TSC_EXIT=0
+VITEST: Test Files 51 passed (51) · Tests 528 passed (528)   [baseline 490/50: +35 modulo, +1 weekAdherence, +2 render]
+ESLINT: ✖ 77 problems (64 errors, 13 warnings)              ← identico alla baseline (.eslint-baseline = 64)
+BUILD_EXIT=0
+VERIFYCSS: ✓ check 7: 243/243 classi con modificatore di alpha … · VERIFYCSS_EXIT=0
+           ℹ 2 note (non bloccanti): bg-error-container/30 e /20 «non più usate nei sorgenti: voce da togliere da EXPECTED»
 ```
 
-**R2 — l'assenza.** Rimesso `: 0` al posto di `null` in `weekAdherence`. Rosso: **7 test morti
-in due famiglie**, le due chieste:
+⚠️ **243/243 e non 245/245** (v. §8.6): la cifra è derivata N/N (numero di classi con alpha
+DISTINTE nei sorgenti); le due `bg-error-container/*` vivevano SOLO nel verdetto rimosso. Il
+cancello è verde; le due voci di `EXPECTED` sono un chip. In più (non richiesti): `npx deno test
+--no-lock supabase/functions/_shared/program/` → 13 passed · `npx deno check --no-lock` sul modulo
+nuovo → pulito · sulla edge → il SOLO preesistente `TS18046 'error' is of type 'unknown'` (`:368`,
+identico su `main`) · suite Deno intera come in CI (`--allow-all --no-check`) → **496 passed**.
+
+**Ri-misura sul tip finale `32ee547`** (dopo il fix della review, tree pulito salvo i documenti):
 
 ```
-AssertionError: senza prescrizioni la chiave compliance_pct NON deve esistere nello snapshot:
-expected true to be false
-AssertionError: expected '…' not to contain 'Indici di rischio elevati'
-Received (estratto): «…Indici di rischio elevatiCompliance sotto soglia (0%). Valutare scarico
-o approfondimento.…Compliance0%Sessioni0/0…»
+TSC_EXIT=0 · VITEST: 51 file, 528 passed (528) · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline
+BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito
 ```
 
-Il secondo è il render della pagina VERA con lo snapshot costruito dal modulo mutato: la card
-malata («Compliance 0% · Sessioni 0/0») riappare identica alla misura del 28/08.
-
-**R3 — la porta unica.** Spostata di un giorno la mappatura v1 (`(mondayIndex+1) % 7`). Rosso:
+**Ri-misura sul tip della coda `8c617ab`** (tree pulito salvo questo file):
 
 ```
-AssertionError: le due porte non sono d'accordo sulla data 2026-08-12:
-prescribedDatesInWindow dice false, sessionForDate dice true
+TSC_EXIT=0 · VITEST: 51 file, 534 passed (534) [+2 render, +4 modulo] · ESLINT ✖ 77 problems (64 errors, 13 warnings) = baseline
+BUILD_EXIT=0 · VERIFYCSS 243/243 (VERIFYCSS_EXIT=0) · deno test _shared/program 13/13 · deno check modulo pulito · edge: solo il preesistente TS18046
 ```
 
-Dopo ogni prova: ripristino per copia dal backup del file committato, `cmp` → exit 0, tree
-pulito, run verde di conferma.
+**Acceptance della coda.** (1) vitest verde con +2 nel render test e +4 nel modulo ✓ · (2) le due
+prove rosse R6/R7, nelle due direzioni (§5) ✓ · (3) `git diff b2d3142..HEAD -- src/pages/coach/CoachCheckinInbox.tsx | wc -l`
+→ **0** (e `weekAdherence.ts` → 0; vietati della fetta ancora a 0) ✓ · (4) i cinque cancelli qui
+sopra ✓. Perimetro della coda: `git diff b2d3142..HEAD --name-only` = render test · modulo · edge ·
+test del modulo, più questo file.
 
-## 5-bis. La matrice delle nove mutazioni (coda 2026-08-29)
+## 5. Le prove rosse — quattro della fetta, una della review, due della coda (protocollo 29/08: quattro guardie, runner in scratchpad)
 
-Il censimento del 29/08 contava **9 confronti d'ordine su date in 6 siti, 3 tenuti e 6 no**
-(i tre tenuti erano tutti bordi VICINI: la fixture parte di lunedì e non arriva mai a `toIso`).
-Con gli 8 test nuovi: **9 su 9 uccise**. Protocollo per OGNI riga: occorrenza unica della
-stringa verificata prima di mutare · `git diff --numstat` non vuoto come prova di applicazione ·
-`npx vitest run` intera con verdetto dall'exit code nudo · ripristino per copia dalla pristina +
-confronto byte-identico + `git diff --exit-code` = 0 prima della successiva.
+Per ognuna: occorrenza UNICA verificata prima di mutare · `git diff --numstat` non vuoto come prova
+di applicazione · verdetto dall'exit code nudo di `npx vitest run <file>` · ripristino per copia dal
+backup + confronto byte-identico + `git diff --exit-code` = 0 prima della successiva. Eseguite sul
+codice COMMITTATO (`89d9d60`), tree pulito prima e dopo.
 
-| #   | sito               | mutazione               | rossi 28/08 | rossi 29/08 | un messaggio (estratto)                                                                                                          |
-| --- | ------------------ | ----------------------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `:167` guardia     | `>` → `>=`              | ⛔ 0        | **1**       | «la finestra 2026-08-24→2026-08-24 è legittima: deve restituire quel giorno, non []: expected [] to deeply equal ['2026-08-24']» |
-| 2   | `:175` v2 vicino   | `>=` → `>`              | 7           | **10**      | «…mai 2026-08-23 né 2026-08-31: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»                            |
-| 3   | `:175` v2 lontano  | `<=` → `<`              | ⛔ 0        | **3**       | «…dentro esattamente gli estremi…: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»                         |
-| 4   | `:181` v1 vicino   | `fromIso` → `+1 giorno` | 2           | **3**       | «le due porte non sono d'accordo sulla data 2026-08-10: prescribedDatesInWindow dice false, sessionForDate dice true»            |
-| 5   | `:181` v1 lontano  | `<=` → `<`              | ⛔ 0        | **1**       | «finestra 2026-08-24→2026-08-30: sette giorni esatti, da 2026-08-24 a 2026-08-30: expected […(6)] to deeply equal […(7)]»        |
-| 6   | `:228` log vicino  | `>=` → `>`              | 1           | **4**       | «finestra 2026-08-24→2026-08-30: contano gli estremi…: expected ['2026-08-30'] to deeply equal ['2026-08-24', '2026-08-30']»     |
-| 7   | `:229` log lontano | `<=` → `<`              | ⛔ 0        | **2**       | «…contano gli estremi, mai 2026-08-23 né 2026-08-31: expected ['2026-08-24'] to deeply equal ['2026-08-24', '2026-08-30']»       |
-| 8   | `:256` mancati     | `<` → `<=`              | ⛔ 0        | **2**       | «solo il 2026-08-26 è saltato: il 2026-08-28 (oggi) non lo è ancora: expected 2 to be 1»                                         |
-| 9   | `:259` in arrivo   | `>=` → `>`              | ⛔ 0        | **2**       | «il 2026-08-28 (oggi) e il 2026-08-29 sono ancora in programma: expected 1 to be 2»                                              |
+| #   | mutazione                                                                                                   | numstat | esito                     | il rosso nomina…                                                                                                                          |
+| --- | ----------------------------------------------------------------------------------------------------------- | ------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | FE: torna un blocco «Indici di rischio elevati — Valutare scarico…» condizionato a `Number(m.avg_rpe) >= 8` | 3 0     | **ROSSO** (1 su 5 morto)  | `expected '…' not to contain 'Indici di rischio elevati'` (render test, acceptance 4)                                                     |
+| R2  | `vetSummary` con `return { ok: true };` in testa                                                            | 1 0     | **ROSSO** (7 su 35 morti) | «boccia la frase viva del 30/08 nominando il 5 che non esiste: expected true to be false» (+ scarico, 9/10, 24/08, DELOAD, 75%, «1 su 1») |
+| R3  | la riga `- Aderenza:` spostata DOPO `- Carico:` nel prompt                                                  | 2 2     | **ROSSO** (2 su 35 morti) | «l'aderenza deve venire prima di «Carico»: expected 606 to be less than 518» e l'ordine della lettura                                     |
+| R4  | `return new Set(hits).size` → `return hits.length`                                                          | 1 1     | **ROSSO** (1 su 35 morto) | «il watchdog può duplicare su UPDATE: una seduta, un conteggio: expected 2 to be 1»                                                       |
 
-**Controllo negativo (il bordo provato da ENTRAMBI i lati)**: le sei mutazioni-allargamento
-(`fromIso → addDaysIso(fromIso, -1)` e `toIso → addDaysIso(toIso, 1)` su v2/v1/log) producono
-**tutte almeno un rosso** — in particolare `toIso+1` sul filtro dei log:
-«…mai 2026-08-23 né 2026-08-31: expected ['2026-08-24', '2026-08-30', …(1)] to deeply equal
-['2026-08-24', '2026-08-30']» (l'elemento in più è il 2026-08-31). Totale matrice: **15
-mutazioni, 0 sopravvissute**; log completi per-mutazione in scratchpad di sessione
-(`mutazioni/M1..M9,W1..W6.log` + `summary.json`).
+**R5 (dopo la review, sul tip `32ee547`)** — via lo stem `aument` dal vaglio → **ROSSO**: «boccia
+«deload», «alleggerire» e «aumentare», in qualunque maiuscola: Puoi aumentare il carico la
+prossima settimana.: expected true to be false» (1 su 35 morto); R1-R4 rieseguite sullo stesso
+tip: tutte ancora ROSSE. Dopo ognuna: `ripristino byte-identico: true · git diff --exit-code: 0`;
+a fine runner `git status` pulito (salvo i documenti). Log completi in scratchpad
+(`mutazioni/R1..R5.log` + `summary.json`).
 
-**Divergenza dichiarata sul conteggio di ieri**: il prompt del 28/08 dava «1 e 4» rossi per i
-bordi vicini (2) e (4); ri-misurati oggi sull'intera suite sono 7 e 2 — già annotato dal prompt
-del 29/08 come «vale quello di oggi»; i valori in tabella (colonna 28/08) sono quelli
-ri-misurati dal prompt stesso.
+**R6 e R7 (coda, sul tip `8c617ab`).** **R6** — `?? 0` → `?? 1` su `sessions_over_threshold` in
+`CoachCheckinInbox.tsx:99` → **ROSSO, 2 su 7 morti**: «la 24→30 com'è nel database: nessuna riga
+«oltre la soglia», attenzione SOLO per il cancello — expected '…' not to contain 'oltre la soglia'»
+e «una riga legacy con l'aderenza a posto non accende nulla — … not to contain 'oltre la soglia'»
+(numstat `1 1`, ripristino byte-identico, `git diff --exit-code` 0). **R7** — via il fallback sul
+candidato vuoto (`if (trimmed.length === 0)` → `if (false)`: il vuoto passa) → **ROSSO, 2 su 39
+morti**: «vuoto → la riga deterministica, con la ragione «riepilogo IA vuoto»: expected { text: '',
+reason: null } to deeply equal { …(2) }» e «solo spazi → la riga deterministica» (numstat `1 1`,
+ripristino byte-identico, `git diff --exit-code` 0). Log in `mutazioni/R6.log`, `R7.log`.
 
-**Lo stesso bordo in ALTRI moduli (nominati, NON toccati — fuori perimetro):**
+## 6. Passata indipendente (workflow: 4 auditor di progetto + 3 refuter per rilievo, 22 agenti)
 
-- `src/lib/math/acwr.ts:165` — `s.age >= ACWR_BASELINE_DAYS`: il bordo lontano della finestra
-  baseline, lo stesso sito del reperto 24/08; non ho ri-misurato se oggi sia inchiodato.
-- `supabase/functions/_shared/nutrition/dailySeries.ts:110` — `row.date < startIso ||
-row.date > endIso`: finestra a due bordi della stessa forma.
-- `src/components/coach/messages/AthleteContextPane.tsx:119` — `w.scheduled_date < todayIso`:
-  il gemello UI del confronto «mancati vs oggi» (su `scheduled_date`, la colonna morta che
-  questa fetta ha abbandonato lato edge).
-- `supabase/functions/publish-program-block/index.ts:99` e
-  `src/components/coach/program/PublishProgramDialog.tsx:74` — guardie a un solo lato
-  (`date < startDate`).
+**Verdetti.** `supabase-rls-auditor`: «VERDE condizionato — una riserva major sul vaglio (stem
+`aument` mancante) da chiudere prima del merge» · `aura-theme-auditor`: «VERDE — nessuna violazione
+Aura introdotta dalla fetta; solo residui preesistenti minori» · `code-reviewer`: «ROSSO per una
+riga: il vaglio lascia passare "aumentare il carico" — la parola che il prompt stesso vieta; tutto
+il resto (scope, contratto additivo, gate strutturali, cancelli) è pulito» · `code-test-verifier`:
+«VERDE — tsc 0, vitest 528/51 file, deno 13/13, TS18046 preesistente confermato identico su
+main». 16 rilievi grezzi, 6 non-note, ciascuno passato a tre refuter (lenti repro · contratto ·
+base) con mandato di CONFUTARE.
 
-## 6. Passata indipendente (workflow: 4 auditor di progetto + 2 refuter per rilievo, 12 agenti)
-
-**Verdetto reviewer: «committabile-no» → i rilievi confermati sono CHIUSI in-branch (`dda6669`).**
-
-- 🔴 **CONFERMATO 2/2 (con repro eseguito sul modulo vivo): `remainingCount` contava anche
-  oggi se già onorato** — con prescritti 24·26·28 e allenati 24·26, oggi 26: onorati 2 +
-  saltati 0 + rimanenti 2 = 4 su 3 prescritti, e il prompt diceva «ancora 2 in programma»
-  quando ne restava uno. Chiuso: la partizione è disgiunta
-  (`day >= todayIso && !completedSet.has(day)`), test nuovo nato rosso
-  («trovati 2, expected 1») + pin `onorati+saltati+rimanenti === prescritti`.
-- 🔴 **CONFERMATO 2/2: `program_releases` senza `limit` tronca in silenzio al cap PostgREST
-  (1000, `config.toml` non lo ridefinisce)** — a scala, gli atleti oltre il cap leggerebbero
-  «mai prescritto»: un'assenza fabbricata dal troncamento. Chiuso: `limit` esplicito + guardia
-  che FALLISCE il batch al cap invece di tacere.
-- **Auditor RLS (medium): le tre query batch ignoravano `.error`** (supabase-js non lancia:
-  `data || []` su un errore scriveva uno snapshot indistinguibile dall'assenza legittima —
-  la malattia della fetta, un piano sotto). Il refuter-contratto lo declassava a «preesistente»
-  (vero: su `main` l'errore fabbricava `0%`), ma preesistente ≠ coerente con l'invariante:
-  chiuso — il batch fallisce forte su qualunque errore delle tre letture.
-- **CONFUTATO (dal contratto stesso): «la card Sessioni rende un rapporto a giorni sotto
-  un'etichetta da sedute»** — il criterio-contratto chiede esattamente «Sessioni 1/2» coi
-  giorni; osservazione lessicale vera, rimedio che violerebbe il contratto. Non toccato
-  (un refuter perso per un errore API del provider, il voto rimasto è di confutazione).
-- **Dichiarato, non corretto (parere del reviewer stesso: «va decisa, non corretta di
-  nascosto»): il documento v1 non scade mai** — un rilascio v1 prescrive i suoi giorni-feriali
-  OGNI settimana, per sempre; è la semantica di `sessionForDate` che la parità (acceptance 5)
-  impone di ereditare. Un atleta il cui ULTIMO rilascio è v1 avrà compliance calcolata (e
-  bassa) a tempo indefinito. Decisione di prodotto per la fetta della famiglia relazionale.
-- **Auditor Aura: tutto conforme** (le due modifiche sono logica/testo, zero classi).
-- **Test-verifier: «VERDE NETTO»** (tsc 0 · vitest verde · eslint 64/13 = baseline ·
-  deno test `_shared/program/` 13/13).
-- **Rilievi minori dell'auditor RLS su pattern PREESISTENTI, flaggati e non toccati** (fuori
-  scope, stessa casa del `error.message:368`): log del full error object (`:343`, `:363`),
-  body d'errore OpenAI loggato intero (`:322`), `full_name` interpolato nel prompt (vettore
-  prompt-injection/PII), nessun rate-limit sull'endpoint AI. Candidati a una fetta-pulizia
-  dell'error handling della edge.
+- 🔴 **CONFERMATO 3/3, due volte (rls + reviewer, con repro sul modulo vivo)**: `FORBIDDEN_STEMS`
+  fermava `scaric/deload/allegger`, ma la regola (3) del prompt vieta QUATTRO parole («… o
+  aumentare»): «Puoi aumentare il carico la prossima settimana» → `{ok: true}` → `ai_summary`,
+  contro l'invariante 3 e CORE §0.11 — e nella direzione peggiore per §0.8: il vaglio fermava le
+  raccomandazioni prudenti e lasciava passare l'unica che ABBASSA la cautela. Causa: ho copiato la
+  lista di tre stem della spec invece di DERIVARLA dalla regola dettata al modello. **Chiuso in
+  `32ee547`**: stem `aument` + test che lega le due liste (ognuna delle quattro parole della regola
+  è bocciata) + prova rossa R5. Un refuter (lente contratto) aggiunge, a ragione, che l'invariante
+  3 preso alla lettera non è raggiungibile per lista di stem («spingi di più», «incrementa»
+  passano): il vaglio fa rispettare LESSICALMENTE la regola che il prompt detta; il coach legge e
+  decide (§0.1). Dichiarato in §8.13.
+- **CONFUTATI 3/3 (quattro)**: `text-white`/`bg-white/20` nel pill del filtro (Aura, preesistente
+  byte-identico a `main:326,337`, fuori perimetro) · copy «zona ottimale» dello stato vuoto
+  (preesistente identica, già in §7.5, D6 della spec) · «il vaglio non vede il conteggio delle
+  sedute oltre soglia» (`vetSummary(text, report)` è la firma della spec; un «0 sedute oltre la
+  soglia» col conteggio vero 2 passerebbe: ampliamento di perimetro, non difetto → chip) ·
+  risposta IA vuota → `ai_summary: ""` (preesistente identico a `main:324`, stesso modello e
+  stesso limite di token).
+- **Note, non bloccanti, tutte dichiarate**: il `console.warn` del vaglio porta fino a tre parole
+  del testo del modello nelle ragioni (mai body né nome) · `full_name` nel prompt (preesistente,
+  censito il 28/08) · quarta lettura: scope e fail-loud verificati positivamente · ombre con RGB
+  raw e `ShieldAlert` sul filtro (Aura, preesistenti) · token nuovi verificati (alpha-value,
+  canali, scala coerente su badge/MiniStat/MetricCard/header/riquadro, zero residui) · **falso
+  positivo per disegno**: «9.02 UA su 4 sedute concluse» viene bocciato (rapporto 9.02/4 assente
+  dai dati) — il costo è la riga deterministica, mai un numero falso · l'attenzione legge
+  `workouts_remaining` congelato al momento del batch (lo snapshot è una foto; il batch è
+  manuale: una settimana persa DOPO l'ultimo «Analizza» resta «ok» fino al successivo) · gli
+  avvisi `dismissed` dal coach contano lo stesso (si contano gli eventi del watchdog, non lo stato
+  dell'inbox: archiviare un avviso non annulla la seduta) · il prefiltro `created_at ≥ lunedì − 1
+giorno` perde un avviso solo con l'orologio del client avanti di più di due giorni.
 
 ## 7. Non fatto
 
-1. **PR non aperta** (motivo misurato in §1: `gh` assente + credenziali negate all'agente).
-2. **La conversione `completed_at` → giorno di Roma della edge non ha un test in un runner**:
-   vive in `romeDayOf`/`utcOfRomeMidnight` (Deno, fuori dal modulo puro perché usa l'orologio
-   del chiamante e Intl); verificata empiricamente 8/8 in Node (§4.6), non cementata da vitest.
-3. **`deno check` sull'intera edge resta rosso per un difetto PREESISTENTE**: `error.message`
-   su `unknown` a `index.ts:350` — misurato IDENTICO sul file di `main` (`:320`). Non toccato:
-   fuori scope, nessun test lo copre, e la CI Deno esegue i test delle tre suite, non il check
-   di questa funzione.
-4. **Il ramo RPE≥8 di `isAnomalous` non è stato toccato** (v. DIVERGENZE 1).
-5. **(coda 29/08) I bordi gemelli negli ALTRI moduli** (elenco in §5-bis) **sono nominati, non
-   inchiodati**: il perimetro della coda era `weekAdherence.ts` e basta — allargare di
-   iniziativa avrebbe violato il mandato. In particolare non ho ri-misurato se
-   `acwr.ts:165` sia oggi coperto. `docs/HANDOFF.md` non è stato ritoccato: lo stato utile al
-   trasferimento sta in questo file — la sua riga «vitest 482/50» resta indietro di questa
-   coda (490/50), da allineare al prossimo aggiornamento di HANDOFF.
+1. **PR non aperta** (§1).
+2. **Nessuna ri-misura del DB vivo**: l'MCP Supabase in sessione risponde `Unauthorized` (token
+   assente): i due `risk_alert` del 25/08, lo snapshot della 24→30 e la versione v34 della edge
+   sono la misura di Cowork dell'01/09, non mia.
+3. **La riga 24→30 di `weekly_checkins` non viene ri-analizzata da «Analizza»** (§8.2): il batch
+   calcola SOLO la settimana corrente. Il collaudo «snapshot live con `sessions_over_threshold: 2`
+   sulla riga 24→30» non è raggiungibile senza un parametro di settimana (fuori perimetro).
+4. **`fallbackSummaryText` non porta le sedute oltre soglia**: quando il vaglio boccia, la
+   `ai_summary` è la riga deterministica preesistente (compliance, sedute, volume, RPE) — il
+   conteggio resta nello snapshot e nel riquadro della UI. Scelta letterale della spec; estendere
+   `weekAdherence.ts` oltre `weekDataLines` era vietato.
+5. **La copy dello stato vuoto del filtro «Anomalie»** («Tutti gli atleti sono in zona
+   ottimale», `CoachCheckinInbox.tsx`, `FeedEmpty`) resta com'era: è un giudizio senza dato, ma
+   D6 dice che il testo del filtro resta — flaggato, non toccato.
+6. **`deno check` della edge resta rosso per il preesistente `:368`** (`error.message` su
+   `unknown`), identico su `main`, già censito il 28/08.
+7. **(coda) Un terzo ramo dello stesso tipo, trovato e NON toccato**: una riga di
+   `weekly_checkins` con `metrics_snapshot: null`. `readingOf` restituisce `null`
+   (`CoachCheckinInbox.tsx:96-100`) e la feed card salta le mini-metriche, ma nessun render test
+   monta una riga SENZA snapshot: un mutante che leggesse `readingSourceFromSnapshot(null)`
+   mostrerebbe «Lettura della settimana — Nessun giorno prescritto … Carico settimanale non
+   misurato» su una riga che non ha una settimana, un'assenza travestita da lettura. Fuori dal
+   mandato della coda («nient'altro»): da inchiodare in una coda sua.
+8. **(coda) `docs/HANDOFF.md` non ritoccato**: la sua riga «vitest 528/528» resta indietro di
+   questa coda (534/534) — non era fra i file dichiarati.
 
-## 8. Divergenze — dove il prompt diceva una cosa e il repo un'altra (vince la misura)
+## 8. Divergenze — dove la spec diceva una cosa e il repo un'altra (vince la misura)
 
-1. 🔴 **«Senza il riquadro Indici di rischio elevati» non è raggiungibile con l'RPE vero.**
-   Il criterio-contratto presume che il riquadro nasca solo dalla compliance fabbricata, ma
-   `isAnomalous` ha un SECONDO ramo vero — `CoachCheckinInbox.tsx:91-94`, `avg_rpe >= 8` — e
-   l'RPE medio del caso-contratto è **8,5 reale**: il riquadro comparirà citando il SOLO RPE
-   («RPE medio 8.5/10 — carico interno elevato»), mai più la compliance. La parte fabbricata
-   del criterio è chiusa (il render-test asserisce «niente 'Compliance sotto soglia'» a 50%);
-   silenziare un segnale VERO per soddisfare la lettera sarebbe la malattia opposta a quella
-   che la fetta cura (un'assenza travestita, stavolta di un allarme). Decisione di prodotto
-   flaggata come chip («Decidere la soglia RPE dell'allarme nell'inbox coach») e qui a §9.
-   Nello stesso modo l'atleta resta nel filtro «Anomalie» via RPE — via misura, non via zero.
-2. **«4/0» non era il render dell'assenza**: con lo snapshot onesto `workouts_completed` vale
-   i giorni onorati (0 sull'assenza), quindi il vecchio `?? 0` avrebbe reso «0/0», non «4/0».
-   Il render-test asserisce la classe intera (`not.toMatch(/\d+\/0(?!\d)/)`), che copre
-   entrambi.
-3. **R1 letterale vs R1 testabile**: il prompt chiede di rimettere `.gte("scheduled_date"…)`
-   sulla query della edge, ma nessun runner esegue quella query (nessun test Deno della
-   cartella); il filtro onesto ora vive nel modulo e la mutazione è stata fatta LÌ, stessa
-   colonna e stessa semantica — il rosso chiesto (4 vs 0 · 9,02 vs assente) è quello mostrato.
-4. **`grep` di acceptance 6 «sui due file nuovi»**: i file nuovi sono quattro; il grep è stato
-   eseguito sul modulo E sui due test di libreria (0 occorrenze ovunque; nei test i tre
-   pattern compaiono solo spezzati, apposta).
-5. **`remainingCount` diverge dalla LETTERA del prompt** («remainingCount = giorni prescritti
-   con data >= todayStr»): la definizione letterale conta due volte il giorno di oggi già
-   onorato — riprodotto dai refuter col modulo vivo (onorati+saltati+rimanenti = prescritti+1,
-   e il prompt del modello mentiva di un allenamento). Vince il criterio (numeri onesti
-   all'IA): rimanente = prescritto, da oggi in poi, NON ancora onorato. Test dedicato.
-6. **`workouts_completed` cambia significato** (da «sedute completate» a «giorni prescritti
-   onorati», coerente col denominatore accanto): è la scelta del prompt, ma va detto che i
-   due soli lettori FE (`CoachCheckinInbox:480`/`:705`) lo rendono come numeratore del
-   rapporto — nessun altro consumatore in `src/**` (misurato col grep dei lettori di
-   `metrics_snapshot`). Le sedute vere restano in `sessions_completed`.
+1. **La quarta lettura non può filtrare per gli id dei log DENTRO lo stesso `Promise.all`**:
+   gli id esistono solo dopo la prima lettura. Implementato: prefiltro server `type = 'risk_alert'`
+   - `athlete_id in (atleti del coach)` + `created_at ≥ mezzanotte di Roma del giorno PRIMA del
+lunedì` + `limit(ALERTS_BATCH_CAP)` con fail-loud al cap come `program_releases`
+     (`index.ts:192`, `:217-226`, `:244-250`); il criterio preciso — `workout_log_id` fra gli id dei log
+     conclusi della settimana, DISTINTI — sta nel modulo puro (`countSessionsOverThreshold`,
+     `checkinReading.ts:167-176`) e si applica per atleta (`index.ts:305-308`); il vaglio corre a `index.ts:366` prima dell'upsert. Il margine di un giorno: il watchdog
+     scrive l'avviso nella stessa UPDATE che scrive `srpe` E `completed_at`
+     (`useAthleteWorkoutHooks.ts:174-186`, orologio del client), quindi `created_at` ≥
+     `completed_at` salvo skew: un giorno lo assorbe, l'intersezione tiene la precisione.
+2. **Il batch calcola SEMPRE la settimana corrente di Roma** (`getItalianWeekBounds`,
+   `index.ts:24-66`, nessun body/parametro): il 02/09 «Analizza» scrive la riga **31/08→06/09**.
+   La riga 24→30 resta quella del 30/08 (senza `sessions_over_threshold`, con la vecchia
+   `ai_summary`). L'ultimo miglio della spec va letto sulla settimana corrente o rinviato a una
+   fetta col parametro di settimana.
+3. **Il cancello a metà settimana**: la regola letterale (`below` se `compliancePct < 70`)
+   accenderebbe «Attenzione» a un martedì con 1 di 3 onorato e 2 in arrivo (33% «attuale»), cioè
+   a chi è in regola. Completata, non contraddetta: `below` se `compliancePct < 70` **e** i giorni
+   rimanenti non possono più riportare sopra la soglia (`checkinReading.ts:106-115`); coincide
+   con la spec ovunque `remaining = 0` (tutti i casi dell'acceptance). Test dedicato.
+4. **Tredici punti di tinta, non dieci**: oltre ai censiti, `MiniStat` della compliance
+   (`highlight={compliance < 50}`, ex `:472`) e dell'RPE (`Number(rpe) >= 8`, ex `:475`) nella
+   feed card, e l'header del workspace che confrontava la stringa `bg-error-container/30`
+   (ex `:603`). Riparata TUTTA la scala (Fragilità #6): badge, header, riquadro, MetricCard e
+   MiniStat leggono la stessa `attention`/`gate`; nessun residuo `destructive|error-container|
+critical|Rischio` nel file (grep = 0).
+5. **L'insieme ammesso dal vaglio include i rapporti che la lettura stessa scrive** (es.
+   «1 giorno prescritto su 3 non onorato» → (1,3), che NON è onorati/prescritti = (2,3)):
+   altrimenti il modello che ricopia la riga del prompt verrebbe bocciato. Derivato dal
+   `report` in modo deterministico (`allowedRatios`, `checkinReading.ts`), mai dal testo del
+   modello. Il «4 su 5» resta bocciato.
+6. **verify:css 243/243, non 245/245**: la cifra è derivata (classi con alpha DISTINTE nei
+   sorgenti); `bg-error-container/30` e `/20` vivevano solo nel verdetto rimosso (misura del panel
+   pre-piano: `verify-css-tokens.mjs:501-518`, `:588`). Verde per costruzione, due note non
+   bloccanti → chip.
+7. **Due commit di codice, non tre** (§1): ogni commit compila da solo.
+8. **Il riquadro «Lettura della settimana» è reso con OGNI snapshot**, non solo con attenzione:
+   una lettura che appare solo quando c'è attenzione tornerebbe a leggersi come allarme. Tono
+   neutro senza attenzione, warning con. Decisione dichiarata nel piano.
+9. **`weekReading(report, n)` conservata via supertipo strutturale** (`WeekReadingSource`): il
+   FE non ha un `WeekReport`, ha lo snapshot → adattatore `readingSourceFromSnapshot` (chiavi
+   assenti = assenza, mai zero). Test: dallo snapshot vero e dal report esce la STESSA lettura.
+10. **`N su M` con fino a TRE parole in mezzo** (spec: «anche con una parola»): «1 giorno
+    prescritto su 2» ne ha due. La cautela può solo salire.
+11. **Righe legacy senza `sessions_over_threshold`** (scritte prima del deploy): il FE legge
+    `?? 0` SOLO per non mostrare la riga delle sedute oltre soglia — nessun «0 sedute» a video.
+12. **`Co-Authored-By`**: i commit portano il trailer di progetto (`Claude <noreply@anthropic.com>`,
+    legge #9) E quello richiesto dall'harness della sessione (`Claude Fable 5.1`).
+13. **Il vaglio è lessicale, l'invariante 3 è assoluto**: dopo la review il vaglio ferma le
+    QUATTRO parole della regola (3) del prompt (`scaric`, `deload`, `allegger`, `aument`), non
+    ogni raccomandazione sul carico che si possa formulare («spingi di più», «incrementa»,
+    «ridurre» passano). Coprire l'intera classe con una lista di radici non è possibile; la
+    regola e la lista vanno derivate da UNA costante (chip), e la mossa resta del coach (§0.1).
+14. **(coda) La fixture del render test diceva «`sessions_over_threshold` SEMPRE presente»**,
+    come la spec; ma le righe scritte prima del deploy (la 24→30 compresa) non hanno la chiave, e
+    il caso non era mai esercitato: `?? 0` → `?? 1` restava verde (misura di Cowork). La fixture
+    prende ora la chiave come OPZIONALE e due test inchiodano la riga legacy; il `?? 0` del FE non
+    cambia.
+15. **(coda) Il candidato vuoto non è affare del vaglio**: `vetSummary("")` è `ok` per
+    costruzione (nessun rapporto falso, un'assenza); la scelta di cosa salvare sta in
+    `chooseSummary` (modulo puro), che manda il vuoto — e ogni contenuto non-stringa — sulla stessa
+    strada della bocciatura, con la ragione «riepilogo IA vuoto». La edge decide in un punto solo;
+    `vetSummary` invariata; il modulo sale a 329 righe (convenzione delle 300, dichiarata).
 
 ## 9. Resta a Nicolò (e a Cowork)
 
-1. **Merge** della PR (che Nicolò apre dal link in testa).
-2. **Deploy** della edge `generate-batch-checkins` (v33 → v34; il connettore legga
-   l'`entrypoint_path` dopo il deploy, come da spec §Verifica).
-3. **Collaudo su `/coach/inbox`**: bottone «Analizza» → card dell'atleta `cfb31e82`:
-   Compliance 50% · Sessioni 1/2 · Volume 9.02 UA · RPE medio 8.5. ⚠️ Il riquadro «Indici di
-   rischio elevati» COMPARIRÀ citando il solo RPE 8,5 (vero) — v. Divergenza 1: non è la
-   compliance, ed è la decisione-chip da prendere.
-4. **Cowork, verifica live** dopo il collaudo: `select metrics_snapshot from weekly_checkins`
-   → `compliance_pct: 50, workouts_scheduled: 2, workouts_completed: 1, sessions_completed: 4,
-off_plan_sessions: 0, total_volume: 9.02, avg_rpe: "8.5"`; e su una settimana senza
-   prescrizioni la chiave `compliance_pct` NON deve esserci.
-5. **Chip aperte in questa fetta**: soglia RPE dell'allarme (Divergenza 1) · pulizia error
-   handling della edge (`error.message:350` preesistente + i rilievi di log-scrubbing della
-   passata, v. §6).
+1. **PR** dal link in testa e **merge**.
+2. **Deploy** di `generate-batch-checkins` (v34 → v35) **controllando che la versione salga**
+   (`list_edge_functions` → v35 e `updated_at` di oggi; il 30/08 un «Deployed» con `No change
+found` non aveva caricato nulla). Nessuna migration, nessun FE da deployare oltre alla
+   pubblicazione ordinaria di `main`.
+3. **Collaudo su `/coach/inbox`**: «Analizza» scrive la settimana **corrente** (§8.2). Sulla card
+   della settimana corrente: riquadro «Lettura della settimana», nessun «Indici di rischio»,
+   nessun «Valutare scarico», card RPE senza tinta. Sulla card **24→30** (riga vecchia): la
+   lettura si ricava dallo snapshot esistente — «1 giorno prescritto su 2 non onorato» ·
+   «Carico settimanale 9,02 UA» · «Attenzione» (gate below) — ma SENZA la riga «2 sedute oltre la
+   soglia» (chiave assente nella riga scritta il 30/08 — comportamento ora inchiodato dal render test della coda: nessun conteggio fabbricato dall'assenza) e con la vecchia `ai_summary` («4 sedute
+   su 5»): non è un difetto del codice, è la riga di prima.
+4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start,
+metrics_snapshot, ai_summary from weekly_checkins order by week_start desc` → sulla riga
+   corrente `sessions_over_threshold` presente (0 se nessun avviso della settimana) e una
+   `ai_summary` che passa `vetSummary` (o la riga deterministica, con il `console.warn`
+   `[vetSummary] atleta …` nei log della function).
+5. **Chip aperte in questa fetta**: parametro di settimana per il batch (§8.2) · le due voci
+   `bg-error-container/*` da togliere da `EXPECTED` in `scripts/verify-css-tokens.mjs` (§8.6) ·
+   copy dello stato vuoto «zona ottimale» (§7.5) · `fallbackSummaryText` senza le sedute oltre
+   soglia (§7.4) · `error.message:368` preesistente e `full_name` nel prompt (già censiti il 28/08).
