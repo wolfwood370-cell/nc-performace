@@ -24,7 +24,7 @@
 // reads the same reading from the snapshot instead of re-deriving a verdict.
 // =============================================================================
 
-import { weekDataLines, type WeekReport } from "./weekAdherence.ts";
+import { fallbackSummaryText, weekDataLines, type WeekReport } from "./weekAdherence.ts";
 
 // ---- constants (data, not scattered numbers) ---------------------------------
 
@@ -304,4 +304,26 @@ export function vetSummary(
     if (hit) reasons.push(`parola vietata «${hit[0]}»`);
   }
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
+}
+
+// ---- what gets saved: the vetted text, or the deterministic line ------------
+
+/**
+ * The ONE decision about what reaches ai_summary. An EMPTY candidate (or
+ * whitespace only) is an absence, not a false ratio: it is not the vet's
+ * business, and it takes the same road as a refusal — the criterion of C-15
+ * is «the deterministic line of the numbers, never a void». `reason` is null
+ * only when the candidate itself is saved.
+ */
+export function chooseSummary(
+  candidate: string,
+  report: WeekReport,
+): { text: string; reason: string | null } {
+  const trimmed = candidate.trim();
+  if (trimmed.length === 0) {
+    return { text: fallbackSummaryText(report), reason: "riepilogo IA vuoto" };
+  }
+  const vet = vetSummary(trimmed, report);
+  if (vet.ok !== false) return { text: trimmed, reason: null };
+  return { text: fallbackSummaryText(report), reason: vet.reasons.join("; ") };
 }

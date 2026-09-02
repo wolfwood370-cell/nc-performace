@@ -9,8 +9,8 @@ import {
 } from "../_shared/program/weekAdherence.ts";
 import {
   buildCheckinPrompt,
+  chooseSummary,
   countSessionsOverThreshold,
-  vetSummary,
   weekReading,
 } from "../_shared/program/checkinReading.ts";
 
@@ -358,20 +358,21 @@ Deno.serve(async (req) => {
             let aiSummary = "";
             if (aiResponse.ok) {
               const aiData = await aiResponse.json();
-              const candidate: string = aiData.choices?.[0]?.message?.content?.trim() || "";
-              // The vet is deterministic and refuses ANY ratio, fraction or
-              // percentage not in the data, and any load-action word. A
+              const content = aiData.choices?.[0]?.message?.content;
+              // What gets saved is decided in ONE place (chooseSummary): the
+              // vet is deterministic and refuses ANY ratio, fraction or
+              // percentage not in the data, and any load-action word; an
+              // EMPTY answer (or a non-string one) takes the same road. A
               // refusal costs the deterministic line; a fabricated number
-              // («4 sedute su 5», 2026-08-30) would cost the coach's trust.
-              const vet = vetSummary(candidate, report);
-              if (vet.ok) {
-                aiSummary = candidate;
-              } else {
+              // («4 sedute su 5», 2026-08-30) or a void would cost the
+              // coach's trust.
+              const chosen = chooseSummary(typeof content === "string" ? content : "", report);
+              if (chosen.reason !== null) {
                 console.warn(
-                  `[vetSummary] atleta ${athlete.id}: riepilogo IA scartato — ${vet.reasons.join("; ")}`,
+                  `[vetSummary] atleta ${athlete.id}: riepilogo IA scartato — ${chosen.reason}`,
                 );
-                aiSummary = fallbackSummaryText(report);
               }
+              aiSummary = chosen.text;
             } else {
               console.error("AI error:", aiResponse.status, await aiResponse.text());
               // Same absence rule as the prompt: no fabricated 0% here either.

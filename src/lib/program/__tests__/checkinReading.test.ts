@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   buildWeekReport,
+  fallbackSummaryText,
   type WeekLogRow,
   type WeekReport,
 } from "../../../../supabase/functions/_shared/program/weekAdherence.ts";
@@ -17,6 +18,7 @@ import {
   ADHERENCE_DAYS_WORDING_BELOW,
   ADHERENCE_GATE_PCT,
   buildCheckinPrompt,
+  chooseSummary,
   countSessionsOverThreshold,
   overThresholdText,
   PROMPT_RULES,
@@ -446,5 +448,37 @@ describe("determinismo del modulo puro", () => {
     }
     // La soglia è del watchdog (srpe >= 9): qui si contano i suoi avvisi.
     expect(src).not.toMatch(/srpe\s*>=?\s*9/);
+  });
+});
+
+// =============================================================================
+// chooseSummary — ciò che arriva in ai_summary: il testo vagliato o la riga
+// deterministica; il vuoto è un'assenza e prende la strada della bocciatura
+// =============================================================================
+describe("chooseSummary — mai un vuoto in ai_summary", () => {
+  const riga = fallbackSummaryText(reportVero);
+
+  it("vuoto → la riga deterministica, con la ragione «riepilogo IA vuoto»", () => {
+    expect(riga.length).toBeGreaterThan(0);
+    expect(chooseSummary("", reportVero)).toEqual({ text: riga, reason: "riepilogo IA vuoto" });
+  });
+
+  it("solo spazi → la riga deterministica", () => {
+    expect(chooseSummary("  \n\t ", reportVero)).toEqual({
+      text: riga,
+      reason: "riepilogo IA vuoto",
+    });
+  });
+
+  it("testo che passa il vaglio → il testo, senza ragione", () => {
+    const onesto = "1 giorno su 2 non onorato, 4 sedute concluse, 9.02 UA, RPE medio 8.5";
+    expect(chooseSummary(`  ${onesto}  `, reportVero)).toEqual({ text: onesto, reason: null });
+  });
+
+  it("testo bocciato → la riga deterministica, con la ragione del vaglio", () => {
+    const r = chooseSummary("Settimana conclusa: 4 sedute su 5, valuta uno scarico.", reportVero);
+    expect(r.text).toBe(riga);
+    expect(r.reason).toContain("4 sedute su 5");
+    expect(r.reason).toContain("scarico");
   });
 });

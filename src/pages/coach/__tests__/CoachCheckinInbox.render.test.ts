@@ -135,7 +135,7 @@ const reportAssenza = buildWeekReport({
   ],
 });
 
-function checkinCon(snapshot: object, id: string, nome: string, overThreshold: number) {
+function checkinCon(snapshot: object, id: string, nome: string, overThreshold?: number) {
   return {
     id,
     coach_id: "coach-1",
@@ -144,11 +144,13 @@ function checkinCon(snapshot: object, id: string, nome: string, overThreshold: n
     status: "pending",
     ai_summary: "Riepilogo della settimana.",
     coach_notes: null,
-    // sessions_over_threshold: il conteggio del watchdog, SEMPRE presente
-    // (la edge lo scrive a ogni riga; qui la fixture lo dichiara).
+    // sessions_over_threshold: il conteggio del watchdog, scritto dalla edge a
+    // ogni riga DA QUESTA fetta in poi. Senza argomento la chiave è ASSENTE,
+    // com'è su ogni riga scritta prima del deploy (la 24→30 compresa): la
+    // card non deve fabbricare un conteggio da quell'assenza.
     metrics_snapshot: {
       ...snapshot,
-      sessions_over_threshold: overThreshold,
+      ...(overThreshold === undefined ? {} : { sessions_over_threshold: overThreshold }),
       avg_daily_calories: null,
     },
     created_at: "2026-08-28T08:00:00Z",
@@ -289,6 +291,48 @@ describe("CoachCheckinInbox — la lettura della settimana al posto del verdetto
     const testo = await monta();
     expect(testo).toContain("Attenzione");
     expect(testo).toContain("1 seduta oltre la soglia");
+    expect(cardMetrica("Compliance").className).not.toMatch(/warning|destructive|error/);
+  });
+});
+
+// =============================================================================
+// La riga legacy: scritta prima del deploy, SENZA sessions_over_threshold
+// =============================================================================
+describe("CoachCheckinInbox — la riga legacy senza sessions_over_threshold", () => {
+  it("la 24→30 com'è nel database: nessuna riga «oltre la soglia», attenzione SOLO per il cancello", async () => {
+    // Le nove chiavi della riga del 30/08, nessuna decima: la fixture NON passa il conteggio.
+    expect("sessions_over_threshold" in reportContratto.snapshot).toBe(false);
+    h.checkins = [checkinCon(reportContratto.snapshot, "c-6", "Atleta Legacy")];
+    const testo = await monta();
+    expect(testo).toContain("Metriche Oggettive");
+    expect(testo).toContain("Lettura della settimana");
+    expect(testo).toContain("1 giorno prescritto su 2 non onorato");
+    expect(testo).toContain("9,02 UA");
+    // Nessun conteggio fabbricato dall'assenza, in nessuna forma.
+    expect(testo).not.toContain("oltre la soglia");
+    expect(testo).not.toMatch(/\d+ sedut[ae] oltre/);
+    // L'attenzione c'è, ma per il cancello dell'aderenza (50% < 70), non per le sedute.
+    expect(testo).toContain("Attenzione");
+    expect(cardMetrica("Compliance").className).toContain("warning");
+  });
+
+  it("una riga legacy con l'aderenza a posto non accende nulla", async () => {
+    // 2 prescritti (24 e 25), entrambi onorati: 100%, gate ok — e nessuna chiave del watchdog.
+    const okLegacy = buildWeekReport({
+      document: DOC_V2,
+      ...FINESTRA,
+      logs: [
+        riga({ status: "completed", completedDate: "2026-08-24", totalLoadAu: 3, srpe: 7 }),
+        riga({ status: "completed", completedDate: "2026-08-25", totalLoadAu: 2, srpe: 6 }),
+      ],
+    });
+    expect(okLegacy.adherence.compliancePct).toBe(100);
+    h.checkins = [checkinCon(okLegacy.snapshot, "c-7", "Atleta Legacy Ok")];
+    const testo = await monta();
+    expect(testo).toContain("Lettura della settimana");
+    expect(testo).toContain("2 giorni prescritti su 2 onorati");
+    expect(testo).not.toContain("oltre la soglia");
+    expect(testo).not.toContain("Attenzione");
     expect(cardMetrica("Compliance").className).not.toMatch(/warning|destructive|error/);
   });
 });
