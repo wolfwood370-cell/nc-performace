@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 // =============================================================================
-// La card dell'inbox non fabbrica il denominatore e l'assenza non accende
-// l'allarme. Le fixture NON scrivono lo snapshot a mano: lo derivano da
+// La card dell'inbox non fabbrica il denominatore, l'assenza non accende
+// l'attenzione, e il riquadro LEGGE la settimana invece di giudicarla: niente
+// «Indici di rischio elevati», niente «Valutare scarico», la card RPE senza
+// tinta. Le fixture NON scrivono lo snapshot a mano: lo derivano da
 // buildWeekReport (il modulo condiviso che la edge usa davvero), così una
 // mutazione del modulo — «: 0» al posto dell'assenza — propaga fino alla
 // card e questi test muoiono con lei.
@@ -122,8 +124,8 @@ const reportContratto = buildWeekReport({
   ],
 });
 
-// L'assenza: nessun rilascio; sRPE sotto 8 perché QUESTO snapshot deve
-// restare fuori da ogni ramo di isAnomalous, non solo da quello compliance.
+// L'assenza: nessun rilascio; sRPE sotto 8 come nella fixture storica, così
+// resta falsificabile che la tinta non torni a dipendere dall'RPE medio.
 const reportAssenza = buildWeekReport({
   document: null,
   ...FINESTRA,
@@ -133,7 +135,7 @@ const reportAssenza = buildWeekReport({
   ],
 });
 
-function checkinCon(snapshot: object, id: string, nome: string) {
+function checkinCon(snapshot: object, id: string, nome: string, overThreshold: number) {
   return {
     id,
     coach_id: "coach-1",
@@ -142,7 +144,13 @@ function checkinCon(snapshot: object, id: string, nome: string) {
     status: "pending",
     ai_summary: "Riepilogo della settimana.",
     coach_notes: null,
-    metrics_snapshot: { ...snapshot, avg_daily_calories: null },
+    // sessions_over_threshold: il conteggio del watchdog, SEMPRE presente
+    // (la edge lo scrive a ogni riga; qui la fixture lo dichiara).
+    metrics_snapshot: {
+      ...snapshot,
+      sessions_over_threshold: overThreshold,
+      avg_daily_calories: null,
+    },
     created_at: "2026-08-28T08:00:00Z",
     updated_at: "2026-08-28T08:00:00Z",
     athlete: { full_name: nome, avatar_url: null },
@@ -171,6 +179,16 @@ async function monta(): Promise<string> {
   return host.textContent ?? "";
 }
 
+/** La card «Metriche Oggettive» con quell'etichetta: il contenitore arrotondato
+ *  che porta la tinta (classi di MetricCard). */
+function cardMetrica(label: string): HTMLElement {
+  const etichetta = Array.from(host!.querySelectorAll("p")).find((p) => p.textContent === label);
+  if (!etichetta) throw new Error(`card «${label}» non montata`);
+  const card = etichetta.closest("div.rounded-2xl");
+  if (!(card instanceof HTMLElement)) throw new Error(`contenitore di «${label}» non trovato`);
+  return card;
+}
+
 afterEach(() => {
   if (root) act(() => root!.unmount());
   host?.remove();
@@ -181,7 +199,7 @@ afterEach(() => {
 // =============================================================================
 describe("CoachCheckinInbox — la card non fabbrica il denominatore", () => {
   it("col denominatore vero rende 1/2, 50%, 9.02 UA e 8.5/10 — e la compliance non è sotto soglia", async () => {
-    h.checkins = [checkinCon(reportContratto.snapshot, "c-1", "Atleta Contratto")];
+    h.checkins = [checkinCon(reportContratto.snapshot, "c-1", "Atleta Contratto", 2)];
     const testo = await monta();
     const compatto = testo.replace(/\s+/g, "");
     // Ancora positiva: il workspace è montato con le metriche.
@@ -194,7 +212,7 @@ describe("CoachCheckinInbox — la card non fabbrica il denominatore", () => {
   });
 
   it("senza workouts_scheduled la card rende «—», mai un rapporto con denominatore zero", async () => {
-    h.checkins = [checkinCon(reportAssenza.snapshot, "c-2", "Atleta Assenza")];
+    h.checkins = [checkinCon(reportAssenza.snapshot, "c-2", "Atleta Assenza", 0)];
     const testo = await monta();
     const compatto = testo.replace(/\s+/g, "");
     // Ancora positiva: la pagina è montata e la card Sessioni esiste.
@@ -205,12 +223,72 @@ describe("CoachCheckinInbox — la card non fabbrica il denominatore", () => {
     expect(compatto).toContain("Compliance—");
   });
 
-  it("l'assenza non accende «Indici di rischio elevati»: isAnomalous resta falso", async () => {
-    h.checkins = [checkinCon(reportAssenza.snapshot, "c-3", "Atleta Assenza")];
+  it("l'assenza non accende l'attenzione: nessun badge, la lettura dichiara l'assenza", async () => {
+    h.checkins = [checkinCon(reportAssenza.snapshot, "c-3", "Atleta Assenza", 0)];
     const testo = await monta();
     // Ancora positiva: il workspace del check-in è montato davvero.
     expect(testo).toContain("Feedback Soggettivo");
     expect(testo).not.toContain("Indici di rischio elevati");
     expect(testo).not.toContain("Compliance sotto soglia");
+    expect(testo).not.toContain("Attenzione");
+    expect(testo).toContain("Lettura della settimana");
+    expect(testo).toContain("essun giorno prescritto questa settimana");
+    expect(testo).not.toContain("oltre la soglia");
+  });
+});
+
+// =============================================================================
+// Acceptance 4 — il riquadro legge, non giudica
+// =============================================================================
+describe("CoachCheckinInbox — la lettura della settimana al posto del verdetto", () => {
+  it("con 50%, RPE 8.5 e 2 sedute oltre soglia: nessun verdetto, la lettura in tre righe, RPE senza tinta", async () => {
+    h.checkins = [checkinCon(reportContratto.snapshot, "c-4", "Atleta Contratto", 2)];
+    const testo = await monta();
+    // Ancora positiva: il workspace è montato con le metriche.
+    expect(testo).toContain("Metriche Oggettive");
+    // Il verdetto è sparito, in ogni sua parola.
+    expect(testo).not.toContain("Indici di rischio elevati");
+    expect(testo).not.toContain("Valutare scarico");
+    expect(testo.toLowerCase()).not.toContain("rischio");
+    // La lettura: aderenza in giorni, sedute oltre soglia dal watchdog, carico in UA.
+    expect(testo).toContain("Lettura della settimana");
+    expect(testo).toContain("1 giorno prescritto su 2 non onorato");
+    expect(testo).toContain("2 sedute oltre la soglia");
+    expect(testo).toContain("9,02 UA");
+    // L'attenzione è un tono warning col suo badge, non un rischio.
+    expect(testo).toContain("Attenzione");
+    // La card RPE medio non porta nessuna tinta; la compliance porta quella di attenzione.
+    const rpe = cardMetrica("RPE medio");
+    expect(rpe.className).not.toMatch(/destructive|error|warning/);
+    const compliance = cardMetrica("Compliance");
+    expect(compliance.className).toContain("warning");
+    expect(compliance.className).not.toMatch(/destructive|error/);
+  });
+
+  it("una sola seduta oltre soglia a gate ok accende l'attenzione senza tingere la compliance", async () => {
+    // 3 prescritti su 4 onorati (75%): gate ok; 1 seduta oltre soglia dal watchdog.
+    const okReport = buildWeekReport({
+      document: {
+        ...DOC_V2,
+        days: [
+          giornoV2("w1-s3", "2026-08-24", 2),
+          giornoV2("w1-s4", "2026-08-25", 3),
+          giornoV2("w1-s5", "2026-08-26", 4),
+          giornoV2("w1-s6", "2026-08-27", 5),
+        ],
+      },
+      ...FINESTRA,
+      logs: [
+        riga({ status: "completed", completedDate: "2026-08-24", totalLoadAu: 3, srpe: 7 }),
+        riga({ status: "completed", completedDate: "2026-08-25", totalLoadAu: 2, srpe: 9 }),
+        riga({ status: "completed", completedDate: "2026-08-26", totalLoadAu: 2, srpe: 7 }),
+      ],
+    });
+    expect(okReport.adherence.compliancePct).toBe(75);
+    h.checkins = [checkinCon(okReport.snapshot, "c-5", "Atleta Ok", 1)];
+    const testo = await monta();
+    expect(testo).toContain("Attenzione");
+    expect(testo).toContain("1 seduta oltre la soglia");
+    expect(cardMetrica("Compliance").className).not.toMatch(/warning|destructive|error/);
   });
 });
