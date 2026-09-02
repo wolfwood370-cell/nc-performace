@@ -2,7 +2,7 @@
 // supabase/functions/_shared/program/checkinReading.ts
 // =============================================================================
 // PURE module (no clock, no network, no randomness): the weekly check-in READS
-// the week, it does not judge it. Three things live here and nowhere else:
+// the week, it does not judge it. Four things live here and nowhere else:
 //
 //   1. the adherence gate and its wording (R6 of the method: adherence comes
 //      first — under the gate the programme is not judged and the load is
@@ -22,7 +22,13 @@
 //      watchdog's alerts (coach_alerts.type = 'risk_alert'), DISTINCT by
 //      workout_log_id. The threshold itself lives in the watchdog and is
 //      never copied here: this module counts its judgements, it does not
-//      re-issue them.
+//      re-issue them;
+//   4. the EMPTY week — zero prescribed days in the window AND zero completed
+//      sessions, both read from the report: the batch does not call the
+//      model at all (isEmptyWeek), and ai_summary is ONE deterministic
+//      sentence with no digit and no «N/A» (emptyWeekText). On all zeros the
+//      model has nothing to copy and invents the most (live line of
+//      2026-09-02: an exhortation and a wrong date).
 //
 // Imported by the edge (generate-batch-checkins) AND by the coach inbox, which
 // reads the same reading from the snapshot instead of re-deriving a verdict.
@@ -432,4 +438,29 @@ export function chooseSummary(
   const vet = vetSummary(trimmed, report, prompt);
   if (vet.ok !== false) return { text: trimmed, reason: null };
   return { text: fallbackSummaryText(report), reason: vet.reasons.join("; ") };
+}
+
+// ---- the empty week: nothing to describe, so the model is not called --------
+
+/** What ai_summary says for a week with nothing to describe: ONE sentence,
+ *  no digit, no «N/A» — an absence declared in words, never dressed as a
+ *  value. A constant, exported, so a test can tie the edge to it. */
+export const EMPTY_WEEK_TEXT =
+  "Nessun giorno prescritto e nessuna seduta conclusa questa settimana.";
+
+/**
+ * A week is EMPTY if and only if the window holds ZERO prescribed days AND
+ * ZERO completed sessions — both READ from the report, nothing recomputed.
+ * On such a week the batch does not call the model: with every datum at
+ * zero it has nothing to copy and invents the most (the live line of
+ * 2026-09-02 wrote an exhortation and a wrong date). Zero prescribed days
+ * with off-plan sessions, or prescribed days with zero sessions, are NOT
+ * empty: there the data exist, and the model is called.
+ */
+export function isEmptyWeek(report: WeekReport): boolean {
+  return report.adherence.prescribedCount === 0 && report.snapshot.sessions_completed === 0;
+}
+
+export function emptyWeekText(): string {
+  return EMPTY_WEEK_TEXT;
 }

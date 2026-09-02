@@ -5,9 +5,11 @@
 // prompt detta i numeri e DÀ la data di oggi, il vaglio boccia ogni rapporto
 // o percentuale che non sia nei dati, ogni parola d'azione sul carico e ogni
 // numero che il prompt non abbia dato (letto dal blocco-dati del prompt
-// stesso, una sorgente sola). Fixture: la settimana vera del 24→30 agosto
-// 2026 dell'atleta cfb31e82 (misura viva 28/08 e 01/09) e la settimana vuota
-// del 31/08→06/09 (misura viva di Cowork, 02/09 alle 15:03).
+// stesso, una sorgente sola). Sulla settimana VUOTA (zero prescritti E zero
+// sedute concluse) il modello non si chiama: una frase sola, deterministica.
+// Fixture: la settimana vera del 24→30 agosto 2026 dell'atleta cfb31e82
+// (misura viva 28/08 e 01/09) e la settimana vuota del 31/08→06/09 (misura
+// viva di Cowork, 02/09 alle 15:03).
 // =============================================================================
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -24,6 +26,9 @@ import {
   buildCheckinPrompt,
   chooseSummary,
   countSessionsOverThreshold,
+  EMPTY_WEEK_TEXT,
+  emptyWeekText,
+  isEmptyWeek,
   overThresholdText,
   PROMPT_RULES,
   readingSourceFromSnapshot,
@@ -725,5 +730,143 @@ describe("chooseSummary — mai un vuoto in ai_summary", () => {
     expect(r.text).toBe(riga);
     expect(r.reason).toContain("4 sedute su 5");
     expect(r.reason).toContain("scarico");
+  });
+});
+
+// =============================================================================
+// Coda del 02/09, seconda — la settimana vuota non chiama il modello: zero
+// giorni prescritti E zero sedute concluse, letti dal report; una frase sola
+// =============================================================================
+describe("isEmptyWeek — vuota se e solo se zero prescritti E zero sedute concluse", () => {
+  it("(a) la 31/08→06/09 col documento del 22/08 (giorni solo ad agosto) e zero log → true", () => {
+    expect(reportVuoto.adherence.prescribedCount).toBe(0);
+    expect(reportVuoto.snapshot.sessions_completed).toBe(0);
+    expect(isEmptyWeek(reportVuoto)).toBe(true);
+  });
+
+  it("(b) lo stesso documento sulla 24→30/08 senza log: 2 prescritti, 0 concluse → false", () => {
+    const prescrittaNonEseguita = buildWeekReport({ document: DOC_V2, ...FINESTRA, logs: [] });
+    expect(prescrittaNonEseguita.adherence.prescribedCount).toBe(2);
+    expect(prescrittaNonEseguita.snapshot.sessions_completed).toBe(0);
+    expect(isEmptyWeek(prescrittaNonEseguita), "prescritta ma non eseguita: i dati ci sono").toBe(
+      false,
+    );
+  });
+
+  it("(c) sulla 31/08→06/09 una seduta conclusa il 02/09 fuori programma → false", () => {
+    const fuoriProgramma = buildWeekReport({
+      document: DOC_V2,
+      fromIso: "2026-08-31",
+      toIso: "2026-09-06",
+      todayIso: "2026-09-02",
+      logs: [riga({ status: "completed", completedDate: "2026-09-02", totalLoadAu: 2, srpe: 7 })],
+    });
+    expect(fuoriProgramma.adherence.prescribedCount).toBe(0);
+    expect(fuoriProgramma.snapshot.sessions_completed).toBe(1);
+    expect(fuoriProgramma.adherence.offPlanCount).toBe(1);
+    expect(isEmptyWeek(fuoriProgramma), "fuori programma: la seduta è un dato").toBe(false);
+  });
+
+  // I due vicini che un «se e solo se» letto male confonderebbe (passata 02/09):
+  // una settimana non ancora iniziata e una seduta senza numeri.
+  it("(b') la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false", () => {
+    const nonIniziata = buildWeekReport({
+      document: DOC_V2,
+      ...FINESTRA,
+      todayIso: "2026-08-24",
+      logs: [],
+    });
+    expect(nonIniziata.adherence.prescribedCount).toBe(2);
+    expect(nonIniziata.missedCount).toBe(0);
+    expect(nonIniziata.remainingCount).toBe(2);
+    expect(isEmptyWeek(nonIniziata), "prescritta e non ancora iniziata: c'è un programma").toBe(
+      false,
+    );
+  });
+
+  it("(c') una seduta conclusa SENZA carico né sRPE è ancora una seduta → false", () => {
+    const senzaNumeri = buildWeekReport({
+      document: DOC_V2,
+      fromIso: "2026-08-31",
+      toIso: "2026-09-06",
+      todayIso: "2026-09-02",
+      logs: [riga({ status: "completed", completedDate: "2026-09-02" })],
+    });
+    expect(senzaNumeri.snapshot.sessions_completed).toBe(1);
+    expect(senzaNumeri.totalVolume).toBeNull();
+    expect(senzaNumeri.avgRpe).toBe("N/A");
+    expect(isEmptyWeek(senzaNumeri), "la seduta è un dato anche senza numero").toBe(false);
+  });
+
+  it("(d) emptyWeekText() è la costante esportata: una frase sola, né cifre né «N/A»", () => {
+    const testo = emptyWeekText();
+    expect(testo).toBe(EMPTY_WEEK_TEXT);
+    expect(testo).toBe("Nessun giorno prescritto e nessuna seduta conclusa questa settimana.");
+    expect(testo).not.toMatch(/\d/);
+    expect(testo).not.toContain("N/A");
+    // La riga della bocciatura sulla stessa settimana porta due «N/A»: è la
+    // strada delle settimane CON dati (weekAdherence.ts), e resta com'è.
+    expect(fallbackSummaryText(reportVuoto)).toContain("N/A");
+    expect(fallbackSummaryText(reportVuoto)).not.toBe(testo);
+  });
+
+  /** L'indice della graffa che chiude l'INTERO if/else aperto a `from`,
+   *  contando le graffe: la `}` di «} else {» non chiude, riapre. */
+  function fineIfElse(src: string, from: number): number {
+    let depth = 0;
+    for (let i = src.indexOf("{", from); i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}") {
+        depth--;
+        if (depth === 0 && !src.startsWith("} else {", i)) return i;
+      }
+    }
+    return -1;
+  }
+
+  it("la edge chiama il modello solo nel ramo non-vuoto: la guardia, poi «else», poi il fetch, poi la chiusura", () => {
+    // La edge non ha test: questo lega il suo sorgente alla guardia del modulo.
+    // I commenti a riga intera sono tolti prima di leggere: una guardia che
+    // sopravvive solo in un commento non è una guardia.
+    const edge = readFileSync(
+      new URL("../../../../supabase/functions/generate-batch-checkins/index.ts", import.meta.url),
+      "utf8",
+    ).replace(/^\s*\/\/.*$/gm, "");
+    const guardia = edge.indexOf("if (isEmptyWeek(report))");
+    expect(guardia, "la edge non chiede isEmptyWeek(report)").toBeGreaterThan(-1);
+    const chiamata = edge.indexOf("https://api.openai.com/v1/chat/completions");
+    expect(chiamata).toBeGreaterThan(-1);
+    const ramoNonVuoto = edge.indexOf("} else {", guardia);
+    expect(ramoNonVuoto).toBeGreaterThan(guardia);
+    // «Dopo l'else» non basta: un fetch spostato DOPO la chiusura dell'if/else
+    // (chiamata incondizionata, settimana vuota compresa) avrebbe ancora un
+    // indice maggiore di «} else {» — passata indipendente del 02/09. Il
+    // fetch deve stare fra l'«else» e la graffa che chiude l'intero if/else.
+    const chiusura = fineIfElse(edge, guardia);
+    expect(chiusura).toBeGreaterThan(ramoNonVuoto);
+    expect(chiamata, "il fetch a OpenAI deve stare DENTRO il ramo non-vuoto").toBeGreaterThan(
+      ramoNonVuoto,
+    );
+    expect(chiamata, "il fetch a OpenAI deve stare DENTRO il ramo non-vuoto").toBeLessThan(
+      chiusura,
+    );
+    // Il ramo vuoto: la frase e il log, nessuna attesa e nessuna chiave.
+    const ramoVuoto = edge.slice(guardia, ramoNonVuoto);
+    expect(ramoVuoto).toContain("aiSummary = emptyWeekText()");
+    expect(ramoVuoto).toContain("nessuna chiamata al modello");
+    expect(ramoVuoto).not.toContain("await");
+    expect(ramoVuoto).not.toContain("openaiKey");
+    // La chiave, dalla guardia in poi, si usa SOLO dentro il ramo non-vuoto:
+    // vale anche per una chiamata che non si chiamasse «fetch».
+    for (
+      let i = edge.indexOf("openaiKey", guardia);
+      i !== -1;
+      i = edge.indexOf("openaiKey", i + 1)
+    ) {
+      expect(i, "openaiKey usata fuori dal ramo non-vuoto").toBeGreaterThan(ramoNonVuoto);
+      expect(i, "openaiKey usata fuori dal ramo non-vuoto").toBeLessThan(chiusura);
+    }
+    // Una chiamata sola al modello in tutto il file: quella dentro il ramo.
+    expect(edge.split("fetch(").length - 1).toBe(1);
   });
 });

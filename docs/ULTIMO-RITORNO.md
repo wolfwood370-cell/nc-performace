@@ -1,4 +1,4 @@
-# ULTIMO RITORNO — coda checkin-numeri-dal-prompt
+# ULTIMO RITORNO — coda checkin-numeri-dal-prompt (due code, stesso ramo)
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
@@ -6,16 +6,27 @@
 > del collaudo di Cowork delle 15:03) · PR verso `main` **da aprire da Nicolò**
 > ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-numeri-dal-prompt)
 > — `gh` non installata e credenziali negate all'agente, come dal 20/08).
+> **Seconda coda (sera del 02/09), in coda al primo commit:** la settimana VUOTA (zero giorni
+> prescritti E zero sedute concluse) **non chiama il modello** — tutto ciò che la riguarda è marcato
+> **(coda 2)** in §1, §2, §3, §4, §5, §6, §8, §9.
 
 ## 1. Ramo e commit
 
-`claude/checkin-numeri-dal-prompt`, da `ccf1450`: **un commit solo**, come da task, che porta il
-modulo, il suo test, la edge e questo file. L'hash di quel commit non può stare dentro il file che
-il commit contiene: è il tip del ramo (`git log --oneline -1 claude/checkin-numeri-dal-prompt`) ed è
-riportato nel messaggio di chiusura della sessione e nella PR.
+`claude/checkin-numeri-dal-prompt`, da `ccf1450`: **due commit**, uno per coda, entrambi «un commit
+solo» come da task.
+
+- `290ce2a` — **i numeri dal prompt**: il vaglio boccia ogni numero che il prompt non ha dato, e il
+  prompt dà la data di oggi in lettere (modulo, test, edge, questo file).
+- **(tip) (coda 2) la settimana vuota non chiama il modello**: `isEmptyWeek` + `emptyWeekText` nel
+  modulo puro, la guardia nella edge PRIMA del `fetch` (che ora sta DENTRO il ramo non-vuoto), 7
+  test (i 4 dell'acceptance, il legame strutturale con la edge, e i due vicini (b') (c') nati dalla
+  passata), questo file. Come per il primo, l'hash non può stare dentro il file che il commit contiene:
+  è il tip del ramo (`git log --oneline -1 claude/checkin-numeri-dal-prompt`) ed è riportato nel
+  messaggio di chiusura della sessione e nella PR.
 
 **PR: non aperta.** Motivo misurato: `gh` assente; la via API col token del credential manager è
-negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa.
+negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa: la PR
+porta i due commit insieme.
 
 ## 2. Manifesto
 
@@ -40,6 +51,68 @@ più `docs/ULTIMO-RITORNO.md` (questo file). Nessun file nuovo.
 = una riga `todayIso: todayStr,` nel contesto del prompt · `content: prompt` → `content: prompt.text` ·
 `chooseSummary(…, report)` → `chooseSummary(…, report, prompt)`. Nessun commento toccato, nessuna
 lettura nuova, l'upsert è quello di prima.
+
+**(coda 2) MODIFICATI** (`git diff 290ce2a --numstat`, tree in stage):
+
+```
+146	3	src/lib/program/__tests__/checkinReading.test.ts   (54 → 61 `it`, +7; 729 → 872 righe)
+33	2	supabase/functions/_shared/program/checkinReading.ts (435 → 466 righe)
+68	53	supabase/functions/generate-batch-checkins/index.ts  (429 → 444; con -w, cioè senza la
+                                                            re-indentazione del ramo: 16 1)
+```
+
+più `docs/ULTIMO-RITORNO.md` (questo file). Nessun file nuovo. **VIETATI ri-misurati a zero**
+(`git diff --cached -- <f> | wc -l`, gli stessi dieci di sopra, `weekAdherence.ts` e
+`CoachCheckinInbox.tsx` in testa) → tutti **0**: `fallbackSummaryText` non è stata toccata, resta la
+strada della bocciatura per le settimane CON dati.
+
+**(coda 2) Il perimetro della edge, con le righe** (`git diff --cached -w -U2`; il diff pieno è lo
+stesso più la re-indentazione delle 40 righe del prompt e della chiamata, entrate nel ramo `else`):
+
+```diff
+@@ -12,4 +12,6 @@ import {
+   chooseSummary,
+   countSessionsOverThreshold,
++  emptyWeekText,
++  isEmptyWeek,
+   weekReading,
+ } from "../_shared/program/checkinReading.ts";
+@@ -327,4 +329,17 @@
+             };
+
++            let aiSummary: string;
++            if (isEmptyWeek(report)) {
++              // Nothing to describe — zero prescribed days in the window AND
++              // zero completed sessions, both read from the report: the model
++              // is NOT called. […]
++              console.info(
++                `[isEmptyWeek] atleta ${athlete.id}: settimana vuota: nessuna chiamata al modello`,
++              );
++              aiSummary = emptyWeekText();
++            } else {
+               // The reading first, then the data, then the rules the model must
+               // obey (no invented ratios, no load actions): checkinReading.ts.
+@@ -357,5 +372,4 @@
+               });
+
+-            let aiSummary = "";
+               if (aiResponse.ok) {
+                 const aiData = await aiResponse.json();
+@@ -384,4 +398,5 @@
+                 aiSummary = fallbackSummaryText(report);
+               }
++            }
+
+             const { error: upsertError } = await supabase.from("weekly_checkins").upsert(
+```
+
+Righe nel file finale: import `index.ts:14-15` · `let aiSummary: string` `:331` · guardia
+`if (isEmptyWeek(report))` `:332` · `console.info` `:339-341` · `aiSummary = emptyWeekText()` `:342`
+· `} else {` `:343` · `buildCheckinPrompt` `:346` · **il `fetch` a OpenAI `:361`, dentro il ramo**
+· chiusura del ramo `:400` · upsert `:402` invariato. Il prompt si costruisce SOLO nel ramo non-vuoto
+(prima la guardia, poi il prompt): su una settimana vuota non esiste un prompt mai inviato.
+`metricsSnapshot` (`:325-329`) e l'upsert (`:402-412`) sono byte-identici a `290ce2a`; la verifica di
+`OPENAI_API_KEY` prima del loop (`:263-269`) resta com'era, anche se tutte le settimane fossero vuote.
 
 ## 3. Le firme scelte (punto 2 del task: «la forma la decidi tu, dichiarandola»)
 
@@ -80,6 +153,35 @@ export function chooseSummary(candidate, report, prompt: CheckinPrompt): { text;
 - **Costanti nuove:** `RPE_SCALE`, `MONTHS_IT`, `NUMBER_TOKEN` (private). Nessuna esportazione nuova
   oltre a `CheckinPrompt`; il frontend (`CoachCheckinInbox.tsx`) importa solo `overThresholdText`,
   `readingSourceFromSnapshot`, `weekReading`, `WeekReading`: firme invariate, zero righe di diff.
+
+**(coda 2) Le due funzioni pure e la costante** (`checkinReading.ts:443-466`, sezione «the empty
+week: nothing to describe, so the model is not called»; l'intestazione del modulo passa da «Three
+things» a «Four things» con il punto 4, `:5` e `:26-31`):
+
+```ts
+export const EMPTY_WEEK_TEXT =
+  "Nessun giorno prescritto e nessuna seduta conclusa questa settimana.";
+export function isEmptyWeek(report: WeekReport): boolean {
+  return report.adherence.prescribedCount === 0 && report.snapshot.sessions_completed === 0;
+}
+export function emptyWeekText(): string {
+  return EMPTY_WEEK_TEXT;
+}
+```
+
+- `isEmptyWeek` legge DUE campi del report e non ricalcola nulla: `adherence.prescribedCount` (i
+  giorni prescritti nella finestra, dal documento) e `snapshot.sessions_completed` (le sedute
+  concluse nella finestra, per giorno civile di Roma). `&&`, non `||`: «zero prescritti ma sedute
+  fuori programma» e «prescritti ma zero sedute» NON sono vuote — lì i dati ci sono e il modello si
+  chiama ancora (test (b) e (c), prova rossa M5).
+- `emptyWeekText()` restituisce la costante: una frase sola, nessuna cifra, nessun «N/A» (test (d)).
+  La costante è esportata perché il test la leghi alla edge per nome. La riga della bocciatura
+  (`fallbackSummaryText`, due «N/A» sulla stessa settimana) non cambia: è la strada delle settimane
+  CON dati e il test (d) lo inchioda (`fallbackSummaryText(reportVuoto)` contiene «N/A» e non è
+  uguale alla frase).
+- Il modulo resta puro: il test di determinismo (nessun `Date.now`, `new Date(`, `Math.random`,
+  `fetch(`, `Intl.` nel sorgente) passa com'era. Sale a 466 righe (convenzione delle 300: la chip
+  «spezzare `checkinReading.ts`» resta aperta, §9).
 
 ## 4. Acceptance — ogni criterio col suo comando e l'output
 
@@ -137,6 +239,49 @@ DENO: npx deno test --no-lock supabase/functions/_shared/program/ → ok | 13 pa
       suite Deno intera come in CI (--allow-all --no-check supabase/functions/) → ok | 496 passed | 0 failed
 ```
 
+**(coda 2) Acceptance — il blocco `isEmptyWeek — vuota se e solo se zero prescritti E zero sedute
+concluse` (`checkinReading.test.ts:736-872`), `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 61/61** (54 + 7):
+
+- **(a)** `reportVuoto` — finestra 31/08→06/09, `DOC_V2` (il documento del 22/08 coi giorni 22–25/08:
+  nessuno nella finestra; il task dice «solo il 24 e 25», sono i due che cadono nella finestra di
+  (b), il documento è lo stesso della fixture viva), zero log → `prescribedCount 0`,
+  `sessions_completed 0`, `isEmptyWeek` **true** ✓
+- **(b)** stesso documento, finestra 24→30/08, zero log → `prescribedCount 2`, `sessions_completed 0`,
+  `isEmptyWeek` **false** («prescritta ma non eseguita: i dati ci sono») ✓
+- **(c)** finestra 31/08→06/09, un log `completed` il 02/09, nessun giorno prescritto →
+  `prescribedCount 0`, `sessions_completed 1`, `offPlanCount 1`, `isEmptyWeek` **false** («fuori
+  programma: la seduta è un dato») ✓
+- **(d)** `emptyWeekText()` === `EMPTY_WEEK_TEXT` === «Nessun giorno prescritto e nessuna seduta
+  conclusa questa settimana.», `not.toMatch(/\d/)`, `not.toContain("N/A")`; e
+  `fallbackSummaryText(reportVuoto)` contiene «N/A» e NON è quella frase ✓
+- **(b') (c') — i due vicini nati dalla passata (§6)**: la 24→30 vista dal lunedì 24 (2 prescritti
+  tutti avanti, `missedCount 0`, `remainingCount 2`, 0 concluse) → **false**; una seduta conclusa il
+  02/09 SENZA carico né sRPE (`totalVolume null`, `avgRpe "N/A"`, `sessions_completed 1`) → **false**
+  («la seduta è un dato anche senza numero») ✓ — sono i due mutanti di `isEmptyWeek` che (a)(b)(c)
+  lasciavano vivi (M9, M10 in §5).
+- **(legame con la edge)** il test legge il sorgente di `index.ts` (commenti a riga intera tolti) e
+  inchioda: la guardia `if (isEmptyWeek(report))` esiste · poi un `} else {` · poi l'URL di OpenAI
+  DOPO l'`else` **e PRIMA della graffa che chiude l'intero if/else** (`fineIfElse`, contando le
+  graffe: la `}` di «} else {» riapre) · fra guardia ed `else` stanno `aiSummary = emptyWeekText()`
+  e «nessuna chiamata al modello», e NON stanno `await` né `openaiKey` · `openaiKey`, dalla guardia
+  in poi, compare SOLO fra `else` e chiusura · **una sola** occorrenza di `fetch(` nel file ✓. È un
+  test STRUTTURALE (la edge non ha test): lo dichiaro in §8, con ciò che non vede.
+
+**(coda 2) I cinque cancelli** (tree in stage, prima del commit; ri-misurati dopo la passata):
+
+```
+TSC_EXIT=0
+VITEST (file): 61 passed (61)   ·   VITEST (suite): Test Files 51 passed (51) · Tests 556 passed (556)   [549 → 556: +7, tutti nel modulo]
+ESLINT: files 456 · errors 64 · warnings 14        ← 64 = .eslint-baseline; warning 13 → 14: il console.info
+        (index.ts:339, no-console «Only these console methods are allowed: warn, error») — chiesto dal task, dichiarato in §8
+BUILD_EXIT=0 (vite: ✓ built in 3.05s)
+VERIFYCSS: ✓ … 243 classi con modificatore di alpha tutte emesse e a canali · VERIFYCSS_EXIT=0 (le 2 note preesistenti)
+DENO: npx deno test --no-lock supabase/functions/_shared/program/ → ok | 13 passed | 0 failed
+      npx deno check --no-lock …/checkinReading.ts → pulito
+      npx deno check --no-lock …/generate-batch-checkins/index.ts → SOLO il preesistente TS18046 (ora a :439)
+PRETTIER --check sui tre file → «All matched files use Prettier code style!»
+```
+
 ## 5. Le prove rosse — tre del task più una della passata (protocollo 29/08: occorrenza unica · `git diff --numstat` · vitest sul file · ripristino per copia dal backup · byte-identico · `git diff --exit-code` = 0)
 
 Eseguite sul tree in stage (le tre modifiche erano in index: `git diff --exit-code` misura
@@ -154,6 +299,70 @@ Le quattro rieseguite insieme sul codice finale (54 test): M1 **7 su 54** morti 
 test delle migliaia, che dipende dal controllo), M2 5, M3 1, M4 1. Dopo ognuna: `ripristino
 byte-identico: True · git diff --exit-code: 0`; a fine runner `git status --short` = le tre `M` in
 stage, nient'altro.
+
+**(coda 2) M5–M10 — la prova rossa del task, due sulla edge, e le tre nate dalla passata** (stesso
+protocollo: tree in stage, `git add` PRIMA del runner così `git diff --exit-code` misura
+worktree-contro-index; runner `mutazioni/runner.cjs` in scratchpad, log `M1..M6.log` e
+`summary.json` lì — numerazione del runner M1–M6, qui M5–M10 per continuare la tabella; 61 test):
+
+| #   | mutazione (una occorrenza)                                                                                                                                        | numstat | esito               | il rosso nomina…                                                                                                                                                                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M5  | `&&` → `\|\|` in `isEmptyWeek` (basta UNA delle due assenze) — **la prova del task**                                                                              | 1 1     | **ROSSO** (4 su 61) | **(b)** «2 prescritti, 0 concluse → false — prescritta ma non eseguita: i dati ci sono: expected true to be false» e **(c)** «fuori programma → false — la seduta è un dato: expected true to be false», più i due vicini (b') e (c'). (a) e (d) restano verdi, come devono. Prima di (b')(c') erano esattamente 2 su 59: (b) e (c) |
+| M6  | **la guardia TOLTA dalla edge**: `index.ts` riportato com'era a `290ce2a` (il `fetch` parte sempre, `git show HEAD:… > index.ts`)                                 | 53 68   | **ROSSO** (1 su 61) | «la edge chiama il modello solo nel ramo non-vuoto … — la edge non chiede isEmptyWeek(report): expected -1 to be greater than -1»                                                                                                                                                                                                   |
+| M7  | la settimana vuota prende la riga della bocciatura: `aiSummary = emptyWeekText();` → `aiSummary = fallbackSummaryText(report);`                                   | 1 1     | **ROSSO** (1 su 61) | lo stesso test: «expected 'if (isEmptyWeek(report)) {…' to contain 'aiSummary = emptyWeekText()'»                                                                                                                                                                                                                                   |
+| M8  | **il mutante della passata**: ramo `else` svuotato (`aiSummary = ""`), prompt + `fetch` + gestione spostati DOPO la graffa che chiude l'if/else (chiamata sempre) | 55 54   | **ROSSO** (1 su 61) | lo stesso test: «il fetch a OpenAI deve stare DENTRO il ramo non-vuoto: expected 10949 to be less than 10341» — prima della stretta (§6) questo mutante passava                                                                                                                                                                     |
+| M9  | `isEmptyWeek` legge il carico invece delle sedute: `snapshot.sessions_completed === 0` → `totalVolume === null`                                                   | 1 1     | **ROSSO** (1 su 61) | **(c')** «una seduta conclusa SENZA carico né sRPE è ancora una seduta → false — la seduta è un dato anche senza numero: expected true to be false» — e solo quello: (a)(b)(c) lo lasciavano vivo                                                                                                                                   |
+| M10 | `isEmptyWeek` legge i saltati invece dei prescritti: `adherence.prescribedCount === 0` → `missedCount === 0`                                                      | 1 1     | **ROSSO** (1 su 61) | **(b')** «la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false — prescritta e non ancora iniziata: c'è un programma: expected true to be false» — e solo quello                                                                                                                                |
+
+Dopo ognuna: `ripristino byte-identico: true`; il `git diff --exit-code` della corsa intermedia era
+1 SOLO perché questo file era ancora fuori dallo stage (` M docs/ULTIMO-RITORNO.md`, come i refuter
+hanno notato); la corsa finale a stage completo, riportata sotto, chiude a 0. Output del runner,
+testuale (corsa finale, tutto in stage):
+
+```
+=== M1 — isEmptyWeek: «&&» → «||» (basta UNA delle due assenze)
+  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
+  vitest: 4 rossi su 61 (57 verdi)
+    ✗ … (b) lo stesso documento sulla 24→30/08 senza log: 2 prescritti, 0 concluse → false
+        AssertionError: prescritta ma non eseguita: i dati ci sono: expected true to be false
+    ✗ … (c) sulla 31/08→06/09 una seduta conclusa il 02/09 fuori programma → false
+        AssertionError: fuori programma: la seduta è un dato: expected true to be false
+    ✗ … (b') la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false
+        AssertionError: prescritta e non ancora iniziata: c'è un programma: expected true to be false
+    ✗ … (c') una seduta conclusa SENZA carico né sRPE è ancora una seduta → false
+        AssertionError: la seduta è un dato anche senza numero: expected true to be false
+=== M2 — la guardia TOLTA dalla edge: index.ts com'era a HEAD (il fetch parte sempre)
+  numstat: 53	68	supabase/functions/generate-batch-checkins/index.ts
+  vitest: 1 rossi su 61 (60 verdi)
+    ✗ … la edge chiama il modello solo nel ramo non-vuoto: la guardia, poi «else», poi il fetch, poi la chiusura
+        AssertionError: la edge non chiede isEmptyWeek(report): expected -1 to be greater than -1
+=== M3 — la settimana vuota prende la riga della bocciatura (due «N/A») invece della frase sola
+  numstat: 1	1	supabase/functions/generate-batch-checkins/index.ts
+  vitest: 1 rossi su 61 (60 verdi)
+    ✗ … la edge chiama il modello solo nel ramo non-vuoto …
+        AssertionError: expected 'if (isEmptyWeek(report)) {…' to contain 'aiSummary = emptyWeekText()'
+=== M4 — il ramo else svuotato e prompt+fetch+gestione spostati DOPO la chiusura dell'if/else (chiamata incondizionata) — il mutante della passata
+  numstat: 55	54	supabase/functions/generate-batch-checkins/index.ts
+  vitest: 1 rossi su 61 (60 verdi)
+    ✗ … la edge chiama il modello solo nel ramo non-vuoto …
+        AssertionError: il fetch a OpenAI deve stare DENTRO il ramo non-vuoto: expected 10949 to be less than 10341
+=== M5 — isEmptyWeek legge il carico invece delle sedute: sessions_completed === 0 → totalVolume === null
+  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
+  vitest: 1 rossi su 61 (60 verdi)
+    ✗ … (c') una seduta conclusa SENZA carico né sRPE è ancora una seduta → false
+        AssertionError: la seduta è un dato anche senza numero: expected true to be false
+=== M6 — isEmptyWeek legge i saltati invece dei prescritti: prescribedCount === 0 → missedCount === 0
+  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
+  vitest: 1 rossi su 61 (60 verdi)
+    ✗ … (b') la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false
+        AssertionError: prescritta e non ancora iniziata: c'è un programma: expected true to be false
+(dopo ognuna) ripristino byte-identico: true · git diff --exit-code: 0
+```
+
+**La guardia tolta dalla edge, dichiarata con le righe** (il task lo chiede perché la edge non ha
+test; qui lo vede anche il test strutturale, M6): senza il ramo, `index.ts:331-343` non esistono, il
+`fetch` di `:361` torna a `:346` fuori da ogni condizione e parte su ogni atleta, settimana vuota
+compresa — è `290ce2a`, il comportamento che il collaudo delle 15:03 ha misurato.
 
 ## 6. Passata indipendente (workflow: 3 auditor di progetto + 3 refuter per rilievo + 4 cacciatori)
 
@@ -202,6 +411,58 @@ cancelli passano, copertura a-b-c-d-e completa, falsificabile, deterministica».
   classi trovate sono in §7, comprese quelle che non avevo misurato da solo: orario con i secondi,
   `RATIO_SU` che ammette al massimo tre parole fra N e «su», «N di M», «sù» accentato, percentuali
   in lettere, cifre Unicode «a portata» di `\p{Nd}`. Nessuna toccata.
+
+**(coda 2) Workflow: 31 agenti, 0 errori, 18,5 minuti** — 3 auditor di progetto (`supabase-rls-auditor`
+· `code-reviewer` · `code-test-verifier`; niente UI toccata) → 9 rilievi (6 note + 2 bassi + 1 nota),
+gli 8 passati ai refuter × 3 lenti (repro · contratto · base) = 24 voti; 4 cacciatori (classificazione
+di `isEmptyWeek` · flusso della edge dopo la guardia · `ai_summary` nell'inbox · falsificabilità dei
+test nuovi), con l'obbligo di eseguire via script Deno sul modulo del worktree.
+
+**Verdetti.** rls: «VERDE — il diff non apre superficie: guardia pura che legge due numeri sempre
+presenti, nessuna fetch nel ramo vuoto, log con solo UUID + testo fisso, chiave OpenAI mai loggata,
+upsert byte-identico a main» (le sue 6 note: 4 conferme, 2 preesistenti fuori diff — body OpenAI e
+oggetto errore nei `console.error` :396/:418 e `error.message` :439, identici a `main`; nessun rate
+limit sull'endpoint AI, e la coda RIDUCE le chiamate) · reviewer: «VERDE — committabile: guardia
+corretta (&&, campi letti dal report), fetch e prompt solo nel ramo non-vuoto, scope pulito, cancelli
+riprodotti; due rilievi bassi, non bloccanti» · tests: «VERDE — tsc 0, vitest 554/554 e 59/59, deno
+13/13, deno check pulito, prettier ok, vietati a zero; (a)(b)(c)(d) coperti con falsificabilità alta».
+
+- 🔴 **CONFERMATO 3/3 e CHIUSO in questo stesso commit — il legame test↔edge era posizionale.** Il
+  test strutturale verificava `indice(fetch) > indice(« } else {»)`: i tre refuter hanno costruito
+  il mutante (prompt + fetch + gestione spostati DOPO la graffa che chiude l'if/else, ramo `else`
+  svuotato: chiamata incondizionata, settimana vuota compresa), replicato le sette asserzioni e
+  ottenuto tutto verde — uno anche col vitest reale in un mirror. Chiuso nel test: (1) `fineIfElse`
+  conta le graffe dalla guardia e trova la `}` che chiude l'INTERO if/else (la `}` di «} else {»
+  riapre, non chiude): il `fetch` deve stare fra l'`else` e quella chiusura; (2) i commenti a riga
+  intera sono tolti prima di leggere (una guardia che vive solo in un commento non è una guardia);
+  (3) `openaiKey`, dalla guardia in poi, può comparire SOLO dentro il ramo non-vuoto — vale anche per
+  una chiamata che non si chiamasse `fetch`; (4) il ramo vuoto non contiene `await` né `openaiKey`.
+  Prova rossa M8 (§5): il mutante della passata, ora ucciso.
+- **Dal cacciatore della falsificabilità, due mutanti di `isEmptyWeek` che (a)(b)(c) non uccidevano
+  e che sono difetti veri — CHIUSI con (b') e (c')**: `sessions_completed === 0` →
+  `totalVolume === null` (una seduta conclusa SENZA carico né sRPE sarebbe «nessuna seduta») e
+  `prescribedCount === 0` → `missedCount === 0` (una settimana non ancora iniziata, prescritti tutti
+  avanti, sarebbe «nessun giorno prescritto»). Prove rosse M9 e M10 (§5). Il resto del suo rapporto:
+  le asserzioni intermedie di (a)(b)(c) restano (guardia-fixture, costo zero); in (d) la riga col
+  letterale esatto è il cancello e `not.toMatch(/\d/)` / `not.toContain("N/A")` la didascalia —
+  lasciate; l'unico test onesto della edge (iniettare `callModel` e contare con uno spy) richiede un
+  refactor oltre il «nient'altro»: chip.
+- **Confutati 3/3 (note, non difetti)**: «settimana vuota CON `nutrition_logs`: la prosa perde le
+  calorie» — dentro il contratto (vuota = i due contatori), `avg_daily_calories` resta nello
+  snapshot (`:328`), nessun componente lo rendeva già prima, il coach le vede in
+  `NutritionAdherenceCard`/`MetabolicChart`; dichiarata a Nicolò in §9 come nota di design ·
+  «`docs/ULTIMO-RITORNO.md` modificato ma fuori dallo stage» — sequenza (il codice sta in stage per
+  le prove rosse, il ritorno entra nello stesso commit), non difetto.
+- **Le quattro cacce.** _Classificazione_ (32 scene via Deno contro il vero `buildWeekReport`):
+  `isEmptyWeek` ≡ «prescritti 0 ∧ concluse 0» in tutte; **0 settimane classificate male fra quelle
+  che la edge può costruire**; 3 divergenze A MONTE, in `weekAdherence.ts` (vietato) e non
+  raggiungibili dalla edge — v. §7. _Flusso della edge_: 7 domande su 7 confermate (snapshot e
+  upsert identici; prompt solo nell'`else`; log con UUID e testo fisso; chiave richiesta anche a
+  settimane tutte vuote, com'era; un solo `fetch` e nessun percorso incrociato; l'errore di una vuota
+  finisce nel catch per-atleta; con `-w` la logica cambia di 16 righe + 1). _Inbox_: nessun lettore
+  parsa `ai_summary` (quattro usi, tutti testo piano); il tono nasce solo dallo snapshot → badge «Da
+  rivedere», card a «—», nessun verdetto fabbricato; la frase è consegnabile all'atleta. _Test_: v.
+  sopra.
 
 ## 7. Ciò che sfugge ancora (trovato, dichiarato, NON toccato — «dillo e non toccarlo»)
 
@@ -254,6 +515,37 @@ controllo dei numeri non li ferma) · «N di M» e «N ogni M» non sono rapport
 2 onorati», «Aderenza al 30%», «2 sedute oltre soglia su 4» (rapporto), «Il 9 di settembre» sulla
 24→30, «Sono le 15», «3° giorno», «1.000 kcal» sulla settimana vuota.
 
+**(coda 2) Ciò che i cacciatori hanno trovato A MONTE della guardia — dichiarato, NON toccato** (tutto
+in `weekAdherence.ts`, file vietato, e tutto preesistente: `isEmptyWeek` legge il report ed è
+coerente con esso in tutte le 32 scene; nessuna raggiungibile dalla edge, che costruisce sempre
+lunedì→domenica ISO e legge solo log `completed` con `completed_at`):
+
+- **Documento v2 con un giorno senza esercizi** → `readPrescription` rifiuta l'INTERO documento
+  (`weekAdherence.ts:102-104`, mirror byte-fedele della porta atleta) → 0 prescritti anche se altri
+  giorni cadevano nella finestra → con zero log la settimana è «vuota». Non raggiungibile:
+  `publish-program-block` valida prima dell'insert (un giorno senza esercizi è un errore); e prima
+  della coda gli stessi zeri andavano al modello.
+- **Finestra invertita** → `prescribedDatesInWindow` dà `[]` e `completedLogsInWindow` non trova
+  nulla: settimana CON prescrizione e CON seduta letta come vuota. Non raggiungibile
+  (`getItalianWeekBounds`).
+- **`toIso` non di calendario** («2026-09-31»): `prescribedDatesInWindow` rifiuta la finestra,
+  `completedLogsInWindow` la accetta (confronto di stringhe) — un'asimmetria di validazione fra le
+  due funzioni del modulo. Non raggiungibile per la stessa ragione. Chip.
+- **Un rilascio v1 non ha mai settimane vuote**: la semantica ereditata mappa il weekday sul giorno
+  _i_ in OGNI settimana, per sempre → un atleta col solo v1 vecchio di mesi è «prescritti ma zero
+  sedute» e va sempre al modello. Coerente col contratto; il risparmio della coda vale per v2 e per
+  chi non ha rilasci.
+- **Settimana vuota CON `nutrition_logs`**: le calorie non entrano in `isEmptyWeek` (il contratto
+  sono i due contatori); prima il modello POTEVA citarle, ora la frase non le nomina; il dato resta
+  nello snapshot (`avg_daily_calories`) e nelle viste nutrizionali del coach. Nota di design (§9).
+- **`reading` (`index.ts:311`) è calcolato anche per la settimana vuota e lì non usato**: puro,
+  gratuito; spostarlo nell'`else` allargherebbe il diff. Non toccato.
+- **La frase arriva all'atleta verbatim** se il coach approva senza scrivere note
+  (`useWeeklyCheckins.ts:135-150`: «Report Settimanale:\n\n» + `coach_notes || ai_summary`) — stesso
+  canale della vecchia riga di bocciatura, nessuna regressione; il lessico è da coach («prescritto»,
+  la riga di bocciatura dice «programmata»). E nel pannello la stessa assenza è detta due volte
+  (la «Lettura della settimana» sopra la bozza) — preesistente.
+
 ## 8. Divergenze — dove il task diceva una cosa e la misura un'altra (vince la misura, dichiarata)
 
 1. **L'ora è un token solo** (`\d+(?:[.,:]\d+)?`, non la regex nuda `\d+(?:[.,]\d+)?` del task). Con
@@ -283,26 +575,72 @@ controllo dei numeri non li ferma) · «N di M» e «N ogni M» non sono rapport
    forma canonica faceva entrare «1.000» come 1, cioè un numero che il prompt non aveva dato, in
    direzione opposta a §0.8. Le classi fuori portata della regex (lettere, ordinali, romani,
    Unicode) restano invece dichiarate e NON toccate, come chiesto.
+10. **(coda 2) Un test in più, STRUTTURALE, che lega la edge** («la edge chiama il modello solo nel
+    ramo non-vuoto»): il task chiede la costante esportata «così il test la lega alla edge» e chiede
+    di dichiarare la guardia tolta «perché la edge non ha test». Il test legge il sorgente di
+    `index.ts` (commenti a riga intera tolti) e inchioda: guardia → `} else {` → URL di OpenAI →
+    graffa che chiude l'intero if/else (contata sulle graffe: `fineIfElse`); la frase e il log fra
+    guardia ed `else`, senza `await` né `openaiKey`; `openaiKey` dalla guardia in poi SOLO nel ramo
+    non-vuoto; un solo `fetch(` nel file. È testo, non esecuzione — ciò che ancora NON vede: un
+    client che non usi né `fetch` né `openaiKey` (una SDK con la chiave letta altrove), una
+    riassegnazione di `aiSummary` fra la chiusura e l'upsert, un `if/else` annidato nel ramo vuoto
+    prima del primo `} else {`; e si rompe a un rinomino legittimo della variabile, dell'URL o a un
+    ternario al posto dell'if/else — costo dichiarato, come per il test di purezza del modulo che già
+    legge il sorgente. L'unico test onesto — iniettare `callModel` nel passo «descrivi la settimana»
+    e contare con uno spy — è un refactor della edge oltre il «nient'altro»: chip (§9). È ciò che
+    uccide M6, M7 e M8.
+11. **(coda 2) `console.info` = un warning eslint in più (13 → 14)**: `no-console` ammette solo
+    `warn` ed `error` (`eslint.config.js`); il task chiede `console.info` con l'`athlete.id`, e una
+    settimana vuota non è un avviso. La regola è a `warn` per scelta scritta (`eslint.config.js:45-51`:
+    «FLAGS new console.log/info — as a warning, not a gate») e la CI conta solo gli errori (legge #10
+    «convenzione, non cancello»): dichiarato, non zittito con un `eslint-disable`.
+12. **(coda 2) Il prompt si costruisce DENTRO il ramo non-vuoto**, non prima della guardia: il task
+    dice «prima della chiamata a OpenAI», e la guardia sta prima del prompt E della chiamata. Un
+    prompt costruito e mai inviato sarebbe lavoro morto e un `dataBlock` senza vaglio; il costo è la
+    re-indentazione di ~40 righe nel diff (con `-w`: 16 1).
+13. **(coda 2) La fixture di (a) e (b) è `DOC_V2` (giorni 22–25/08)**, il documento della misura
+    viva, non un documento «con giorni solo il 24 e 25/08»: nella finestra 24→30 cadono solo quei
+    due, e il conteggio è lo stesso (2 prescritti); nella 31/08→06/09 non ne cade nessuno.
+14. **(coda 2) La firma prende `WeekReport` intero** (`isEmptyWeek(report: WeekReport)`), non un
+    `Pick`: la edge passa il report che ha, e i due campi letti stanno nel commento e nel test. Nessun
+    ricalcolo, come chiesto: né `prescribedDatesInWindow` né `completedLogsInWindow` sono chiamate.
 
 ## 9. Resta a Nicolò (e a Cowork)
 
-1. **PR** dal link in testa e **merge**.
-2. **Deploy** di `generate-batch-checkins` (v35 → v36) **controllando che la versione salga**
-   (`list_edge_functions` → v36 e `updated_at` di oggi). Nessuna migration, nessun FE da deployare
-   oltre alla pubblicazione ordinaria di `main`.
-3. **Collaudo**: «Analizza» sulla settimana corrente. Atteso sulla riga 31/08→06/09: una
-   `ai_summary` senza numeri estranei al prompt e con la data giusta se la cita («2 settembre»), o
-   la riga deterministica con il `console.warn` `[vetSummary] atleta …: riepilogo IA scartato —
-numero «…» assente dal prompt` nei log della function.
+1. **PR** dal link in testa (porta i DUE commit) e **merge**.
+2. **Deploy** di `generate-batch-checkins` (v35 → v36, una volta sola per le due code)
+   **controllando che la versione salga** (`list_edge_functions` → v36 e `updated_at` di oggi).
+   Nessuna migration, nessun FE da deployare oltre alla pubblicazione ordinaria di `main`.
+3. **Collaudo**: «Analizza» sulla settimana corrente. **(coda 2)** Atteso sulla riga 31/08→06/09,
+   se resta vuota (nessun giorno prescritto, nessuna seduta conclusa): `ai_summary` = «Nessun giorno
+   prescritto e nessuna seduta conclusa questa settimana.», NESSUNA richiesta a OpenAI per quell'atleta
+   e nei log della function la riga `[isEmptyWeek] atleta <uuid>: settimana vuota: nessuna chiamata
+al modello`; snapshot identico a prima (`sessions_completed 0`, `avg_rpe "N/A"`, senza
+   `compliance_pct`). Se invece l'atleta ha concluso una seduta nel frattempo (fuori programma), il
+   modello VIENE chiamato e vale l'atteso della prima coda: `ai_summary` senza numeri estranei al
+   prompt e con la data giusta se la cita («2 settembre»), o la riga deterministica con il
+   `console.warn` `[vetSummary] atleta …: riepilogo IA scartato — numero «…» assente dal prompt`.
 4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start, ai_summary from
-weekly_checkins order by week_start desc` → nessun numero della `ai_summary` corrente fuori dal
-   prompt (i log della function dicono se il candidato è stato scartato e perché).
-5. **Decisione aperta, non di questa coda:** se chiamare il modello su una settimana vuota (0
-   prescritti, 0 sedute) abbia senso. Oggi la chiamata parte comunque; il vaglio garantisce i numeri,
-   non l'utilità della frase.
-6. **Chip aperte**: spezzare `checkinReading.ts` (428 righe) · parametro di settimana per il batch ·
+weekly_checkins order by week_start desc` → sulla riga vuota la frase sola (nessuna cifra, nessun
+   «N/A»); sulle altre nessun numero fuori dal prompt (i log della function dicono se il candidato è
+   stato scartato e perché, e per quali atleti il modello non è stato chiamato).
+5. **Decisione «chiamare il modello su una settimana vuota?»: CHIUSA dalla coda 2** — no. Il caso
+   è deciso da `isEmptyWeek` (zero prescritti E zero sedute concluse); i due vicini (zero prescritti
+   con sedute fuori programma · prescritti senza sedute) vanno ancora al modello, perché lì i dati ci
+   sono. Il testo della settimana vuota è la costante `EMPTY_WEEK_TEXT`: cambiarlo è un edit di una
+   riga nel modulo puro, coperto dal test (d).
+6. **Chip aperte**: spezzare `checkinReading.ts` (ora 466 righe) · parametro di settimana per il batch ·
    le due voci `bg-error-container/*` in `EXPECTED` di `verify-css-tokens.mjs` · `fallbackSummaryText`
-   senza le sedute oltre soglia · `error.message` preesistente della edge · `full_name` nel prompt.
+   senza le sedute oltre soglia · `error.message` preesistente della edge · `full_name` nel prompt ·
+   **(coda 2)** il warning `no-console` del `console.info` (se si vuole a zero: o la regola ammette
+   `info` nelle edge, o il log passa a `console.warn` — decisione sulla regola, non sul codice) ·
+   **(coda 2)** il passo «descrivi la settimana» della edge estratto in `_shared/program/` con
+   `callModel` iniettabile, così il «non chiama il modello» si prova con uno spy e il test
+   strutturale sul sorgente può sparire · **(coda 2)** l'asimmetria di validazione della finestra fra
+   `prescribedDatesInWindow` e `completedLogsInWindow` (§7) · **(coda 2, nota di design)** la
+   settimana vuota con sole calorie registrate: oggi la frase non le nomina, il dato resta nello
+   snapshot — se le calorie devono entrare nella decisione o nella frase, è una regola nuova, non un
+   difetto.
 7. **RETRO non scritta in `docs/auto-miglioramento.md`**: fuori dal perimetro dei file della coda.
    La lezione di processo di oggi (le prove rosse su codice non committato: mettere in stage prima,
    così `git diff --exit-code` misura worktree-contro-index) è salvata nella memoria di progetto
