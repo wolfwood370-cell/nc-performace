@@ -11,6 +11,8 @@ import {
   buildCheckinPrompt,
   chooseSummary,
   countSessionsOverThreshold,
+  emptyWeekText,
+  isEmptyWeek,
   weekReading,
 } from "../_shared/program/checkinReading.ts";
 
@@ -326,57 +328,75 @@ Deno.serve(async (req) => {
               avg_daily_calories: avgCalories,
             };
 
-            // The reading first, then the data, then the rules the model must
-            // obey (no invented ratios, no load actions): checkinReading.ts.
-            const prompt = buildCheckinPrompt(reading, report, {
-              athleteName: athlete.full_name || "l'atleta",
-              dayName,
-              timeStr,
-              weekStartIso: weekStartStr,
-              weekEndIso: weekEndStr,
-              avgCalories,
-              paceContext: weekPaceContext({
-                prescribedCount: report.adherence.prescribedCount,
-                remainingCount: report.remainingCount,
-                weekClosed: isSundayOrMonday,
-              }),
-            });
-
-            const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${openaiKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "gpt-5.4-nano",
-                messages: [{ role: "user", content: prompt }],
-                max_completion_tokens: 200,
-              }),
-            });
-
-            let aiSummary = "";
-            if (aiResponse.ok) {
-              const aiData = await aiResponse.json();
-              const content = aiData.choices?.[0]?.message?.content;
-              // What gets saved is decided in ONE place (chooseSummary): the
-              // vet is deterministic and refuses ANY ratio, fraction or
-              // percentage not in the data, and any load-action word; an
-              // EMPTY answer (or a non-string one) takes the same road. A
-              // refusal costs the deterministic line; a fabricated number
-              // («4 sedute su 5», 2026-08-30) or a void would cost the
-              // coach's trust.
-              const chosen = chooseSummary(typeof content === "string" ? content : "", report);
-              if (chosen.reason !== null) {
-                console.warn(
-                  `[vetSummary] atleta ${athlete.id}: riepilogo IA scartato — ${chosen.reason}`,
-                );
-              }
-              aiSummary = chosen.text;
+            let aiSummary: string;
+            if (isEmptyWeek(report)) {
+              // Nothing to describe — zero prescribed days in the window AND
+              // zero completed sessions, both read from the report: the model
+              // is NOT called. With every datum at zero it has nothing to copy
+              // and invents the most (the live line of 2026-09-02 wrote an
+              // exhortation and a wrong date). One deterministic sentence, no
+              // request, one log line; snapshot and upsert are the same.
+              console.info(
+                `[isEmptyWeek] atleta ${athlete.id}: settimana vuota: nessuna chiamata al modello`,
+              );
+              aiSummary = emptyWeekText();
             } else {
-              console.error("AI error:", aiResponse.status, await aiResponse.text());
-              // Same absence rule as the prompt: no fabricated 0% here either.
-              aiSummary = fallbackSummaryText(report);
+              // The reading first, then the data, then the rules the model must
+              // obey (no invented ratios, no load actions): checkinReading.ts.
+              const prompt = buildCheckinPrompt(reading, report, {
+                athleteName: athlete.full_name || "l'atleta",
+                dayName,
+                timeStr,
+                todayIso: todayStr,
+                weekStartIso: weekStartStr,
+                weekEndIso: weekEndStr,
+                avgCalories,
+                paceContext: weekPaceContext({
+                  prescribedCount: report.adherence.prescribedCount,
+                  remainingCount: report.remainingCount,
+                  weekClosed: isSundayOrMonday,
+                }),
+              });
+
+              const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${openaiKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "gpt-5.4-nano",
+                  messages: [{ role: "user", content: prompt.text }],
+                  max_completion_tokens: 200,
+                }),
+              });
+
+              if (aiResponse.ok) {
+                const aiData = await aiResponse.json();
+                const content = aiData.choices?.[0]?.message?.content;
+                // What gets saved is decided in ONE place (chooseSummary): the
+                // vet is deterministic and refuses ANY ratio, fraction or
+                // percentage not in the data, and any load-action word; an
+                // EMPTY answer (or a non-string one) takes the same road. A
+                // refusal costs the deterministic line; a fabricated number
+                // («4 sedute su 5», 2026-08-30) or a void would cost the
+                // coach's trust.
+                const chosen = chooseSummary(
+                  typeof content === "string" ? content : "",
+                  report,
+                  prompt,
+                );
+                if (chosen.reason !== null) {
+                  console.warn(
+                    `[vetSummary] atleta ${athlete.id}: riepilogo IA scartato — ${chosen.reason}`,
+                  );
+                }
+                aiSummary = chosen.text;
+              } else {
+                console.error("AI error:", aiResponse.status, await aiResponse.text());
+                // Same absence rule as the prompt: no fabricated 0% here either.
+                aiSummary = fallbackSummaryText(report);
+              }
             }
 
             const { error: upsertError } = await supabase.from("weekly_checkins").upsert(
