@@ -7,13 +7,20 @@
 > Nicolò** ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rag-una-libreria)
 > — `gh` non installata e credenziali negate all'agente, come dal 20/08).
 > Prompt conservato in `docs/prompts/2026-09-02-rag-una-libreria.md`.
+> **Coda (05/09, stesso ramo, secondo commit — §10):** i due cancelli si lasciavano ingannare dai
+> commenti SQL e non inchiodavano il fail-loud della edge (misura di Cowork delle 09:20 sul tip
+> `9001c91`): chiusi entrambi, toccando SOLO i due file di test e questo.
 
 ## 1. Ramo e commit
 
-`claude/rag-una-libreria`, da `be5fe9c`, **un commit solo** (migrazione + edge + funzione pura + due
-cancelli + tipi + documenti + igiene + questo file): l'hash non può stare dentro il file che il commit
-contiene — è il tip del ramo (`git log --oneline -1 claude/rag-una-libreria`) ed è riportato nel
-messaggio di chiusura della sessione e nella PR.
+`claude/rag-una-libreria`, da `be5fe9c`, **due commit**:
+
+- `9001c91` — **la fetta** (migrazione + edge + funzione pura + due cancelli + tipi + documenti +
+  igiene + questo file), §2–§9.
+- **(tip) la coda**: i due cancelli chiusi (`sqlWithoutComments` nel cancello (a), il test
+  strutturale del fail-loud nel cancello (b)) + questo file, §10. Come sempre l'hash del commit che
+  contiene questo file non può starci dentro: è il tip del ramo (`git log --oneline -1
+claude/rag-una-libreria`), riportato nel messaggio di chiusura e nella PR.
 
 **PR: non aperta.** `gh` assente; la via API col token del credential manager è negata dal
 classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa.
@@ -435,3 +442,318 @@ to_regclass('public.coach_knowledge_base')` → `NULL`. Poi `npm run gen:types` 
    `SECURITY DEFINER` con oggetti fuori da `public` (8.7) · `429` tipizzato dagli embedding (8.4) ·
    `gpt-5-mini` vs `gpt-5.4-mini` nel doc (8.5) · `deno.lock` in `.gitignore` (8.9) · il log intero di
    `matchError` in `ask-copilot` (8.3).
+
+## 10. Coda del 05/09 — i due cancelli chiusi (secondo commit, stesso ramo)
+
+**La misura di Cowork (09:20, sul tip `9001c91`, otto mutazioni: sei morte, due sopravvissute)**,
+riprodotta prima di toccare: (1) il cancello (a) leggeva l'SQL grezzo — `-- DROP TABLE …` restava
+verde, e i quattro statement operativi commentati insieme (REVOKE, GRANT, DROP FUNCTION, DROP TABLE)
+lasciavano 4/4 verdi su una migrazione che non faceva più niente (falso verde); un `<=>` nudo dentro
+un commento faceva rosso (falso rosso). (2) `if (matchError)` → `if (false)` lasciava 5/5 verdi nel
+cancello (b): nessuno inchiodava il fail-loud.
+
+**Manifesto della coda** (`git diff --cached --numstat` sul secondo commit): solo
+`src/__tests__/pgvectorOperatorQualificato.source.test.ts` (131 → 357 righe, 4 → 10 `it`) ·
+`src/__tests__/ragUnaLibreria.source.test.ts` (66 → 185 righe, 5 → 6 `it`) · questo file.
+**Vietati a 0 righe**: `git diff HEAD -- supabase/ | wc -l` → **0** (migrazione ed edge non toccate,
+con tutti i vietati della fetta).
+
+### 10.1 I commenti SQL non sono codice — `scanSql` / `sqlWithoutComments`
+
+Un tokenizer solo, `scanSql(sql)` (`pgvectorOperatorQualificato.source.test.ts:74-134`, con
+`sqlWithoutComments = scanSql(sql).code` a `:136`), usato sia da `nakedOccurrencesIn` (`:151-160`)
+sia dal test di struttura (`:287-356`): ogni carattere di commento diventa uno spazio, le newline
+restano, così i `file:riga` del rosso e gli indici della struttura non cambiano (`length` e numero
+di righe identici prima e dopo, asserito sulle migrazioni sopra soglia). Riconosce `-- …` a fine
+riga — chiusa anche da un `\r` solo, come lo scanner di Postgres — e i commenti a blocco anche
+annidati (Postgres li annida).
+
+**Le due trappole del task, come le ho gestite:**
+
+- **(a) stringhe e dollar-quoting.** Le stringhe `'…'` E gli identificatori `"…"` sono copiati
+  INTATTI, con `''`/`""` come carattere ripetuto: un `--` o un `/*` dentro una stringa non è un
+  commento. Il corpo dollar-quoted non è un'eccezione ma testo normale: dentro, `--` è un commento
+  PL/pgSQL e `'…'` una stringa, esattamente come fuori. L'identificatore `"…"` non era nel task: l'ho
+  aggiunto perché la MISURA lo ha chiesto — senza, l'apostrofo di `"Users can view rooms they're
+in"` (`20260116171822:81`, sotto soglia) apriva una stringa fantasma. Fuori portata, DICHIARATO e
+  INCHIODATO dal test «portata» (`:218-256`): stringhe `E'…'` ed `e'…'` (apice con backslash),
+  regioni dollar-quoted non precedute da `AS`/`DO` (una stringa dollar-quoted usata come DATO
+  avrebbe i suoi `--` tolti per sbaglio), un tag dollar ANNIDATO in un corpo (`RAISE NOTICE` con
+  tag: il tokenizer non lo conosce), una stringa o un blocco aperti fino a fine file — se compaiono
+  sopra soglia, rosso coi nomi: il tokenizer si estende, non si aggira. **La misura, con lo stesso
+  tokenizer** (`misura-stringhe.cjs` in scratchpad):
+
+  | perimetro                     | file | stringhe | identificatori | stringhe con `--` | stringhe con `/*` | non chiuse | `E'…'` | regioni dollar-quoted | con tag | fuori da AS/DO | blocchi annidati | righe cambiate |
+  | ----------------------------- | ---- | -------- | -------------- | ----------------- | ----------------- | ---------- | ------ | --------------------- | ------- | -------------- | ---------------- | -------------- |
+  | tutte le migrazioni           | 158  | 1269     | 484            | **0**             | **0**             | **0**      | 6      | 77                    | 20      | **0**          | 0                | 0              |
+  | sopra soglia (20260905083618) | 1    | 5        | 0              | **0**             | **0**             | **0**      | **0**  | 2 (`AS`, `DO`)        | 0       | **0**          | 0                | 0              |
+
+  Le 6 `E'…'` stanno in `regexp_replace` di migrazioni del 2026-01→07 (sotto soglia); i 20 corpi con
+  tag sono tutti `AS`-corpi generati da Supabase. Il tokenizer regge sull'intero repo (0 stringhe non
+  chiuse, 0 righe cambiate), non solo sopra soglia.
+
+- **(b) il conteggio «tre occorrenze qualificate» regge per costruzione.** Prima contava nel corpo
+  perché il commento di testa nomina la forma qualificata; ora, sul file SENZA commenti, le
+  occorrenze qualificate dell'INTERO file sono esattamente tre, TUTTE con posizione fra `AS` e la
+  chiusura del corpo della funzione, e nessuna nuda in tutto il file (`:337-355`) — un commento che
+  citi la forma qualificata non conta più per costruzione. Il `DO` che segue (il cancello sulla
+  tabella) non confonde la ricerca: il corpo è il PRIMO `AS` dollar-quoted e la sua prima chiusura.
+
+**Il test di struttura** (`:287-356`) cerca i sei statement nel testo senza commenti, raccoglie
+PRIMA la lista dei mancanti e la nomina nel rosso, poi verifica l'ordine; e (dalla passata) pretende
+lo STATO FINALE dell'ACL, non la sola presenza del REVOKE: nessun `GRANT` sulla funzione nomina
+`anon` (`:330-332`).
+
+**Cinque test sul tokenizer** (`:164-256`): commenti a riga (chiusi da `\n` o `\r`) e a blocco
+annidati tolti a parità di righe e lunghezza · una stringa e un identificatore con `--` e `/*`
+restano intatti mentre il commento dopo di loro sparisce (`<=>` compreso) · stringa o blocco aperti
+a fine file segnalati · un `<=>` nudo in un commento → `[]` (il falso rosso) · lo stesso `<=>` in
+uno statement → una riga, `fixture.sql:2`, e `<+>` alla `:3` (acceptance 3, in due test distinti).
+
+### 10.2 Il fail-loud della edge è inchiodato
+
+Un `it` nuovo (`ragUnaLibreria.source.test.ts:87-184`), con lo stampo della guardia `isEmptyWeek`
+del 02/09: commenti tolti prima di leggere — a blocco E a riga intera, dopo la passata —, posizione
+verificata contro la STRUTTURA (graffe contate da `graffaCheChiude`, `:41-51`; livello di
+annidamento da `profondita`, `:54-55`), non contro un indice. Pretende, dalla chiamata
+`rpc("match_knowledge_chunks"` in poi: UNA sola RPC nel file, col suo errore destrutturato proprio
+lì (`const { data: matches, error: matchError } = await supabase.` attaccato a `rpc(`) · la RPC
+nel corpo dell'handler (`serve(async (req) => {` + `try`: profondità 2, nessuna arrow o `function`
+in mezzo) e nessun `finally` né `try` etichettato nel file (scarterebbero il return del 500) · il
+ramo `if (matchError) {` esiste ed è allo stesso livello · **fra la RPC e il ramo non c'è NULLA**
+(sagoma esatta: la chiamata, i suoi argomenti, `);`, spazi — niente `.then` che normalizzi
+l'errore, niente shadow di `matchError`, niente commento o template literal che sbilanci le
+graffe) · nel corpo del ramo `status: 500`, `KNOWLEDGE_BASE_ERROR`, UN solo `return new Response(`
+al livello del ramo, e nessun `if`/`else`/`?`/`try`/`switch`/`while`/`for`/`do`/`=>`/`function`/
+backtick/commento · nessun `else` dopo la chiusura · **fra la chiusura e il contesto solo
+`const contextChunks = `**, il contesto costruito dai match di QUELLA RPC
+(`formatContext((matches as KnowledgeMatch[] | null) ?? [])`), una volta sola nel file, allo stesso
+livello: chi arriva al contesto è passato dal controllo dell'errore. È un pin a sagoma esatta di
+quel blocco: un refactor legittimo di quelle righe deve aggiornare il test — costo dichiarato, come
+per lo stampo del 02/09. Ciò che ancora NON vede: un `getEmbedding` che costruisca lui il contesto
+prima della RPC, o un `KNOWLEDGE_BASE_ERROR` ridefinito a stringa vuota — è testo, non esecuzione;
+la strada per un test eseguibile resta il retrieval estratto con client iniettato, fetta a sé
+(§9.6).
+
+### 10.3 Acceptance della coda
+
+**1. I cinque cancelli** (tree in stage; log in scratchpad `gates-coda/*3.*`):
+
+```
+TSC_EXIT=0                                   (0 righe di output)
+VITEST: Test Files  53 passed (53) · Tests  572 passed (572)      [565 → 572: +7 = 6 sul tokenizer + 1 fail-loud; i cancelli passano da 9 a 16 it]
+ESLINT: files 460 errors 64 warnings 14   ← 64 = .eslint-baseline (a metà coda era 65: uno spazio a larghezza zero in un JSDoc del cancello (a),
+        no-irregular-whitespace — tolto prima del commit, §10.5)
+BUILD_EXIT=0 (vite: ✓ built)
+VERIFYCSS: ✓ … 243 classi con modificatore di alpha tutte emesse e a canali · VERIFYCSS_EXIT=0 (le 2 note preesistenti)
+DENO: invariato — nessun file Deno toccato; suite CI ri-eseguita per controllo a inizio coda: ok | 502 passed | 0 failed
+PRETTIER --check sui due cancelli → «All matched files use Prettier code style!» · eslint sui due file → 0 errori
+```
+
+**2. Le prove rosse della coda** (runner `mutazioni/runner2.cjs` in scratchpad, log `M1..M9.log` +
+`M*-vitest.log`, `summary2.json`; stesso protocollo: verde PRIMA · occorrenza unica per OGNI edit ·
+numstat/status · bersaglio → ROSSO (o VERDE dove la prova è «resta verde») · ripristino per copia dal
+backup o fixture rimossa · byte-identico · di nuovo VERDE · `git diff --exit-code` = 0 sull'intero
+tree in stage; corsa finale a stage completo, questo file compreso). M1–M7 dal task, M8–M9 dalla
+passata (§10.4):
+
+| #   | mutazione                                                                                                                                        | numstat / status         | esito                                  | il rosso nomina…                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | **(a)** i quattro statement operativi della migrazione commentati insieme (`-- REVOKE …`, `-- GRANT …`, `-- DROP FUNCTION …`, `-- DROP TABLE …`) | `4 4` sulla migrazione   | **ROSSO** (1 su 10) → ripristino 10/10 | «statement operativi ASSENTI dalla migrazione (commentati o cancellati): REVOKE EXECUTE … FROM PUBLIC, anon · GRANT EXECUTE … TO authenticated, service_role · DROP FUNCTION match_documents · DROP TABLE coach_knowledge_base» — tutti e quattro |
+| M2  | **(b)** il solo `DROP TABLE` commentato                                                                                                          | `1 1` sulla migrazione   | **ROSSO** (1 su 10) → 10/10            | «statement operativi ASSENTI …: DROP TABLE coach_knowledge_base»                                                                                                                                                                                  |
+| M3  | **(c)** `if (matchError) {` → `if (false) {` in `index.ts:204`                                                                                   | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto»                                                                                                                                           |
+| M4  | **(d)** la costruzione del contesto spostata PRIMA del ramo `matchError`                                                                         | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fra la RPC e il ramo matchError deve esserci solo la chiamata» (la sagoma esatta)                                                                                                                                                                |
+| M5  | **(d')** il ramo svuotato: `if (matchError) {}` — niente 500, niente return                                                                      | `0 5` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «il ramo matchError non risponde 500»                                                                                                                                                                                                             |
+| M6  | **(acceptance 3, deve RESTARE VERDE)** fixture sopra soglia con `<=>`, `<->`, `<#>` nudi SOLO in commenti (riga e blocco)                        | `?? …in_commento.sql`    | **VERDE** (10/10) con la fixture       | — (il falso rosso è chiuso)                                                                                                                                                                                                                       |
+| M7  | **(acceptance 3, deve andare ROSSO)** la stessa fixture con `<=>` nudo in uno STATEMENT (e ancora nel commento)                                  | `?? …operatore_nudo.sql` | **ROSSO** (1 su 10) → 10/10            | «`20260906000001_fixture_operatore_nudo.sql:4 — <=> nudo: SELECT 1 - (kc.embedding <=> q) …`» — la riga dello statement, non quella del commento                                                                                                  |
+| M8  | **(passata)** il ramo `matchError` avvolto in un commento a blocco `/* … */`                                                                     | `2 2` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fail-loud assente …» — il ramo che sopravvive solo nel commento non è un ramo                                                                                                                                                                    |
+| M9  | **(passata)** `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC — `matchError` sempre nullo                                       | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fra la RPC e il ramo matchError deve esserci solo la chiamata»                                                                                                                                                                                   |
+
+Output del runner, testuale (corsa finale):
+
+```
+=== M1 — (a) i quattro statement operativi della migrazione commentati insieme (REVOKE, GRANT, DROP FUNCTION, DROP TABLE)
+  prima:  exit 0 · Tests  10 passed (10)
+  occorrenze di «REVOKE EXECUTE ON FUNCTION public.match_knowledge_chunks(extensions.ve»: 1
+  occorrenze di «GRANT EXECUTE ON FUNCTION public.match_knowledge_chunks(extensions.vec»: 1
+  occorrenze di «DROP FUNCTION public.match_documents(extensions.vector, uuid, double p»: 1
+  occorrenze di «DROP TABLE public.coach_knowledge_base;»: 1
+  numstat: 4	4	supabase/migrations/20260905083618_rag_una_libreria.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ la migrazione di questa fetta: i sei statement operativi presenti e in ordine, 3 operatori qualificati tutti nel corpo, search_path pinnato, anon mai ri-concesso — letti SENZA commenti
+      AssertionError: statement operativi ASSENTI dalla migrazione (commentati o cancellati):
+        REVOKE EXECUTE … FROM PUBLIC, anon
+        GRANT EXECUTE … TO authenticated, service_role
+        DROP FUNCTION match_documents
+        DROP TABLE coach_knowledge_base: expected [ …(4) ] to deeply equal []
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M2 — (b) il solo DROP TABLE commentato
+  prima:  exit 0 · Tests  10 passed (10)
+  occorrenze di «DROP TABLE public.coach_knowledge_base;»: 1
+  numstat: 1	1	supabase/migrations/20260905083618_rag_una_libreria.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ la migrazione di questa fetta: i sei statement operativi presenti e in ordine, 3 operatori qualificati tutti nel corpo, search_path pinnato, anon mai ri-concesso — letti SENZA commenti
+      AssertionError: statement operativi ASSENTI dalla migrazione (commentati o cancellati):
+        DROP TABLE coach_knowledge_base: expected [ 'DROP TABLE coach_knowledge_base' ] to deeply equal []
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M3 — (c) `if (matchError) {` → `if (false) {` in chat-with-coach/index.ts — la edge prosegue senza contesto
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto: expected -1 to be greater than 5616
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M4 — (d) la costruzione del contesto spostata PRIMA del ramo matchError
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «const contextChunks = formatContext((matches as KnowledgeMatch[] | nul»: 1
+  occorrenze di «if (matchError) {»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fra la RPC e il ramo matchError deve esserci solo la chiamata: expected 'rpc("match_knowledge_chunks", {\n    …' to match /^rpc\("match_knowledge_chunks",\s*\{[…/
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M5 — (d') il ramo matchError svuotato: `if (matchError) {}` — niente 500, niente return
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  numstat: 0	5	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: il ramo matchError non risponde 500: expected '\n    ' to contain 'status: 500'
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M6 — (acceptance 3, deve RESTARE VERDE) fixture sopra soglia con `<=>` nudo SOLO in un commento
+  prima:  exit 0 · Tests  10 passed (10)
+  fixture scritta: supabase/migrations/20260906000000_fixture_operatore_in_commento.sql (138 byte)
+  git status: ?? supabase/migrations/20260906000000_fixture_operatore_in_commento.sql
+  mutato: exit 0 · Tests  10 passed (10)
+  ripristino: fixture rimossa · esiste ancora: false
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: VERDE con la mutazione (come deve), VERDE ripristinato, tree pulito
+=== M7 — (acceptance 3, deve andare ROSSO) la stessa fixture con `<=>` nudo in uno STATEMENT
+  prima:  exit 0 · Tests  10 passed (10)
+  fixture scritta: supabase/migrations/20260906000001_fixture_operatore_nudo.sql (319 byte)
+  git status: ?? supabase/migrations/20260906000001_fixture_operatore_nudo.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ nessuna migrazione con timestamp ≥ soglia contiene un operatore di distanza nudo (<=>, <->, <#>, <+>, <~>, <%>) né cosine_distance(…) e sorelle non qualificate — commenti esclusi (file e riga)
+      AssertionError: distanza pgvector NUDA in una migrazione sopra soglia — dentro una SECURITY DEFINER con search_path = public, pg_temp muore con 42883. Scrivila ESATTAMENTE `OPERATOR(extensions.<=>)` (minuscolo, senza spazi: l'unica grafia che il cancello riconosce) o `extensions.cosine_distance(…)`:
+        20260906000001_fixture_operatore_nudo.sql:4 — `<=>` nudo: SELECT 1 - (kc.embedding <=> q) FROM public.knowledge_chunks kc LIMIT 1;: expected [ Array(1) ] to deeply equal []
+  ripristino: fixture rimossa · esiste ancora: false
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M8 — (passata) il ramo matchError avvolto in un commento a blocco /* … */ — il fail-loud sopravvive solo nel commento
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  occorrenze di «}»: 1
+  numstat: 2	2	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto: expected -1 to be greater than 5616
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M9 — (passata) `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC — matchError sempre nullo
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «match_count: MATCH_COUNT,»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fra la RPC e il ramo matchError deve esserci solo la chiamata: expected 'rpc("match_knowledge_chunks", {\n    …' to match /^rpc\("match_knowledge_chunks",\s*\{[…/
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+RUNNER2_EXIT=0
+```
+
+**3. Il falso rosso è chiuso in due test** (oltre a M6/M7 sui file): «un `<=>` nudo dentro un
+commento NON è un operatore» → `[]` e «lo stesso `<=>` nudo in uno statement È un operatore nudo,
+con file e riga» → `fixture.sql:2` (`pgvectorOperatorQualificato.source.test.ts:199-216`).
+
+**4. Vietati** = 0 (sopra).
+
+### 10.4 Passata indipendente (coda)
+
+**Workflow: 58 agenti (4 auditor + 54 refuter), 0 errori, 13 min 29 s, 431 chiamate-tool.**
+`code-reviewer` e `code-test-verifier` di progetto + due cacciatori (uno sul tokenizer, uno sul test
+strutturale, entrambi con mutanti eseguiti su copie in scratchpad, mai nel repo) → **18 rilievi** →
+3 refuter ciascuno (correttezza · riproduzione · scope) → **18 confermati, 0 refutati**: stavolta i
+refuter hanno confermato tutto, perché ogni rilievo veniva con un mutante riprodotto. Cosa ne ho
+fatto (tutto nei due file di test, nulla altrove):
+
+| #   | rilievo (auditor · voti)                                                                                                                                            | esito                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | il ramo `matchError` avvolto in `/* … */` lasciava il cancello (b) verde — stessa classe «commenti ≠ codice» (code-reviewer · 3/3; anche lente-tokenizer)           | **chiuso**: anche i commenti a blocco tolti prima di leggere; prova rossa M8                                                           |
+| 2   | `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC → verde (lente-strutturale · 3/3)                                                                  | **chiuso**: sagoma esatta «fra la RPC e il ramo non c'è nulla»; prova rossa M9                                                         |
+| 3   | shadow `const matchError = null` fra RPC e ramo → verde (lente-strutturale · 3/3)                                                                                   | **chiuso**: stessa sagoma + l'errore destrutturato attaccato a `rpc(`                                                                  |
+| 4   | il ramo era provato come testo, non come l'errore di QUELLA RPC (code-reviewer · 3/3)                                                                               | **chiuso**: `const { data: matches, error: matchError } = await supabase.` immediatamente prima della RPC, e una RPC sola nel file     |
+| 5   | return del ramo annidato in un loop o in una arrow → verde (lente-strutturale · 3/3)                                                                                | **chiuso**: il `return` deve stare al livello del ramo (profondità 0 nel corpo) e nel corpo niente `while`/`for`/`do`/`=>`/`function`  |
+| 6   | RPC + ramo + contesto dentro un'IIFE: il 500 è un return della funzione annidata, scartato (lente-strutturale · 2/3)                                                | **chiuso**: la RPC sta nel corpo dell'handler (profondità 2 da `serve(async (req) => {`, nessuna arrow/`function` in mezzo)            |
+| 7   | graffe riequilibrate da commento inline o template literal: `while (false) {` attorno al ramo → verde (lente-strutturale · 3/3)                                     | **chiuso**: le due sagome «solo spazi» (RPC→ramo, chiusura→contesto) non lasciano posto a nulla; nel corpo niente backtick né commenti |
+| 8   | «nessuna via al contesto» guardava solo la PRIMA `formatContext(` dopo la RPC (code-reviewer · 3/3)                                                                 | **chiuso**: `formatContext(` una volta sola in tutto il file                                                                           |
+| 9   | una seconda `rpc("match_knowledge_chunks"` con errore ignorato → verde (lente-strutturale · 3/3)                                                                    | **chiuso**: una RPC sola nel file                                                                                                      |
+| 10  | `formatContext([])` (contesto sempre vuoto) → verde (lente-strutturale · 2/3)                                                                                       | **chiuso**: l'argomento è inchiodato — `formatContext((matches as KnowledgeMatch[] \| null) ?? [])`                                    |
+| 11  | `lbl: try … finally { break lbl }` scarta ogni return, 500 compreso (lente-strutturale · 2/3)                                                                       | **chiuso**: nel file nessun `finally` né `try` etichettato                                                                             |
+| 12  | dollar-quoting con tag ANNIDATO nel corpo (`RAISE NOTICE` con tag e apostrofo dispari) desincronizza il tokenizer e «portata» non lo vedeva (lente-tokenizer · 3/3) | **chiuso**: ogni tag dollar che non sia un confine di regione è segnalato da «portata» (misura: 0 sopra soglia, 0 nel repo)            |
+| 13  | operatori `<+>` (L1), `<~>` (Hamming), `<%>` (Jaccard) fuori dalla regex mentre `l1_distance` era coperta come funzione (lente-tokenizer · 2/3)                     | **chiuso**: i sei operatori di pgvector nella regex; test con `<+>` nudo → `fixture.sql:3`                                             |
+| 14  | un `\r` solo chiude il commento `--` in Postgres ma non nel tokenizer → codice cancellato (lente-tokenizer · 3/3)                                                   | **chiuso**: `--` chiusa da `\n` o `\r`; test dedicato                                                                                  |
+| 15  | «portata» cercava solo `E'` maiuscola: `e'…'` legale non segnalata (lente-tokenizer · 3/3)                                                                          | **chiuso**: `[eE]'`                                                                                                                    |
+| 16  | un `/*` mai chiuso azzera il file: naked-test verde, Postgres rifiuterebbe il file (lente-tokenizer · 2/3)                                                          | **chiuso**: `scanSql` segnala stringa/blocco aperti a fine file e «portata» li boccia; test dedicato                                   |
+| 17  | l'ACL era provata per presenza e ordine, non per stato finale: un `GRANT … TO anon` in coda passava (code-reviewer · 2/3)                                           | **chiuso**: nessun `GRANT` sulla funzione può nominare `anon`                                                                          |
+| 18  | (nota) il cancello (b) prima della coda toglieva solo i commenti `//` a riga intera (lente-tokenizer · 3/3)                                                         | = rilievo 1                                                                                                                            |
+
+Costo della passata: 4,6 M token dei subagenti. Nessun rilievo fuori dai due file di test; il
+`code-test-verifier` ha chiuso a exit 0 su vitest, tsc, prettier, manifesto e `supabase/` a 0.
+
+### 10.5 Divergenze della coda
+
+1. **Il cancello (a) è a 357 righe** (convenzione delle 300, legge #10): il tokenizer e i suoi
+   cinque test vivono nel file del cancello perché il manifesto della coda ammette SOLO i due file di
+   test. Un modulo `src/__tests__/sql/scanSql.ts` con test suo è la forma giusta: fetta di igiene,
+   chip.
+2. **Identificatori `"…"` nel tokenizer**, oltre alle stringhe del task (10.1a): senza, la misura sul
+   repo intero dava 5 «stringhe con `--`» fantasma, tutte aperte da un apostrofo dentro un nome di
+   policy tra virgolette.
+3. **Un `<=>` dentro una stringa letterale viene ANCORA segnalato** (le stringhe restano intatte,
+   nessuna è svuotata): falso positivo, lato sicuro — 0 casi nel repo (misura 10.1).
+4. **Il test «portata» boccia anche il dollar-quoting fuori da `AS`/`DO`, il tag annidato e i file
+   con stringa o blocco aperti**, non solo il tag: sono i casi in cui il tokenizer sbaglierebbe, e il
+   tag da solo non li distingue (20 corpi con tag nel repo, tutti `AS`).
+5. **eslint 65 → 64 durante la coda**: uno spazio a larghezza zero (U+200B) infilato in un JSDoc del
+   cancello (a) per scrivere «asterisco-slash» senza chiudere il commento — `no-irregular-whitespace`
+   è un errore, non un warning. Tolto e riformulato prima del commit; il riconteggio globale è a 64.
+6. **Il cancello (b) è un pin a sagoma esatta** del blocco RPC → ramo → contesto (10.2): dopo la
+   passata era l'unica forma che chiudesse tutti e 15 i mutanti validi; un refactor legittimo di
+   quelle righe (rinomina di `matches`, un helper, un `try` locale) deve aggiornare il test. Costo
+   dichiarato: preferito a un test che «passa per la ragione sbagliata».
+7. **Sei operatori, non tre**: la regex del cancello (a) copre `<=>`, `<->`, `<#>`, `<+>`, `<~>`,
+   `<%>` (10.4.13) — il task ne nominava tre.
+8. **M5, M8, M9 oltre alle quattro prove del task**: M5 è la seconda lettura del punto (d) («o il
+   ramo svuotato»), M8 e M9 sono i due maggiori della passata.
+9. **Il ritorno resta un file solo**: la fetta (§1–§9) non è riscritta, la coda si aggiunge come §10
+   e nella testata; i numeri di §4.5 (565 test, 9 `it` nei cancelli) sono quelli del PRIMO commit e
+   restano veri per quel commit.
+
+### 10.6 Resta a Nicolò — invariato
+
+Le due righe di §9, nell'ordine e senza cambiamenti: prima `npx supabase@2.116.0 db push`, poi
+`npx supabase@2.116.0 functions deploy chat-with-coach --project-ref xgxtplqlewpqjzghvbke` (v28 →
+v29); `ask-copilot` non si ri-deploya. PR dal link in testa: porta i DUE commit. Chip nuova: il
+tokenizer in un modulo suo (10.5.1).
