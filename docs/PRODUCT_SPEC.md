@@ -109,7 +109,7 @@
 ### Chat / Realtime · Knowledge · Billing · Gamification · AI · Supporto
 
 - **Chat/Realtime**: `chat_rooms`, `chat_participants` (`room_id`,`user_id`,`last_read_at`), `messages` (`room_id`,`sender_id`,`content`,`media_url`), `notifications`, `coach_alerts` (`coach_id`,`athlete_id`,`workout_log_id`,`severity`). _(messages/notifications/coach_alerts in publication realtime.)_
-- **Knowledge/RAG**: `knowledge_documents` (status enum), `knowledge_chunks` (`embedding` pgvector 1536, indice HNSW cosine), `coach_knowledge_base` (RAG legacy), `content_library` (type enum).
+- **Knowledge/RAG**: una libreria sola — `knowledge_documents` (status enum) + `knowledge_chunks` (`embedding` pgvector 1536, indice HNSW cosine), letta da `match_knowledge_chunks`; `coach_knowledge_base` (RAG legacy, 0 righe) rimossa il 2026-09-05; `content_library` (type enum).
 - **Billing**: `billing_plans` (`stripe_price_id`/`product_id`), `athlete_subscriptions` (status enum, `stripe_subscription_id`), `coach_products`, `invoices`.
 - **Gamification**: `badges` (catalogo, PK text), `user_badges`, `leaderboard_cache` (`week_volume`,`workout_count`), `habits_library`, `athlete_habits`, `habit_logs`.
 - **AI usage**: `ai_usage_tracking` (quota chat, solo service-role), `user_ai_usage` (chat/vision count), `athlete_ai_insights` (output `analyze-athlete-week`).
@@ -122,7 +122,7 @@
 
 ### RPC principali (oltre agli helper di sicurezza)
 
-`archive_athlete`, `clone_program_week`, `clone_program_workout`, `schedule_program_week`, `get_chat_partner_profiles`, `get_or_create_direct_room`, `match_documents`/`match_knowledge_chunks` (RAG cosine), `set_athlete_daily_limit`.
+`archive_athlete`, `clone_program_week`, `clone_program_workout`, `schedule_program_week`, `get_chat_partner_profiles`, `get_or_create_direct_room`, `match_knowledge_chunks` (RAG cosine — una libreria sola; `match_documents` rimossa il 2026-09-05), `set_athlete_daily_limit`.
 
 ## 4. La scienza & gli algoritmi
 
@@ -192,15 +192,15 @@ Deterministico server-side. first_step (≥1), iron_will (≥50), centurion (≥
 
 Tutte via **Lovable AI Gateway** (`ai.gateway.lovable.dev`, OpenAI-compatible) tranne gli **embedding** (diretti OpenAI `text-embedding-3-small`, 1536 dim).
 
-| Funzione                  | Modello                                         | Strategia                                                                           | Output                    |
-| ------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------- |
-| `generate-program`        | `openai/gpt-5.2`                                | tool-call forzato `submit_program`; modalità new/continue (analizza 4 settimane)    | JSON scheda               |
-| `analyze-meal-photo`      | `gemini-3-flash-preview`, temp 0.2              | vision, riferimenti visivi (piatto ~26cm), confidence 1-100                         | JSON macro                |
-| `ask-copilot`             | `gpt-5-mini` (RAG) / `gemini-2.5-flash` (modes) | RAG soglia **0.75**, top-5, cita `[Source N]`, no world-knowledge                   | answer+sources            |
-| `chat-with-coach`         | `gpt-5-mini` stream                             | RAG `match_documents` soglia **0.5**, top-3; rate-limit `ai_usage_tracking`         | SSE stream                |
-| `analyze-athlete-week`    | `gpt-5-mini`                                    | tool-call `submit_analysis`; **gender guardrail** (vietato ciclo/ormoni se maschio) | report MD + sentiment 0-1 |
-| `generate-batch-checkins` | `gemini-2.5-flash`, ≤280 char                   | settimana Europe/Rome, compliance%                                                  | testo IT                  |
-| `ingest-knowledge`        | `text-embedding-3-small`                        | Recursive splitter chunk **1000**/overlap **200**, HNSW cosine                      | chunk in DB               |
+| Funzione                  | Modello                                         | Strategia                                                                                        | Output                    |
+| ------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------- |
+| `generate-program`        | `openai/gpt-5.2`                                | tool-call forzato `submit_program`; modalità new/continue (analizza 4 settimane)                 | JSON scheda               |
+| `analyze-meal-photo`      | `gemini-3-flash-preview`, temp 0.2              | vision, riferimenti visivi (piatto ~26cm), confidence 1-100                                      | JSON macro                |
+| `ask-copilot`             | `gpt-5-mini` (RAG) / `gemini-2.5-flash` (modes) | RAG soglia **0.75**, top-5, cita `[Source N]`, no world-knowledge                                | answer+sources            |
+| `chat-with-coach`         | `gpt-5-mini` stream                             | RAG una libreria, `match_knowledge_chunks` soglia **0.5**, top-3; rate-limit `ai_usage_tracking` | SSE stream                |
+| `analyze-athlete-week`    | `gpt-5-mini`                                    | tool-call `submit_analysis`; **gender guardrail** (vietato ciclo/ormoni se maschio)              | report MD + sentiment 0-1 |
+| `generate-batch-checkins` | `gemini-2.5-flash`, ≤280 char                   | settimana Europe/Rome, compliance%                                                               | testo IT                  |
+| `ingest-knowledge`        | `text-embedding-3-small`                        | Recursive splitter chunk **1000**/overlap **200**, HNSW cosine                                   | chunk in DB               |
 
 ## 5. Coach Platform
 

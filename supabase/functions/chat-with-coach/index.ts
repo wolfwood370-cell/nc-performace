@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publishableKey, secretKey } from "../_shared/apiKeys.ts";
+import { formatContext, type KnowledgeMatch } from "./rag/formatContext.ts";
+
+// Retrieval tunables — deliberately NOT unified with ask-copilot (0.75 / 5):
+// chat-with-coach keeps the threshold and top-k it had before this slice.
+const MATCH_THRESHOLD = 0.5;
+const MATCH_COUNT = 3;
+// Reading the live library is a failure when it fails — never "proceed
+// without context" disguised as an empty knowledge base.
+const KNOWLEDGE_BASE_ERROR = "Errore nel recupero della knowledge base";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,7 +113,10 @@ serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    // Determine which coach's knowledge base to query
+    // Preflight only: the RPC resolves the coach from auth.uid() (coach → own
+    // corpus, athlete → coach_id). An athlete without a coach would get an
+    // empty result from the RPC and reach the model with the "no knowledge
+    // base" prompt, spending quota — fail here with a clear 400 instead.
     const coachId = profile?.role === "coach" ? user.id : profile?.coach_id;
 
     if (!coachId) {
@@ -162,41 +174,42 @@ serve(async (req) => {
       }
     }
 
-    // 1. Try to embed the query and retrieve RAG context
-    let contextChunks = "";
-    if (openaiKey) {
-      try {
-        const queryEmbedding = await getEmbedding(query, openaiKey);
-
-        const { data: matches, error: matchError } = await supabase.rpc("match_documents", {
-          query_embedding: JSON.stringify(queryEmbedding),
-          p_coach_id: coachId,
-          match_threshold: 0.5,
-          match_count: 3,
-        });
-
-        if (matchError) {
-          console.error("match_documents error:", matchError);
-        }
-
-        contextChunks = (matches || [])
-          .map(
-            (
-              m: { content: string; similarity: number; metadata: Record<string, unknown> },
-              i: number,
-            ) => {
-              const source = m.metadata?.source ? ` (Fonte: ${m.metadata.source})` : "";
-              return `[Chunk ${i + 1}${source} — Similarità: ${(m.similarity * 100).toFixed(0)}%]\n${m.content}`;
-            },
-          )
-          .join("\n\n");
-      } catch (embeddingError) {
-        console.warn("Embedding/RAG failed, proceeding without context:", embeddingError);
-      }
-    } else {
-      console.warn("OPENAI_API_KEY not set, skipping RAG embedding");
+    // 1. Embed the query and read the LIVE library — knowledge_documents +
+    //    knowledge_chunks through match_knowledge_chunks. The RPC resolves the
+    //    coach from auth.uid() (coach → own corpus, athlete → coach_id): no
+    //    client-supplied coach id. A failure here is a failure, not an empty
+    //    library: reply 500, never proceed without context. (openaiKey is
+    //    guaranteed above: a missing key already throws.)
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await getEmbedding(query, openaiKey);
+    } catch (embeddingError) {
+      // getEmbedding already logged status + body; here only the outcome.
+      console.error(
+        "RAG embedding failed, replying 500:",
+        embeddingError instanceof Error ? embeddingError.message : "unknown",
+      );
+      return new Response(JSON.stringify({ error: KNOWLEDGE_BASE_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
+    const { data: matches, error: matchError } = await supabase.rpc("match_knowledge_chunks", {
+      query_embedding: JSON.stringify(queryEmbedding),
+      match_threshold: MATCH_THRESHOLD,
+      match_count: MATCH_COUNT,
+    });
+
+    if (matchError) {
+      console.error("match_knowledge_chunks error:", matchError.code, matchError.message);
+      return new Response(JSON.stringify({ error: KNOWLEDGE_BASE_ERROR }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const contextChunks = formatContext((matches as KnowledgeMatch[] | null) ?? []);
     const hasContext = contextChunks.length > 0;
 
     const systemPrompt = hasContext

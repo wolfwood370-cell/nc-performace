@@ -763,33 +763,6 @@ export type Database = {
           },
         ]
       }
-      coach_knowledge_base: {
-        Row: {
-          coach_id: string
-          content: string
-          created_at: string
-          embedding: string | null
-          id: string
-          metadata: Json | null
-        }
-        Insert: {
-          coach_id: string
-          content: string
-          created_at?: string
-          embedding?: string | null
-          id?: string
-          metadata?: Json | null
-        }
-        Update: {
-          coach_id?: string
-          content?: string
-          created_at?: string
-          embedding?: string | null
-          id?: string
-          metadata?: Json | null
-        }
-        Relationships: []
-      }
       coach_products: {
         Row: {
           active: boolean
@@ -3443,20 +3416,6 @@ export type Database = {
       is_room_member: {
         Args: { _room_id: string; _user_id: string }
         Returns: boolean
-      }
-      match_documents: {
-        Args: {
-          match_count?: number
-          match_threshold?: number
-          p_coach_id: string
-          query_embedding: string
-        }
-        Returns: {
-          content: string
-          id: string
-          metadata: Json
-          similarity: number
-        }[]
       }
       match_knowledge_chunks: {
         Args: {

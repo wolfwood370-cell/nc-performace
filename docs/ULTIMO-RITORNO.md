@@ -1,647 +1,759 @@
-# ULTIMO RITORNO — coda checkin-numeri-dal-prompt (due code, stesso ramo)
+# ULTIMO RITORNO — fetta rag-una-libreria
 
 > **Cos'è questo file.** Il blocco «COSA RIMANDI INDIETRO» dell'ultima fetta chiusa da Claude Code,
 > in un file SOLO, **sovrascritto a ogni fetta**: la storia la tiene git.
-> Coda: `claude/checkin-numeri-dal-prompt` · 2026-09-02 · base `origin/main` = `ccf1450` (la stessa
-> del collaudo di Cowork delle 15:03) · PR verso `main` **da aprire da Nicolò**
-> ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/checkin-numeri-dal-prompt)
+> Fetta: `claude/rag-una-libreria` · 2026-09-05 · base `origin/main` = `be5fe9c` (il prompt del 02/09
+> diceva `ccf1450`: `main` è avanzato con la PR #70 il 03/09, §7.1) · PR verso `main` **da aprire da
+> Nicolò** ([link crea-PR](https://github.com/wolfwood370-cell/nc-performace/pull/new/claude/rag-una-libreria)
 > — `gh` non installata e credenziali negate all'agente, come dal 20/08).
-> **Seconda coda (sera del 02/09), in coda al primo commit:** la settimana VUOTA (zero giorni
-> prescritti E zero sedute concluse) **non chiama il modello** — tutto ciò che la riguarda è marcato
-> **(coda 2)** in §1, §2, §3, §4, §5, §6, §8, §9.
+> Prompt conservato in `docs/prompts/2026-09-02-rag-una-libreria.md`.
+> **Coda (05/09, stesso ramo, secondo commit — §10):** i due cancelli si lasciavano ingannare dai
+> commenti SQL e non inchiodavano il fail-loud della edge (misura di Cowork delle 09:20 sul tip
+> `9001c91`): chiusi entrambi, toccando SOLO i due file di test e questo.
 
 ## 1. Ramo e commit
 
-`claude/checkin-numeri-dal-prompt`, da `ccf1450`: **due commit**, uno per coda, entrambi «un commit
-solo» come da task.
+`claude/rag-una-libreria`, da `be5fe9c`, **due commit**:
 
-- `290ce2a` — **i numeri dal prompt**: il vaglio boccia ogni numero che il prompt non ha dato, e il
-  prompt dà la data di oggi in lettere (modulo, test, edge, questo file).
-- **(tip) (coda 2) la settimana vuota non chiama il modello**: `isEmptyWeek` + `emptyWeekText` nel
-  modulo puro, la guardia nella edge PRIMA del `fetch` (che ora sta DENTRO il ramo non-vuoto), 7
-  test (i 4 dell'acceptance, il legame strutturale con la edge, e i due vicini (b') (c') nati dalla
-  passata), questo file. Come per il primo, l'hash non può stare dentro il file che il commit contiene:
-  è il tip del ramo (`git log --oneline -1 claude/checkin-numeri-dal-prompt`) ed è riportato nel
-  messaggio di chiusura della sessione e nella PR.
+- `9001c91` — **la fetta** (migrazione + edge + funzione pura + due cancelli + tipi + documenti +
+  igiene + questo file), §2–§9.
+- **(tip) la coda**: i due cancelli chiusi (`sqlWithoutComments` nel cancello (a), il test
+  strutturale del fail-loud nel cancello (b)) + questo file, §10. Come sempre l'hash del commit che
+  contiene questo file non può starci dentro: è il tip del ramo (`git log --oneline -1
+claude/rag-una-libreria`), riportato nel messaggio di chiusura e nella PR.
 
-**PR: non aperta.** Motivo misurato: `gh` assente; la via API col token del credential manager è
-negata dal classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa: la PR
-porta i due commit insieme.
+**PR: non aperta.** `gh` assente; la via API col token del credential manager è negata dal
+classificatore dal 20/08 (memoria di progetto). Nicolò la apre dal link in testa.
 
-## 2. Manifesto
+## 2. Rituale d'apertura
 
-**MODIFICATI** (`git diff ccf1450 --numstat`, tree pre-commit):
-
-```
-269	24	src/lib/program/__tests__/checkinReading.test.ts   (39 → 54 `it`, +15)
-132	26	supabase/functions/_shared/program/checkinReading.ts (329 → 435 righe)
-7	2	supabase/functions/generate-batch-checkins/index.ts  (todayIso · prompt.text · chooseSummary col prompt)
-```
-
-più `docs/ULTIMO-RITORNO.md` (questo file). Nessun file nuovo.
-
-**VIETATI, misurati a zero righe di diff** (`git diff HEAD -- <f> | wc -l`, uno per uno):
-`src/pages/coach/CoachCheckinInbox.tsx` · `supabase/functions/_shared/program/weekAdherence.ts` ·
-`supabase/migrations/**` · `src/lib/program/releaseView.ts` · `src/lib/math/acwr.ts` ·
-`supabase/functions/analyze-athlete-week/**` · `src/hooks/useCoachAlerts.ts` ·
-`src/pages/coach/CoachHome.tsx` · `src/integrations/supabase/types.ts` ·
-`src/lib/effort/sessionRpe.ts` → tutti **0**.
-
-**Il perimetro della edge è quello dichiarato:** `git diff HEAD -- supabase/functions/generate-batch-checkins/index.ts`
-= una riga `todayIso: todayStr,` nel contesto del prompt · `content: prompt` → `content: prompt.text` ·
-`chooseSummary(…, report)` → `chooseSummary(…, report, prompt)`. Nessun commento toccato, nessuna
-lettura nuova, l'upsert è quello di prima.
-
-**(coda 2) MODIFICATI** (`git diff 290ce2a --numstat`, tree in stage):
+- **`mcp__github__*` (le tre `deny` mancanti): «non connesso».** Il server `github` ha fallito la
+  connessione all'avvio della sessione (`400: Authorization header is badly formatted`): zero tool
+  esposti, le tre `deny` restano non provabili anche stavolta (13 su 16 provate, invariato).
+- **Connettore Supabase di `.mcp.json` (read-only): `Unauthorized`** su `execute_sql` e
+  `list_edge_functions`, come nella fetta del 02/09 (RETRO «Migliorie 4»). **Ha risposto invece il
+  connettore Supabase dell'account** (claude.ai, `xgxtplqlewpqjzghvbke`): usato per **SOLE SELECT sui
+  cataloghi e conteggi**, nessuna scrittura (legge #11). La ri-misura del 05/09 alle 08:5x conferma
+  la misura di Cowork del 02/09 punto per punto:
 
 ```
-146	3	src/lib/program/__tests__/checkinReading.test.ts   (54 → 61 `it`, +7; 729 → 872 righe)
-33	2	supabase/functions/_shared/program/checkinReading.ts (435 → 466 righe)
-68	53	supabase/functions/generate-batch-checkins/index.ts  (429 → 444; con -w, cioè senza la
-                                                            re-indentazione del ramo: 16 1)
+match_documents        (query_embedding vector, p_coach_id uuid, match_threshold double precision, match_count integer)
+                       sql · SECURITY DEFINER · search_path=public, pg_temp · ACL {postgres,anon,authenticated,service_role}=X
+match_knowledge_chunks (query_embedding vector, match_threshold double precision, match_count integer)
+                       plpgsql · SECURITY DEFINER · search_path=public, pg_temp · ACL {postgres,anon,authenticated,service_role}=X
+is_room_member / shares_room_with: SECURITY DEFINER · search_path=public, pg_temp · ACL {=X (PUBLIC), anon=X, …}
+knowledge_documents 0 · knowledge_chunks 0 · coach_knowledge_base 0 (max(created_at) = NULL: mai una riga) · ai_usage_tracking 0
+extension vector 0.8.0 nello schema `extensions` · dipendenze normali su coach_knowledge_base: 5 (le sue policy)
+ultima migrazione remota: 20260827130000 → `db push` applicherà SOLO 20260905083618
+edge: chat-with-coach v28 · ask-copilot v28 (entrambe aggiornate il 19/07)
 ```
 
-più `docs/ULTIMO-RITORNO.md` (questo file). Nessun file nuovo. **VIETATI ri-misurati a zero**
-(`git diff --cached -- <f> | wc -l`, gli stessi dieci di sopra, `weekAdherence.ts` e
-`CoachCheckinInbox.tsx` in testa) → tutti **0**: `fallbackSummaryText` non è stata toccata, resta la
-strada della bocciatura per le settimane CON dati.
+- Riverificato anche sui SORGENTI: operatore nudo a `20260430125629:135,141,142`, hardening a
+  `20260525120100:45-80` (pin) e `:71-72` (REVOKE/GRANT), euristica `is_`/`shares_` a `:66-67`,
+  `match_documents` col coach come parametro a `20260215160406:53-80`, `chat-with-coach:171-176`
+  (RPC sbagliata), `:178-180` e `:193-194` (i due «proseguo senza contesto»).
 
-**(coda 2) Il perimetro della edge, con le righe** (`git diff --cached -w -U2`; il diff pieno è lo
-stesso più la re-indentazione delle 40 righe del prompt e della chiamata, entrate nel ramo `else`):
+## 3. Manifesto
 
-```diff
-@@ -12,4 +12,6 @@ import {
-   chooseSummary,
-   countSessionsOverThreshold,
-+  emptyWeekText,
-+  isEmptyWeek,
-   weekReading,
- } from "../_shared/program/checkinReading.ts";
-@@ -327,4 +329,17 @@
-             };
+**Tutti e soli i file del task** (`git diff --cached --numstat`, tree in stage prima del commit):
 
-+            let aiSummary: string;
-+            if (isEmptyWeek(report)) {
-+              // Nothing to describe — zero prescribed days in the window AND
-+              // zero completed sessions, both read from the report: the model
-+              // is NOT called. […]
-+              console.info(
-+                `[isEmptyWeek] atleta ${athlete.id}: settimana vuota: nessuna chiamata al modello`,
-+              );
-+              aiSummary = emptyWeekText();
-+            } else {
-               // The reading first, then the data, then the rules the model must
-               // obey (no invented ratios, no load actions): checkinReading.ts.
-@@ -357,5 +372,4 @@
-               });
-
--            let aiSummary = "";
-               if (aiResponse.ok) {
-                 const aiData = await aiResponse.json();
-@@ -384,4 +398,5 @@
-                 aiSummary = fallbackSummaryText(report);
-               }
-+            }
-
-             const { error: upsertError } = await supabase.from("weekly_checkins").upsert(
+```
+2	1	.gitignore
+7	7	docs/DB_MIGRATION.md                                    (-w: 3 3 — il resto è prettier che riallinea le tabelle)
+11	11	docs/PRODUCT_SPEC.md                                    (-w: 4 4 — idem)
+52	0	docs/prompts/2026-09-02-rag-una-libreria.md             (NUOVO — il prompt, conservato)
+18	18	docs/stato-repo-2026-07-12.md                           (-w: 3 3 — idem)
+131	0	src/__tests__/pgvectorOperatorQualificato.source.test.ts (NUOVO — cancello (a), 4 it)
+66	0	src/__tests__/ragUnaLibreria.source.test.ts             (NUOVO — cancello (b), 5 it)
+0	41	src/integrations/supabase/types.ts                      (via coach_knowledge_base 26 righe + match_documents 15)
+46	33	supabase/functions/chat-with-coach/index.ts             (282 → 295 righe)
+63	0	supabase/functions/chat-with-coach/rag/formatContext.test.ts (NUOVO — 6 Deno.test)
+35	0	supabase/functions/chat-with-coach/rag/formatContext.ts (NUOVO — funzione pura)
+107	0	supabase/migrations/20260905083618_rag_una_libreria.sql (NUOVO)
 ```
 
-Righe nel file finale: import `index.ts:14-15` · `let aiSummary: string` `:331` · guardia
-`if (isEmptyWeek(report))` `:332` · `console.info` `:339-341` · `aiSummary = emptyWeekText()` `:342`
-· `} else {` `:343` · `buildCheckinPrompt` `:346` · **il `fetch` a OpenAI `:361`, dentro il ramo**
-· chiusura del ramo `:400` · upsert `:402` invariato. Il prompt si costruisce SOLO nel ramo non-vuoto
-(prima la guardia, poi il prompt): su una settimana vuota non esiste un prompt mai inviato.
-`metricsSnapshot` (`:325-329`) e l'upsert (`:402-412`) sono byte-identici a `290ce2a`; la verifica di
-`OPENAI_API_KEY` prima del loop (`:263-269`) resta com'era, anche se tutte le settimane fossero vuote.
+più `docs/ULTIMO-RITORNO.md` (questo file). I due cancelli stanno in `src/__tests__/`, dove sta
+`persistBuster.source.test.ts` (l'altro pin sui sorgenti).
 
-## 3. Le firme scelte (punto 2 del task: «la forma la decidi tu, dichiarandola»)
+**VIETATI, misurati a zero righe di diff** (`git diff HEAD -- <f> | wc -l`, tutti insieme e uno per
+uno): `supabase/functions/ask-copilot/**` · `supabase/functions/ingest-knowledge/**` ·
+`src/pages/coach/KnowledgeBase.tsx` · `src/hooks/useCopilotChat.ts` · ogni migrazione già esistente
+(`git diff HEAD --name-only -- supabase/migrations | wc -l` → **0**: la nuova è untracked→added,
+nessuna delle esistenti tocca) · `supabase/functions/_shared/program/**` → **0**.
 
-```ts
-export interface CheckinPrompt {
-  text: string; // il testo che il modello riceve
-  dataBlock: string; // il blocco-dati, VERBATIM dentro `text`: l'unica sorgente dei numeri ammessi
-}
-export function buildCheckinPrompt(reading, report, ctx: PromptContext): CheckinPrompt;
-export function vetSummary(
-  text,
-  report,
-  prompt: CheckinPrompt,
-): { ok: true } | { ok: false; reasons };
-export function chooseSummary(candidate, report, prompt: CheckinPrompt): { text; reason };
-```
-
-- **Perché l'oggetto e non il blocco nudo.** La edge fa `const prompt = buildCheckinPrompt(…)`, manda
-  `prompt.text` e vaglia con `prompt`: la sorgente del vaglio è per costruzione il prompt inviato,
-  non un secondo argomento che potrebbe venire da un'altra chiamata con un altro contesto.
-- **Una funzione produce il blocco** (`promptDataBlock`, privata): contesto temporale (con la data
-  in lettere) · le quattro righe della lettura · `weekDataLines` · calorie · `paceContext`.
-  `buildCheckinPrompt` la interpola nel testo; il vaglio la legge da `prompt.dataBlock`. Il test che
-  lega le due sorgenti: `p.text` contiene `p.dataBlock` per entrambi i prompt della fixture, e il
-  blocco NON contiene «NOTA IMPORTANTE», «24 ore», «Regole:», «24 agosto», «280 caratteri» (che il
-  testo completo invece porta).
-- **`PromptContext.todayIso`** (civil `YYYY-MM-DD` di Roma, la edge lo aveva già come `todayStr`,
-  `index.ts:66`): `dateInWords` (privata) lo scrive «2 settembre 2026» con la tabella `MONTHS_IT`
-  dei dodici nomi; una stringa che non è una data di calendario (`isIsoDate` di `coachRelease.ts`)
-  resta com'è: nessuna data inventata, e le sue cifre restano comunque nel blocco.
-- **Il token numerico** `NUMBER_TOKEN = /\d+(?:[.,:]\d+)?/g` legge il candidato E il blocco (la stessa
-  regex, come chiesto), con la forma canonica `canonicalNumber`: «06» ≡ «6», «8,5» ≡ «8.5» ≡ «8.50»,
-  un orario («15:03») è uguale solo a sé stesso (v. §8.1), e così un token con tre cifre dopo il
-  separatore («1.000», mille: `THOUSANDS_SHAPE`, v. §6 e §8.9). L'insieme ammesso è
-  `allowedNumbers(prompt.dataBlock)` + `RPE_SCALE = 10`. Ogni numero estraneo dà UNA ragione
-  «numero «3» assente dal prompt», dopo le ragioni dei controlli esistenti (rapporti, percentuali,
-  parole vietate: restano tutti, e `allowedRatios` usa la stessa costante `RPE_SCALE`).
-- **Costanti nuove:** `RPE_SCALE`, `MONTHS_IT`, `NUMBER_TOKEN` (private). Nessuna esportazione nuova
-  oltre a `CheckinPrompt`; il frontend (`CoachCheckinInbox.tsx`) importa solo `overThresholdText`,
-  `readingSourceFromSnapshot`, `weekReading`, `WeekReading`: firme invariate, zero righe di diff.
-
-**(coda 2) Le due funzioni pure e la costante** (`checkinReading.ts:443-466`, sezione «the empty
-week: nothing to describe, so the model is not called»; l'intestazione del modulo passa da «Three
-things» a «Four things» con il punto 4, `:5` e `:26-31`):
-
-```ts
-export const EMPTY_WEEK_TEXT =
-  "Nessun giorno prescritto e nessuna seduta conclusa questa settimana.";
-export function isEmptyWeek(report: WeekReport): boolean {
-  return report.adherence.prescribedCount === 0 && report.snapshot.sessions_completed === 0;
-}
-export function emptyWeekText(): string {
-  return EMPTY_WEEK_TEXT;
-}
-```
-
-- `isEmptyWeek` legge DUE campi del report e non ricalcola nulla: `adherence.prescribedCount` (i
-  giorni prescritti nella finestra, dal documento) e `snapshot.sessions_completed` (le sedute
-  concluse nella finestra, per giorno civile di Roma). `&&`, non `||`: «zero prescritti ma sedute
-  fuori programma» e «prescritti ma zero sedute» NON sono vuote — lì i dati ci sono e il modello si
-  chiama ancora (test (b) e (c), prova rossa M5).
-- `emptyWeekText()` restituisce la costante: una frase sola, nessuna cifra, nessun «N/A» (test (d)).
-  La costante è esportata perché il test la leghi alla edge per nome. La riga della bocciatura
-  (`fallbackSummaryText`, due «N/A» sulla stessa settimana) non cambia: è la strada delle settimane
-  CON dati e il test (d) lo inchioda (`fallbackSummaryText(reportVuoto)` contiene «N/A» e non è
-  uguale alla frase).
-- Il modulo resta puro: il test di determinismo (nessun `Date.now`, `new Date(`, `Math.random`,
-  `fetch(`, `Intl.` nel sorgente) passa com'era. Sale a 466 righe (convenzione delle 300: la chip
-  «spezzare `checkinReading.ts`» resta aperta, §9).
+Residuo NON committato: `deno.lock`, generato dalla corsa della suite Deno «come in CI»
+(`--allow-all --no-check`, senza `--no-lock`) e rimosso a mano prima del commit (due volte).
 
 ## 4. Acceptance — ogni criterio col suo comando e l'output
 
-Tutto eseguito nel worktree `.claude/worktrees/checkin-numeri-dal-prompt` sul tree in stage (baseline
-su `ccf1450` pulito, dalla fetta precedente: vitest 534/534 in 51 file · eslint 64 · verify:css 243/243 ·
-deno `_shared/program` 13/13).
+Tutto eseguito nel worktree `.claude/worktrees/rag-una-libreria` (node_modules reale da `npm ci`,
+Fragilità #5), sul tree in stage, **ri-misurato dopo i rinforzi nati dalla passata (§6)**. Baseline
+attesa (fetta precedente su `ccf1450`, confermata da `be5fe9c`): vitest 556/556 in 51 file · eslint
+64 · verify:css 243/243 · deno CI 496.
 
-**1. `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 54/54** (39 + 15 nuovi, di
-cui 1 dalla passata: le migliaia, §6).
-Fixture nuova: il report della settimana VUOTA (documento del 22/08 coi giorni 22–25/08, finestra
-31/08→06/09, `todayIso` `2026-09-02`, zero log → 0 prescritti, `compliancePct null`, 0 sedute,
-RPE `N/A`) e il contesto `mercoledì · 15:03 · 2026-08-31 → 2026-09-06` con il `weekPaceContext`
-della settimana senza prescrizione.
+**1. La migrazione** `supabase/migrations/20260905083618_rag_una_libreria.sql` (timestamp reale,
+`date +%Y%m%d%H%M%S` alla scrittura): i tre passi nell'ordine **(a)** `CREATE OR REPLACE FUNCTION
+public.match_knowledge_chunks(…)` (`:33-88`) con lo **stesso corpo** di `20260430125629:90-145`, `SET
+search_path = public, pg_temp` (`:48`) e l'operatore qualificato `OPERATOR(extensions.<=>)` in **tutte
+le occorrenze del corpo: TRE, non due** (SELECT `:78`, WHERE `:84`, ORDER BY `:85` — §7.2) →
+**(b)** `REVOKE EXECUTE … FROM PUBLIC, anon;` (`:91`) e `GRANT EXECUTE … TO authenticated,
+service_role;` (`:92`), firma `(extensions.vector, double precision, integer)` = l'identità misurata
+sul DB vivo (§2) → **(c)** `DROP FUNCTION public.match_documents(extensions.vector, uuid, double
+precision, integer);` (`:95`, firma = quella viva), poi **un cancello `DO … RAISE EXCEPTION` che pretende la
+tabella ANCORA vuota** (`:101-106`, nato dalla passata — §7.5) e `DROP TABLE
+public.coach_knowledge_base;` (`:107`, eseguito: Nicolò non ha chiesto di tenerla, §7.4). Commento in
+testa con la misura 1–3 (`:6-19`). **Ordine e conteggi sono inchiodati anche dal quarto `it` del
+cancello (a)** (posizioni crescenti dei sei statement, 3 operatori qualificati nel corpo dollar-quoted della funzione, nessun operatore nudo nel corpo, `search_path` pinnato).
 
-- **(a)** la frase viva del 02/09 («Settimana 31 agosto 2026–6 settembre 2026: nessuna seduta
-  programmata e sedute concluse: 0. A oggi mercoledì 3 settembre, …») → **bocciata**, ragioni
-  esattamente `["numero «3» assente dal prompt"]`; e `chooseSummary` la manda sulla riga
-  deterministica con quella ragione.
-- **(b)** la stessa frase con «2 settembre» → **passa** (`{ ok: true }`): 31, 2026, 6 (da «06»),
-  0 e 2 (da «2 settembre 2026») stanno nel prompt.
-- **(c)** «Settimana conclusa: 4 sedute su 5 (50% compliance), 1 giorno saltato…» sul report vero
-  della 24→30 → **resta bocciata**: `rapporto «4 sedute su 5» assente dai dati` + `numero «5»
-assente dal prompt` (una sola ragione numerica: 4, 50 e 1 sono nel prompt).
-- **(d)** «RPE medio 8.5/10» → **passa** (8.5 nel prompt, 10 = scala); anche «8,5/10» e «8,50».
-- **(e)** il prompt costruito con `todayIso` `2026-09-02` contiene «mercoledì 2 settembre 2026» e la
-  riga intera «Contesto temporale: Oggi è mercoledì 2 settembre 2026, ore 15:03 (fuso orario:
-  Europe/Rome). Settimana dal 2026-08-31 al 2026-09-06.»; gennaio e dicembre dalla tabella
-  («5 gennaio 2026», «31 dicembre 2026»); `2026-02-30` resta `2026-02-30`, nessun «undefined».
-- In più: l'ora è un token solo («Analisi delle ore 15:03.» passa; «Alle 15 e al minuto 3.» boccia
-  15 e 3) · un numero estraneo è nominato una volta anche se ricorre · «Ci sono ancora 2
-  allenamenti in programma» del `paceContext` è un dato (il 2 passa su una settimana aperta) · sulla
-  settimana vuota «24 agosto» e «280 caratteri» sono bocciati nominando 24 e 280 · il sorgente del
-  modulo non contiene `Date.now`, `new Date(`, `Math.random`, `fetch(` **né `Intl.`**.
+**2. Prove rosse:** le tre del task nelle due direzioni, §5 — ogni ripristino byte-identico (o fixture
+rimossa) e `git diff --exit-code` = 0.
 
-**2. Il test che lega le due sorgenti** (`CheckinPrompt — il blocco-dati che il vaglio legge compare
-verbatim nel testo inviato`): per `promptVero` e `promptVuoto`, `p.dataBlock.length > 0` e
-`p.text` contiene `p.dataBlock`. Prova rossa M3 in §5.
-
-**3. Prove rosse:** le tre del task nelle due direzioni, più la quarta nata dalla passata, in §5 —
-ogni ripristino byte-identico e `git diff --exit-code` = 0.
-
-**4. I cinque cancelli** (tree in stage, prima del commit):
+**3. I grep:**
 
 ```
-TSC_EXIT=0
-VITEST: Test Files 51 passed (51) · Tests 549 passed (549)     [baseline 534: +15, tutti nel modulo]
-ESLINT: files 456 · errors 64 · warnings 13                      ← 64 = .eslint-baseline
-BUILD_EXIT=0 (vite: ✓ built in 8.96s)
+$ grep -rn "match_documents" src supabase/functions | wc -l          → 7   (§7.3: TUTTE nei due cancelli)
+$ grep -rn "match_documents" src supabase/functions --exclude=*.source.test.ts | wc -l → 0
+$ grep -rn "p_coach_id" supabase/functions/chat-with-coach | wc -l  → 0
+$ grep -rn "coach_knowledge_base" src supabase/functions | wc -l    → 3   (le stesse: cancello (a) :125,127 · (b) :5)
+```
+
+Le 7 righe: `pgvectorOperatorQualificato.source.test.ts:12,30` (commento: la storia), `:122` (la
+regex che inchioda il `DROP FUNCTION`), `ragUnaLibreria.source.test.ts:5` (commento), `:46,47,50` (il
+titolo, l'ago `"match_documents"` e il messaggio del rosso). Un cancello che vieta una stringa deve
+nominarla: il criterio letterale «0 righe» e il cancello (b) del punto 4 del task si escludono per
+costruzione — dichiarato, non aggirato (nessun ago spezzato per ingannare il grep).
+
+**4. I due `500`, con le righe** (`supabase/functions/chat-with-coach/index.ts`):
+
+```
+186:    } catch (embeddingError) {
+187-191:  // getEmbedding already logged status + body; here only the outcome.
+          console.error("RAG embedding failed, replying 500:", <message o "unknown">);
+192:      return new Response(JSON.stringify({ error: KNOWLEDGE_BASE_ERROR }), {
+193:        status: 500,
+…
+204:    if (matchError) {
+205:      console.error("match_knowledge_chunks error:", matchError.code, matchError.message);
+206:      return new Response(JSON.stringify({ error: KNOWLEDGE_BASE_ERROR }), {
+207:        status: 500,
+```
+
+`KNOWLEDGE_BASE_ERROR = "Errore nel recupero della knowledge base"` (`:12`). Entrambi i ritorni stanno
+PRIMA della chiamata al modello (`:238`) e PRIMA dell'incremento della quota (`:270-278`): un
+fallimento della libreria non consuma un messaggio. La RPC a `:198-202`: `match_knowledge_chunks`
+con `{ query_embedding, match_threshold: MATCH_THRESHOLD (0.5), match_count: MATCH_COUNT (3) }`
+(`:8-9`), **nessun `p_coach_id`**; il contesto da `formatContext(...)` a `:212`, fonte =
+`document_title`. Il controllo «Nessun coach associato» resta (`:122-127`), col commento riscritto
+(`:116-119`: è un preflight, non «quale libreria», §6). Il vecchio `else` «OPENAI_API_KEY not set,
+skipping RAG» non c'è più: era codice morto (`:72` lancia prima) E un terzo «proseguo senza
+contesto» (§7.6).
+
+**5. I cinque cancelli** (tree in stage, DOPO i rinforzi; log in scratchpad `gates/*2.*`):
+
+```
+TSC_EXIT=0                                   (0 righe di output)
+VITEST: Test Files 53 passed (53) · Tests 565 passed (565)      [556 → 565: +9 = 4 (a) + 5 (b), tutti nei cancelli nuovi]
+ESLINT: files 460 · errors 64 · warnings 14   ← 64 = .eslint-baseline (exit 1 è il ratchet sui 64 preesistenti, come sempre)
+BUILD_EXIT=0 (vite: ✓ built)
 VERIFYCSS: ✓ … 243 classi con modificatore di alpha tutte emesse e a canali · VERIFYCSS_EXIT=0
-           ℹ 2 note preesistenti (bg-error-container/30 e /20 «da togliere da EXPECTED», chip aperta il 02/09)
-DENO: npx deno test --no-lock supabase/functions/_shared/program/ → ok | 13 passed | 0 failed
-      npx deno check --no-lock …/checkinReading.ts → pulito
-      npx deno check --no-lock …/generate-batch-checkins/index.ts → SOLO il preesistente TS18046
-        («'error' is of type 'unknown'», ora a :424; su origin/main è la stessa riga a :419)
-      suite Deno intera come in CI (--allow-all --no-check supabase/functions/) → ok | 496 passed | 0 failed
+           ℹ le 2 note preesistenti (bg-error-container/30 e /20 «da togliere da EXPECTED», chip aperta il 02/09)
+DENO: npx deno test --no-lock supabase/functions/chat-with-coach/rag/ → ok | 6 passed | 0 failed
+      npx deno check --no-lock supabase/functions/chat-with-coach/index.ts → pulito (exit 0)
+      npx deno check --no-lock supabase/functions/ask-copilot/index.ts    → pulito (exit 0, controllo: file non toccato)
+      suite Deno intera come in CI (--allow-all --no-check supabase/functions/) → ok | 502 passed | 0 failed   [496 + 6]
+PRETTIER --check sui 9 file non ignorati (types.ts e migrations sono in .prettierignore; .gitignore non ha parser) → «All matched files use Prettier code style!»
 ```
 
-**(coda 2) Acceptance — il blocco `isEmptyWeek — vuota se e solo se zero prescritti E zero sedute
-concluse` (`checkinReading.test.ts:736-872`), `npx vitest run src/lib/program/__tests__/checkinReading.test.ts` → 61/61** (54 + 7):
+**6. Il manifesto** = §3: `git diff --cached --name-only` sono i 12 file del task + questo; vietati a 0.
 
-- **(a)** `reportVuoto` — finestra 31/08→06/09, `DOC_V2` (il documento del 22/08 coi giorni 22–25/08:
-  nessuno nella finestra; il task dice «solo il 24 e 25», sono i due che cadono nella finestra di
-  (b), il documento è lo stesso della fixture viva), zero log → `prescribedCount 0`,
-  `sessions_completed 0`, `isEmptyWeek` **true** ✓
-- **(b)** stesso documento, finestra 24→30/08, zero log → `prescribedCount 2`, `sessions_completed 0`,
-  `isEmptyWeek` **false** («prescritta ma non eseguita: i dati ci sono») ✓
-- **(c)** finestra 31/08→06/09, un log `completed` il 02/09, nessun giorno prescritto →
-  `prescribedCount 0`, `sessions_completed 1`, `offPlanCount 1`, `isEmptyWeek` **false** («fuori
-  programma: la seduta è un dato») ✓
-- **(d)** `emptyWeekText()` === `EMPTY_WEEK_TEXT` === «Nessun giorno prescritto e nessuna seduta
-  conclusa questa settimana.», `not.toMatch(/\d/)`, `not.toContain("N/A")`; e
-  `fallbackSummaryText(reportVuoto)` contiene «N/A» e NON è quella frase ✓
-- **(b') (c') — i due vicini nati dalla passata (§6)**: la 24→30 vista dal lunedì 24 (2 prescritti
-  tutti avanti, `missedCount 0`, `remainingCount 2`, 0 concluse) → **false**; una seduta conclusa il
-  02/09 SENZA carico né sRPE (`totalVolume null`, `avgRpe "N/A"`, `sessions_completed 1`) → **false**
-  («la seduta è un dato anche senza numero») ✓ — sono i due mutanti di `isEmptyWeek` che (a)(b)(c)
-  lasciavano vivi (M9, M10 in §5).
-- **(legame con la edge)** il test legge il sorgente di `index.ts` (commenti a riga intera tolti) e
-  inchioda: la guardia `if (isEmptyWeek(report))` esiste · poi un `} else {` · poi l'URL di OpenAI
-  DOPO l'`else` **e PRIMA della graffa che chiude l'intero if/else** (`fineIfElse`, contando le
-  graffe: la `}` di «} else {» riapre) · fra guardia ed `else` stanno `aiSummary = emptyWeekText()`
-  e «nessuna chiamata al modello», e NON stanno `await` né `openaiKey` · `openaiKey`, dalla guardia
-  in poi, compare SOLO fra `else` e chiusura · **una sola** occorrenza di `fetch(` nel file ✓. È un
-  test STRUTTURALE (la edge non ha test): lo dichiaro in §8, con ciò che non vede.
+## 5. Le tre prove rosse (protocollo 29/08 + 02/09: verde PRIMA · occorrenza unica · `git diff --numstat` · test sul bersaglio → ROSSO · ripristino per copia dal backup (o fixture rimossa) · byte-identico · test di nuovo VERDE · `git diff --exit-code` = 0 sull'intero tree in stage)
 
-**(coda 2) I cinque cancelli** (tree in stage, prima del commit; ri-misurati dopo la passata):
+Runner `mutazioni/runner.cjs` in scratchpad, log `M1..M3.log`, `M1-full.log`, `summary.json`.
+Tutto in stage PRIMA della corsa (`git diff --exit-code` misura worktree-contro-index, 0 prima e dopo
+ogni mutazione). Corsa finale a stage completo (questo file compreso), DOPO i rinforzi ai cancelli.
+
+| #   | mutazione (una occorrenza)                                                                                                                       | numstat / status                                  | esito                                      | il rosso nomina…                                                                                                                                                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M1  | **cancello (a)**: fixture `supabase/migrations/20260906000000_fixture_operatore_nudo.sql` (timestamp sopra soglia) con `kc.embedding <=> q` nudo | `?? …fixture_operatore_nudo.sql` (317 byte)       | **ROSSO** (1 su 4) → rimossa → verde 4/4   | «nessuna migrazione con timestamp ≥ soglia contiene <=>, <-> o <#> nudi, né cosine_distance(…) e sorelle non qualificate (file e riga)» — e nel messaggio **`20260906000000_fixture_operatore_nudo.sql:4 — \`<=>\` nudo: SELECT 1 - (kc.embedding <=> q) FROM public.knowledge_chunks kc LIMIT 1;`** (file E riga, come chiesto)                             |
+| M2  | **cancello (b)**: in `chat-with-coach/index.ts` `rpc("match_knowledge_chunks", {` → `rpc("match_documents", {`                                   | `1 1 supabase/functions/chat-with-coach/index.ts` | **ROSSO** (2 su 5) → ripristino → 5/5      | «nessun sorgente delle edge nomina match_documents — la funzione non esiste più: expected [ 'chat-with-coach/index.ts' ] to deeply equal []» · «chat-with-coach chiama rpc("match_knowledge_chunks" almeno una volta: expected 0 to be greater than or equal to 1»                                                                                           |
+| M3  | **`formatContext` senza la fonte**: via ` (Fonte: ${m.document_title})` dall'intestazione del chunk                                              | `1 1 …/chat-with-coach/rag/formatContext.ts`      | **ROSSO** (4 su 6 Deno) → ripristino → 6/6 | «una voce → [Chunk 1 (Fonte: <document_title>) — Similarità: NN%] + contenuto» · «la fonte citata è document_title, ogni voce la porta» · «più voci: numerate…» · «il contenuto è riportato integro…» — `Expected actual: "[Chunk 1 — Similarità: 87%]…` (i due test che non nominano la fonte, «lista vuota» e «percentuale intera», restano verdi: giusto) |
+
+Output del runner, testuale (corsa finale):
 
 ```
-TSC_EXIT=0
-VITEST (file): 61 passed (61)   ·   VITEST (suite): Test Files 51 passed (51) · Tests 556 passed (556)   [549 → 556: +7, tutti nel modulo]
-ESLINT: files 456 · errors 64 · warnings 14        ← 64 = .eslint-baseline; warning 13 → 14: il console.info
-        (index.ts:339, no-console «Only these console methods are allowed: warn, error») — chiesto dal task, dichiarato in §8
-BUILD_EXIT=0 (vite: ✓ built in 3.05s)
+=== M1 — cancello (a): fixture con `<=>` NUDO e timestamp sopra soglia (20260906000000_fixture_operatore_nudo.sql)
+  prima:  exit 0 · Tests  4 passed (4)
+  fixture scritta: supabase/migrations/20260906000000_fixture_operatore_nudo.sql (317 byte)
+  git status: ?? supabase/migrations/20260906000000_fixture_operatore_nudo.sql
+  mutato: exit 1 · Tests  1 failed | 3 passed (4)
+    ✗ nessuna migrazione con timestamp ≥ soglia contiene <=>, <-> o <#> nudi, né cosine_distance(…) e sorelle non qualificate (file e riga)
+      distanza pgvector NUDA in una migrazione sopra soglia — dentro una SECURITY DEFINER con search_path = public, pg_temp muore con 42883. Scrivila ESATTAMENTE `OPERATOR(extensions.<=>)` (minuscolo, senza spazi: l'unica grafia che il cancello riconosce) o `extensions.cosine_distance(…)`:
+  ripristino: fixture rimossa · esiste ancora: false
+  dopo:   exit 0 · Tests  4 passed (4)
+  git diff --exit-code: 0
+  git status --short: i 13 file in stage, nient'altro (nessun residuo della mutazione)
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M2 — cancello (b): la RPC di chat-with-coach riportata a rpc("match_documents"
+  prima:  exit 0 · Tests  5 passed (5)
+  occorrenze di «supabase.rpc("match_knowledge_chunks", {»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  2 failed | 3 passed (5)
+    ✗ nessun sorgente delle edge nomina match_documents — la funzione non esiste più
+    ✗ chat-with-coach chiama rpc("match_knowledge_chunks" almeno una volta
+      match_documents è stata rimossa (migrazione 20260905083618): una chiamata fallirebbe a runtime: expected [ 'chat-with-coach/index.ts' ] to deeply equal []
+      expected 0 to be greater than or equal to 1
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  5 passed (5)
+  git diff --exit-code: 0
+  git status --short: i 13 file in stage, nient'altro (nessun residuo della mutazione)
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M3 — formatContext senza la fonte: via ` (Fonte: ${m.document_title})` dall'intestazione del chunk
+  prima:  exit 0 · ok | 6 passed | 0 failed
+  occorrenze di « (Fonte: ${m.document_title})»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/rag/formatContext.ts
+  mutato: exit 1 · FAILED | 2 passed | 4 failed
+    ✗ una voce → [Chunk 1 (Fonte: <document_title>) — Similarità: NN%] + contenuto
+    ✗ la fonte citata è document_title, ogni voce la porta
+    ✗ più voci: numerate nell'ordine della lista, separate da una riga vuota
+    ✗ il contenuto è riportato integro, a capo compresi
+      AssertionError: Values are not equal.
+      AssertionError: Expected actual: "[Chunk 1 — Similarità: 87%]
+      AssertionError: Values are not equal.
+      AssertionError: Values are not equal.
+      Test failed
+  ripristino byte-identico: true
+  dopo:   exit 0 · ok | 6 passed | 0 failed
+  git diff --exit-code: 0
+  git status --short: i 13 file in stage, nient'altro (nessun residuo della mutazione)
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+RUNNER_EXIT=0
+```
+
+## 6. Passata indipendente
+
+**Workflow: 82 agenti (7 auditor + 75 refuter), 0 errori, 14 min 25 s, 490 chiamate-tool.** Tre
+auditor di progetto (`supabase-rls-auditor`, `code-reviewer`, `code-test-verifier`;
+`aura-theme-auditor` non richiesto: nessuna UI) + quattro cacciatori a lente (Postgres/pgvector ·
+runtime della edge · robustezza dei cancelli · scope/manifesto/documenti), tutti in sola lettura sul
+tree in stage → **25 rilievi** → ognuno a **3 refuter** con lente distinta (correttezza ·
+riproduzione · scope-e-criteri), tenuto se ≥ 2 su 3 lo confermano → **9 confermati, 16 refutati**.
+La lente Postgres ha interrogato ANCHE il DB vivo (SELECT sui cataloghi) e ha chiuso a zero rilievi
+le sei domande: tipo `vector` unico in `extensions` (0.8.0), operatori `<=>`/`<->`/`<#>` in
+`extensions` con `oprcode extensions.cosine_distance`, chiamata per OID (non via `search_path`),
+indice HNSW invariato; identità della funzione = quella viva (typmod fuori dall'identità, `FLOAT` =
+`double precision`, `INT` = `integer`: sostituzione in place, nessun overload); grammatica del
+`REVOKE … FROM PUBLIC, anon` valida; firma del `DROP FUNCTION` = quella viva; `DROP TABLE` senza
+`CASCADE` riesce (solo dipendenze interne: 5 policy, pkey, FK verso `auth.users`, HNSW); `db push`
+applica il file come batch unico in transazione implicita (un errore = nulla committato, nemmeno la
+riga di storico). Il `code-test-verifier`: tutti e sei i comandi a exit 0. Il `supabase-rls-auditor`:
+nessun rilievo alto o medio; verificato OK corpo identico, ACL che chiude `anon`, DEFINER come unico
+accesso dell'atleta ai chunk, `coach_id` immutabile per trigger (`20260721150200:193`), edge con
+auth prima del body, RPC via client utente, zero coach id dal payload, 500 su entrambi i rami.
+
+**Cosa ne ho fatto** (il verdetto dei refuter è un dato, la decisione è mia e sta qui):
+
+| #   | rilievo (auditor · voti)                                                                                                         | esito                                                                                                                                                                                                                                                        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | commento «Determine which coach's knowledge base to query» stantio (lente-edge · 2/3)                                            | **riscritto** (`index.ts:116-119`): è un preflight, non «quale libreria»                                                                                                                                                                                     |
+| 2   | doppio log «Embedding error:» (dentro `getEmbedding` e nel catch) + il 429 collassato in 500 (lente-edge · 2/3)                  | **prefisso del catch cambiato** («RAG embedding failed, replying 500:»); il 429→500 resta: è il criterio del task (§7.8)                                                                                                                                     |
+| 3   | migrazione senza prefisso a 14 cifre esente in silenzio dal cancello (a) (lente-cancelli · 2/3)                                  | **primo `it` nuovo**: ogni file di `supabase/migrations/` deve essere `14 cifre_nome.sql`, altrimenti rosso coi nomi (§7.10)                                                                                                                                 |
+| 4   | `OPERATOR(EXTENSIONS.<=>)` / `OPERATOR( extensions.<=> )` valide ma segnalate come nude (lente-cancelli · 2/3)                   | **dichiarato** nel commento di testa e nel messaggio del rosso: una sola grafia riconosciuta; falso positivo = lato sicuro (§7.10)                                                                                                                           |
+| 5   | `chatWithCoach!` senza guardia nei test 4 e 5: TypeError al posto del messaggio (lente-cancelli · 2/3)                           | **risolto a livello di modulo** con `throw` esplicito, come `caricoParita.test.ts`                                                                                                                                                                           |
+| 6   | `stato-repo-2026-07-12.md:215,342`: righe riscritte con misure e `file:riga` del 12/07 (code-reviewer · 2/3)                     | **aggiornate le misure nelle due righe toccate**, con la data della misura accanto (§7.12)                                                                                                                                                                   |
+| 7   | quota: `select`/`insert` su `ai_usage_tracking` scartano l'errore → modello chiamato senza limite (code-reviewer · 2/3)          | **preesistente, fuori diff: non toccato** — chip aperta (§8.12)                                                                                                                                                                                              |
+| 8   | 7 righe di documento toccate, il prompt ne elenca 6 (lente-scope · 3/3)                                                          | **dichiarato** (§7.12)                                                                                                                                                                                                                                       |
+| 9   | commento di testa della migrazione: 29 righe, il prompt dice «tre righe» (lente-scope · 2/3)                                     | **dichiarato** (§7.14)                                                                                                                                                                                                                                       |
+| 10  | `DROP TABLE` senza cancello sul conteggio righe (rls-auditor · **0/3**: «hardening, non difetto»)                                | **fatto lo stesso**: `DO … RAISE EXCEPTION` prima del DROP (§7.5) — «possibile data loss → STOP & ASK» vale più della lettera dei refuter                                                                                                                    |
+| 11  | cancello (b) vede solo `index.ts`: una lettura estratta in `rag/retrieve.ts` lo aggira (lente-cancelli · 1/3)                    | **fatto lo stesso**: scandisce tutti i `.ts` non-test sotto `supabase/functions` e vieta la stringa nuda (§7.10)                                                                                                                                             |
+| 12  | cancello (a) cieco alla forma-funzione `cosine_distance(…)` non qualificata (lente-cancelli · 1/3)                               | **fatto lo stesso**: seconda regex, stesso 42883 (§7.10)                                                                                                                                                                                                     |
+| 13  | `DB_MIGRATION.md`: conteggi «53 tabelle» / «25 funzioni» nelle righe della tabella toccata (code-reviewer 0/3 · lente-scope 1/3) | **nota accanto al conteggio** («52 dal 2026-09-05: …», «24 dal 2026-09-05: …»), lo snapshot resta leggibile (§7.12)                                                                                                                                          |
+| 14  | «l'index NON è il worktree: si committerebbe la versione debole di 4 file» (code-reviewer · major · 0/3)                         | **vero al momento della sua lettura** (i rinforzi 3, 5, 10-12 erano su disco mentre la passata girava): chiuso con `git add` dei quattro file e ri-misura di TUTTI i cancelli a stage completo (§4.5); anche il runner finale gira a stage completo (§5)     |
+| 15  | riparazione ostaggio del cleanup: `DROP … IF EXISTS` o seconda migrazione per il passo (c) (code-reviewer · 1/3)                 | **no**: il task dice «una migrazione» coi tre passi; un DROP che fallisce per firma diversa dalla misura è il segnale giusto per fermarsi, e il cancello sulle righe fallisce forte di proposito. Costo dichiarato in §9.1: se il push fallisce, si rimisura |
+| 16  | il 429 degli embedding diventa 500 generico (rls-auditor 1/3 · code-reviewer 0/3 · lente-scope 1/3)                              | **è il criterio del task** (§7.8); un 429 tipizzato è fetta a sé (§8.4)                                                                                                                                                                                      |
+| 17  | nessun client FE invoca `chat-with-coach` (lente-edge · 1/3)                                                                     | **dichiarato** (§8.2)                                                                                                                                                                                                                                        |
+| 18  | operatore qualificato 3 volte / grep a 7 righe (lente-scope · 1/3, 0/3)                                                          | già in §7.2, §7.3                                                                                                                                                                                                                                            |
+| 19  | `formatContext.test.ts` regge; i due 500 di `index.ts` restano verificati solo a lettura (lente-cancelli · 1/3)                  | **dichiarato**: i due 500 non hanno un test eseguibile — servirebbe il retrieval estratto con client iniettato, fetta a sé (§9.6)                                                                                                                            |
+| 20  | ACL / DEFINER / DROP con RLS rimandati all'auditor backend (code-reviewer · 1/3)                                                 | l'auditor backend li ha verificati OK (sopra)                                                                                                                                                                                                                |
+
+Costo della passata: 6,04 M token dei subagenti. Reperti che senza passata non avrei visto: 3, 5, 7,
+10, 11, 12 (sei su venti) — i tre «fatti lo stesso» contro il voto dei refuter sono la parte che vale
+di più: il refuter con la lente «scope e criteri» boccia per costruzione ogni miglioria non scritta
+nel task, e quella lente da sola non deve decidere.
+
+## 7. Divergenze — dove il task diceva una cosa e la misura un'altra (vince la misura, dichiarata)
+
+1. **Base `be5fe9c`, non `ccf1450`.** Il prompt è del 02/09; il 03/09 è entrata in `main` la PR #70
+   (`claude/checkin-numeri-dal-prompt`). Il ramo nasce dall'`origin/main` di oggi, come vuole
+   `00-CORE §6.4`; nessuno dei file della fetta è toccato da quella PR.
+2. **L'operatore è qualificato TRE volte, non due.** Il task ne nomina due forme (`1 - (… <=> …)` e
+   `ORDER BY … <=> …`), ma la prima compare due volte nel corpo (SELECT `:78` e WHERE `:84`): lasciare
+   nudo il WHERE avrebbe riprodotto il 42883 esattamente lì. Il cancello (a) lo inchioda a 3 nel corpo dollar-quoted (il commento di testa nomina la forma qualificata una volta e non conta).
+3. **`grep match_documents` in `src` non può essere 0 letterale**: le 7 righe sono nei due cancelli
+   (§4.3). Con `--exclude=*.source.test.ts` → 0. Non ho spezzato l'ago per far tornare il conto.
+4. **`DROP TABLE public.coach_knowledge_base` eseguito**, non commentato: Nicolò non ha detto di
+   tenerla; 0 righe e `max(created_at) = NULL` alla ri-misura del 05/09 (mai una riga), nessuno
+   scrittore nel repo; è nella `TRUNCATE` storica di `20260429083314:13` (migrazione applicata, non
+   si tocca). Le sue 5 policy, l'indice HNSW e la FK verso `auth.users` cadono con la tabella (nessun
+   `CASCADE` necessario: nessuna vista né FK entrante, 5 dipendenze normali = le policy).
+5. **Un cancello `DO … RAISE EXCEPTION` PRIMA del `DROP TABLE`** (`:101-106`, non nel task — nato dalla
+   passata, §6): «0 righe» è una misura, la migrazione gira giorni dopo per mano di Nicolò e la
+   policy INSERT del coach (`20260215160406:19-21`) resta viva fino a quel momento; se nel frattempo
+   fosse entrata una riga, `db push` fallisce forte e annulla l'intera migrazione (transazione unica,
+   §9.1) invece di cancellarla in silenzio — è la regola «possibile data loss → STOP & ASK» resa
+   auto-difesa. Non altera i tre passi del task né il loro ordine (il cancello (a) inchioda i sei
+   statement in sequenza).
+6. **Il ramo `else` «OPENAI_API_KEY not set, skipping RAG» è rimosso**: `:72` lancia se la chiave
+   manca, quindi era irraggiungibile — e per come era scritto sarebbe stato un terzo «proseguo senza
+   contesto». Dopo il diff non esiste alcun percorso che arrivi al modello senza aver letto la
+   libreria (o senza aver risposto 500): `matches` `null` senza errore diventa `[]` e finisce nel ramo
+   «libreria vuota», che è un'assenza VERA (RPC `RETURN;` o zero righe sopra soglia).
+7. **Il log di `matchError` è `code` + `message`, non l'oggetto intero** (checklist §5 «log
+   scrubbing»); il log del `catch` dell'embedding dice «RAG embedding failed, replying 500:» perché
+   `getEmbedding` ha già loggato status e body con «Embedding error:» (doppio prefisso rilevato dalla
+   passata). `ask-copilot:385` logga l'oggetto intero — preesistente, non toccato (vietato).
+8. **Un `429` dell'API embeddings ora esce come `500` «Errore nel recupero della knowledge base»**
+   (prima veniva inghiottito e si rispondeva «Non ho ancora informazioni»). È ciò che il task chiede
+   per il `catch` dell'embedding; il dettaglio resta nel log. Asimmetria col `429` che la stessa
+   function restituisce per le chat completions (`:249-254`): dichiarata, fetta a sé se si vuole
+   distinguere (§8.4).
+9. **Le soglie NON sono unificate, per scelta del task**: `chat-with-coach` 0.5 / top-3
+   (`MATCH_THRESHOLD`, `MATCH_COUNT` a `:8-9`), `ask-copilot` 0.75 / top-5 (`:44-45`, non toccato).
+10. **I due cancelli inchiodano PIÙ di quanto il punto 4 chieda** (rinforzi dalla passata, §6, tutti
+    strettamente più stringenti del criterio letterale, che resta soddisfatto): **(a)** anche la
+    forma-funzione non qualificata (`cosine_distance(`, `l2_distance(`, `inner_product(`,
+    `l1_distance(` senza `extensions.` — stesso 42883), la conformità del NOME di ogni file di
+    migrazione (`14 cifre_nome.sql`: un file che la CLI applica ma il cancello non sa classificare fa
+    rosso invece di passare in silenzio), e struttura e ordine della migrazione di questa fetta
+    (§4.1); una sola grafia riconosciuta (`OPERATOR(extensions.<=>)` minuscolo, senza spazi: le
+    varianti valide `OPERATOR(EXTENSIONS.<=>)` / `OPERATOR( extensions.<=> )` danno un falso positivo,
+    il lato sicuro, e il messaggio lo dice). **(b)** scandisce TUTTI i `.ts` non-test sotto
+    `supabase/functions` (non i soli `index.ts`: una lettura estratta in `rag/retrieve.ts` — lo stesso
+    gesto di `formatContext.ts` — resterebbe nel campo visivo) e vieta la stringa NUDA
+    `match_documents` (apici singoli, template literal, chiamata su due righe compresi); in più
+    `p_coach_id` = 0 in `chat-with-coach` e l'import reale di `./rag/formatContext.ts` (una funzione
+    pura testata ma non cablata sarebbe codice morto).
+11. **Il cancello (a) è letterale, senza strip dei commenti SQL** — un `<->` in prosa (`--`) sopra
+    soglia sarebbe un falso positivo (precedente sotto soglia: `20260721150000:44`). Scelta: un falso
+    positivo si vede e si riscrive; uno strip naïf dei commenti (che ignori `--` dentro un corpo dollar-quoted o dentro una stringa) rischierebbe il falso NEGATIVO, che è quello pericoloso. Per questo il commento di
+    testa della migrazione non cita mai l'operatore nudo.
+12. **Sette righe di documento, non sei**: oltre alle 6 del task ho corretto `docs/PRODUCT_SPEC.md:112`
+    («`coach_knowledge_base` (RAG legacy)» descriveva come viva una tabella che la migrazione rimuove).
+    Il diff «-w» sui tre doc è 3+4+3 righe; il resto (7+11+18) è prettier che riallinea le colonne delle
+    tabelle Markdown — l'hook PostToolUse del worktree lo fa a ogni edit, lint-staged lo rifarebbe al
+    commit. Dopo la passata (§6.6, §6.13) le righe TOCCATE dei due inventari datati non mentono più
+    sul dopo: `DB_MIGRATION.md:51,61` portano la nota accanto al conteggio («**53** (52 dal
+    2026-09-05: `coach_knowledge_base` rimossa)», «**25** (24 dal 2026-09-05: `match_documents`
+    rimossa)»), `stato-repo-2026-07-12.md:215,342` portano le misure del 12/07 E quelle del
+    2026-09-05 (295 righe; scritture su `ai_usage_tracking` a `:150/:163/:276`; payload a
+    `:228-250`). Le righe NON toccate dei due documenti restano quelle delle rispettive date. Totale:
+    8 righe di contenuto (3 + 3 + 2), non 6.
+13. **`.gitignore`: la riga `supabase/.temp/linked-project.json` è SOSTITUITA da `supabase/.temp/`**
+    (+ commento), non affiancata: la nuova la sussume (copre anche `cli-latest`, comparso il 03/09).
+14. **Il commento di testa della migrazione è in italiano e lungo 29 righe**, non «tre righe»: la
+    misura 1–3 sta in 14 righe con i `file:riga` (`:6-19`), l'esito (a)(b)(c) nelle altre; la lingua è
+    quella delle migrazioni recenti del repo (`20260827130000` italiano, `20260825103000` inglese; la
+    misura citata è italiana). I commenti nel TypeScript nuovo sono in inglese (legge #9).
+15. **`Co-Authored-By`**: il commit porta il trailer di progetto (`Claude <noreply@anthropic.com>`,
+    legge #9) E quello richiesto dall'harness della sessione (`Claude Fable 5.1`), come `fac1020`.
+16. **La ri-misura del DB vivo è mia, ma dal connettore dell'account, non da quello di `.mcp.json`**
+    (§2): solo SELECT. La firma `(extensions.vector, double precision, integer)` e quella del `DROP
+FUNCTION` coincidono con l'identità viva; `db push` fallirebbe forte se non coincidessero (§9.1).
+
+## 8. Ciò che ho visto e non toccato («dillo e non toccarlo»)
+
+1. **`is_room_member(_room_id, _user_id)` e `shares_room_with(_other_user_id, _user_id)`**
+   (`20260504193101:2-33`): `SECURITY DEFINER`, prendono l'utente **come parametro** e non leggono
+   `auth.uid()`; l'hardening del 25/05 le lascia eseguibili da `anon` E da `PUBLIC` per l'euristica
+   `is_`/`shares_` (`20260525120100:66-67`) — ACL viva `{=X, anon=X, authenticated=X, service_role=X}`
+   (§2). Come da task: nominate, non toccate — fetta a sé (candidata: legarle a `auth.uid()` o
+   restringere l'ACL, dopo aver verificato che le policy di `chat_*` non le chiamino con un utente
+   diverso dal chiamante).
+2. **`chat-with-coach` non ha un chiamante nel frontend**: `grep -rn "chat-with-coach" src e2e` → 0 (i
+   13 bersagli di `functions.invoke` in `src` non la includono; le pagine atleta finte sono state
+   scollegate l'11/08; `stato-repo-2026-07-12.md:271` lo dichiarava già «non verificato»). La edge è
+   deployata e chiamabile (v28) e condivide la funzione RAG con `ask-copilot`: il fix vale comunque;
+   chi la ricollegherà sappia che legge `{error}` con status 500/429/402/401/400.
+3. **`ask-copilot:385`** logga l'oggetto `matchError` intero; `:44-45` soglia 0.75 / top-5 —
+   preesistenti, vietati.
+4. **Il `429` degli embedding** (`getEmbedding`, `:44-46`) porta un messaggio italiano per l'utente
+   («Limite di richieste raggiunto…») che ora finisce solo nel log: se si vuole un `429` verso il
+   client come per le chat completions, serve un errore tipizzato da `getEmbedding` — fetta a sé.
+5. **`docs/PRODUCT_SPEC.md:200`** dice `gpt-5-mini` mentre `chat-with-coach:245` usa `gpt-5.4-mini`
+   — deriva di documento preesistente, fuori dalle 6 righe del task.
+6. **Il controllo finale di `20260525120100:86-107`** guarda solo che un `search_path` ESISTA: una
+   funzione pinnata su uno schema sbagliato passa. Il cancello (a) copre il caso pgvector da oggi in
+   avanti; un controllo generale «ogni identificatore non-`public` è qualificato» non esiste.
+7. **Gli altri `SECURITY DEFINER`** ripinnati dall'hardening che usino oggetti fuori da `public`
+   (schema `extensions` o `auth` non qualificati): non censiti in questa fetta.
+8. **Su un DB vergine che rigiochi TUTTE le migrazioni**, `20260215160406:3` crea `vector` senza
+   `SCHEMA` e `20260430125629:91` già assume `extensions.vector`: l'ipotesi «vector in extensions» è
+   preesistente ed è vera sul DB vivo (§2); non riguarda il `db push` di oggi, che applica solo la
+   nuova.
+9. **`deno.lock`** generato dalla suite «come in CI» e rimosso; non è in `.gitignore` (in CI non si
+   committa). Se dà fastidio, una riga in `.gitignore` in una fetta di igiene.
+10. **Le due note di `verify:css`** (`bg-error-container/30`, `/20`) — chip già aperta il 02/09.
+11. **RETRO non scritta in `docs/auto-miglioramento.md`**: fuori dal manifesto della fetta. Lezione di
+    processo di oggi, salvata in memoria di progetto: un criterio «grep → 0» e un cancello che vieta
+    la stessa stringa si escludono per costruzione — si dichiara la coppia, non si spezza l'ago; i
+    `file:riga` scritti nel ritorno si verificano con `grep -n` PRIMA del commit (oggi 12 su 12 erano
+    scivolati di 3-4 righe: corretti con una passata sola); e il connettore Supabase di `.mcp.json` va
+    provato come prima riga (era `Unauthorized` per la seconda fetta di fila — stavolta ha risposto
+    quello dell'account).
+
+## 9. Resta a Nicolò (e a Cowork) — le due righe, nell'ordine
+
+1. **Prima la migrazione** (dal checkout di `main` dopo il merge, o dal ramo):
+
+   ```bash
+   npx supabase@2.116.0 db push
+   ```
+
+   Applica SOLO `20260905083618_rag_una_libreria.sql` (storico remoto fermo a `20260827130000`, §2),
+   in una transazione unica: se la firma di `match_documents` o la tabella non coincidessero col DB, o
+   se `coach_knowledge_base` avesse ricevuto una riga nel frattempo, fallisce intero e non lascia stati
+   a metà. In quel caso: si rimisura, poi si decide.
+
+2. **Poi il deploy della edge** (v28 → v29, controllando che la versione salga):
+
+   ```bash
+   npx supabase@2.116.0 functions deploy chat-with-coach --project-ref xgxtplqlewpqjzghvbke
+   ```
+
+   `ask-copilot` **non si ri-deploya** (v28 resta): zero righe di diff; usa la stessa funzione
+   riparata dal DB. Nell'ordine inverso lo stato intermedio è al più un 500 da `chat-with-coach` (già
+   rotta oggi con 42883), mai un dato sbagliato.
+
+3. **PR** dal link in testa e **merge**.
+4. **Cowork, verifica live dopo il `db push`**: `select proname,
+pg_get_function_identity_arguments(oid), proconfig, proacl from pg_proc where proname in
+('match_knowledge_chunks','match_documents')` → una riga sola, `search_path=public, pg_temp`, ACL
+   **senza `anon`**; `match_knowledge_chunks(vettore nullo, 0.0, 5)` come coach autenticato → **0
+   righe, nessun 42883**; come `anon` → `permission denied`; `select
+to_regclass('public.coach_knowledge_base')` → `NULL`. Poi `npm run gen:types` e confronto con
+   `src/integrations/supabase/types.ts` del ramo: atteso identico (i due blocchi tolti sono esattamente
+   quelli che il generatore non emetterebbe più).
+5. **Collaudo della edge (dopo il deploy)**: con la libreria vuota (0 documenti) una domanda in chat
+   deve rispondere con lo stream «Non ho ancora informazioni nella knowledge base del Coach…» — è
+   l'assenza VERA (RPC verde, 0 chunk), non più un errore travestito; con un manuale ingerito, i chunk
+   arrivano come `[Chunk N (Fonte: <titolo del documento>) — Similarità: NN%]`. Se la RPC fallisce, il
+   client riceve `500 {"error":"Errore nel recupero della knowledge base"}` e nei log della function
+   `match_knowledge_chunks error: <code> <message>`.
+6. **Chip aperte**: `is_room_member`/`shares_room_with` (8.1) · censimento degli altri
+   `SECURITY DEFINER` con oggetti fuori da `public` (8.7) · `429` tipizzato dagli embedding (8.4) ·
+   `gpt-5-mini` vs `gpt-5.4-mini` nel doc (8.5) · `deno.lock` in `.gitignore` (8.9) · il log intero di
+   `matchError` in `ask-copilot` (8.3).
+
+## 10. Coda del 05/09 — i due cancelli chiusi (secondo commit, stesso ramo)
+
+**La misura di Cowork (09:20, sul tip `9001c91`, otto mutazioni: sei morte, due sopravvissute)**,
+riprodotta prima di toccare: (1) il cancello (a) leggeva l'SQL grezzo — `-- DROP TABLE …` restava
+verde, e i quattro statement operativi commentati insieme (REVOKE, GRANT, DROP FUNCTION, DROP TABLE)
+lasciavano 4/4 verdi su una migrazione che non faceva più niente (falso verde); un `<=>` nudo dentro
+un commento faceva rosso (falso rosso). (2) `if (matchError)` → `if (false)` lasciava 5/5 verdi nel
+cancello (b): nessuno inchiodava il fail-loud.
+
+**Manifesto della coda** (`git diff --cached --numstat` sul secondo commit): solo
+`src/__tests__/pgvectorOperatorQualificato.source.test.ts` (131 → 357 righe, 4 → 10 `it`) ·
+`src/__tests__/ragUnaLibreria.source.test.ts` (66 → 185 righe, 5 → 6 `it`) · questo file.
+**Vietati a 0 righe**: `git diff HEAD -- supabase/ | wc -l` → **0** (migrazione ed edge non toccate,
+con tutti i vietati della fetta).
+
+### 10.1 I commenti SQL non sono codice — `scanSql` / `sqlWithoutComments`
+
+Un tokenizer solo, `scanSql(sql)` (`pgvectorOperatorQualificato.source.test.ts:74-134`, con
+`sqlWithoutComments = scanSql(sql).code` a `:136`), usato sia da `nakedOccurrencesIn` (`:151-160`)
+sia dal test di struttura (`:287-356`): ogni carattere di commento diventa uno spazio, le newline
+restano, così i `file:riga` del rosso e gli indici della struttura non cambiano (`length` e numero
+di righe identici prima e dopo, asserito sulle migrazioni sopra soglia). Riconosce `-- …` a fine
+riga — chiusa anche da un `\r` solo, come lo scanner di Postgres — e i commenti a blocco anche
+annidati (Postgres li annida).
+
+**Le due trappole del task, come le ho gestite:**
+
+- **(a) stringhe e dollar-quoting.** Le stringhe `'…'` E gli identificatori `"…"` sono copiati
+  INTATTI, con `''`/`""` come carattere ripetuto: un `--` o un `/*` dentro una stringa non è un
+  commento. Il corpo dollar-quoted non è un'eccezione ma testo normale: dentro, `--` è un commento
+  PL/pgSQL e `'…'` una stringa, esattamente come fuori. L'identificatore `"…"` non era nel task: l'ho
+  aggiunto perché la MISURA lo ha chiesto — senza, l'apostrofo di `"Users can view rooms they're
+in"` (`20260116171822:81`, sotto soglia) apriva una stringa fantasma. Fuori portata, DICHIARATO e
+  INCHIODATO dal test «portata» (`:218-256`): stringhe `E'…'` ed `e'…'` (apice con backslash),
+  regioni dollar-quoted non precedute da `AS`/`DO` (una stringa dollar-quoted usata come DATO
+  avrebbe i suoi `--` tolti per sbaglio), un tag dollar ANNIDATO in un corpo (`RAISE NOTICE` con
+  tag: il tokenizer non lo conosce), una stringa o un blocco aperti fino a fine file — se compaiono
+  sopra soglia, rosso coi nomi: il tokenizer si estende, non si aggira. **La misura, con lo stesso
+  tokenizer** (`misura-stringhe.cjs` in scratchpad):
+
+  | perimetro                     | file | stringhe | identificatori | stringhe con `--` | stringhe con `/*` | non chiuse | `E'…'` | regioni dollar-quoted | con tag | fuori da AS/DO | blocchi annidati | righe cambiate |
+  | ----------------------------- | ---- | -------- | -------------- | ----------------- | ----------------- | ---------- | ------ | --------------------- | ------- | -------------- | ---------------- | -------------- |
+  | tutte le migrazioni           | 158  | 1269     | 484            | **0**             | **0**             | **0**      | 6      | 77                    | 20      | **0**          | 0                | 0              |
+  | sopra soglia (20260905083618) | 1    | 5        | 0              | **0**             | **0**             | **0**      | **0**  | 2 (`AS`, `DO`)        | 0       | **0**          | 0                | 0              |
+
+  Le 6 `E'…'` stanno in `regexp_replace` di migrazioni del 2026-01→07 (sotto soglia); i 20 corpi con
+  tag sono tutti `AS`-corpi generati da Supabase. Il tokenizer regge sull'intero repo (0 stringhe non
+  chiuse, 0 righe cambiate), non solo sopra soglia.
+
+- **(b) il conteggio «tre occorrenze qualificate» regge per costruzione.** Prima contava nel corpo
+  perché il commento di testa nomina la forma qualificata; ora, sul file SENZA commenti, le
+  occorrenze qualificate dell'INTERO file sono esattamente tre, TUTTE con posizione fra `AS` e la
+  chiusura del corpo della funzione, e nessuna nuda in tutto il file (`:337-355`) — un commento che
+  citi la forma qualificata non conta più per costruzione. Il `DO` che segue (il cancello sulla
+  tabella) non confonde la ricerca: il corpo è il PRIMO `AS` dollar-quoted e la sua prima chiusura.
+
+**Il test di struttura** (`:287-356`) cerca i sei statement nel testo senza commenti, raccoglie
+PRIMA la lista dei mancanti e la nomina nel rosso, poi verifica l'ordine; e (dalla passata) pretende
+lo STATO FINALE dell'ACL, non la sola presenza del REVOKE: nessun `GRANT` sulla funzione nomina
+`anon` (`:330-332`).
+
+**Cinque test sul tokenizer** (`:164-256`): commenti a riga (chiusi da `\n` o `\r`) e a blocco
+annidati tolti a parità di righe e lunghezza · una stringa e un identificatore con `--` e `/*`
+restano intatti mentre il commento dopo di loro sparisce (`<=>` compreso) · stringa o blocco aperti
+a fine file segnalati · un `<=>` nudo in un commento → `[]` (il falso rosso) · lo stesso `<=>` in
+uno statement → una riga, `fixture.sql:2`, e `<+>` alla `:3` (acceptance 3, in due test distinti).
+
+### 10.2 Il fail-loud della edge è inchiodato
+
+Un `it` nuovo (`ragUnaLibreria.source.test.ts:87-184`), con lo stampo della guardia `isEmptyWeek`
+del 02/09: commenti tolti prima di leggere — a blocco E a riga intera, dopo la passata —, posizione
+verificata contro la STRUTTURA (graffe contate da `graffaCheChiude`, `:41-51`; livello di
+annidamento da `profondita`, `:54-55`), non contro un indice. Pretende, dalla chiamata
+`rpc("match_knowledge_chunks"` in poi: UNA sola RPC nel file, col suo errore destrutturato proprio
+lì (`const { data: matches, error: matchError } = await supabase.` attaccato a `rpc(`) · la RPC
+nel corpo dell'handler (`serve(async (req) => {` + `try`: profondità 2, nessuna arrow o `function`
+in mezzo) e nessun `finally` né `try` etichettato nel file (scarterebbero il return del 500) · il
+ramo `if (matchError) {` esiste ed è allo stesso livello · **fra la RPC e il ramo non c'è NULLA**
+(sagoma esatta: la chiamata, i suoi argomenti, `);`, spazi — niente `.then` che normalizzi
+l'errore, niente shadow di `matchError`, niente commento o template literal che sbilanci le
+graffe) · nel corpo del ramo `status: 500`, `KNOWLEDGE_BASE_ERROR`, UN solo `return new Response(`
+al livello del ramo, e nessun `if`/`else`/`?`/`try`/`switch`/`while`/`for`/`do`/`=>`/`function`/
+backtick/commento · nessun `else` dopo la chiusura · **fra la chiusura e il contesto solo
+`const contextChunks = `**, il contesto costruito dai match di QUELLA RPC
+(`formatContext((matches as KnowledgeMatch[] | null) ?? [])`), una volta sola nel file, allo stesso
+livello: chi arriva al contesto è passato dal controllo dell'errore. È un pin a sagoma esatta di
+quel blocco: un refactor legittimo di quelle righe deve aggiornare il test — costo dichiarato, come
+per lo stampo del 02/09. Ciò che ancora NON vede: un `getEmbedding` che costruisca lui il contesto
+prima della RPC, o un `KNOWLEDGE_BASE_ERROR` ridefinito a stringa vuota — è testo, non esecuzione;
+la strada per un test eseguibile resta il retrieval estratto con client iniettato, fetta a sé
+(§9.6).
+
+### 10.3 Acceptance della coda
+
+**1. I cinque cancelli** (tree in stage; log in scratchpad `gates-coda/*3.*`):
+
+```
+TSC_EXIT=0                                   (0 righe di output)
+VITEST: Test Files  53 passed (53) · Tests  572 passed (572)      [565 → 572: +7 = 6 sul tokenizer + 1 fail-loud; i cancelli passano da 9 a 16 it]
+ESLINT: files 460 errors 64 warnings 14   ← 64 = .eslint-baseline (a metà coda era 65: uno spazio a larghezza zero in un JSDoc del cancello (a),
+        no-irregular-whitespace — tolto prima del commit, §10.5)
+BUILD_EXIT=0 (vite: ✓ built)
 VERIFYCSS: ✓ … 243 classi con modificatore di alpha tutte emesse e a canali · VERIFYCSS_EXIT=0 (le 2 note preesistenti)
-DENO: npx deno test --no-lock supabase/functions/_shared/program/ → ok | 13 passed | 0 failed
-      npx deno check --no-lock …/checkinReading.ts → pulito
-      npx deno check --no-lock …/generate-batch-checkins/index.ts → SOLO il preesistente TS18046 (ora a :439)
-PRETTIER --check sui tre file → «All matched files use Prettier code style!»
+DENO: invariato — nessun file Deno toccato; suite CI ri-eseguita per controllo a inizio coda: ok | 502 passed | 0 failed
+PRETTIER --check sui due cancelli → «All matched files use Prettier code style!» · eslint sui due file → 0 errori
 ```
 
-## 5. Le prove rosse — tre del task più una della passata (protocollo 29/08: occorrenza unica · `git diff --numstat` · vitest sul file · ripristino per copia dal backup · byte-identico · `git diff --exit-code` = 0)
+**2. Le prove rosse della coda** (runner `mutazioni/runner2.cjs` in scratchpad, log `M1..M9.log` +
+`M*-vitest.log`, `summary2.json`; stesso protocollo: verde PRIMA · occorrenza unica per OGNI edit ·
+numstat/status · bersaglio → ROSSO (o VERDE dove la prova è «resta verde») · ripristino per copia dal
+backup o fixture rimossa · byte-identico · di nuovo VERDE · `git diff --exit-code` = 0 sull'intero
+tree in stage; corsa finale a stage completo, questo file compreso). M1–M7 dal task, M8–M9 dalla
+passata (§10.4):
 
-Eseguite sul tree in stage (le tre modifiche erano in index: `git diff --exit-code` misura
-worktree-contro-index, 0 prima e dopo ogni mutazione). Runner e log in scratchpad
-(`mutazioni/runner.py`, `M1..M3.log`, `summary.json`).
+| #   | mutazione                                                                                                                                        | numstat / status         | esito                                  | il rosso nomina…                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | **(a)** i quattro statement operativi della migrazione commentati insieme (`-- REVOKE …`, `-- GRANT …`, `-- DROP FUNCTION …`, `-- DROP TABLE …`) | `4 4` sulla migrazione   | **ROSSO** (1 su 10) → ripristino 10/10 | «statement operativi ASSENTI dalla migrazione (commentati o cancellati): REVOKE EXECUTE … FROM PUBLIC, anon · GRANT EXECUTE … TO authenticated, service_role · DROP FUNCTION match_documents · DROP TABLE coach_knowledge_base» — tutti e quattro |
+| M2  | **(b)** il solo `DROP TABLE` commentato                                                                                                          | `1 1` sulla migrazione   | **ROSSO** (1 su 10) → 10/10            | «statement operativi ASSENTI …: DROP TABLE coach_knowledge_base»                                                                                                                                                                                  |
+| M3  | **(c)** `if (matchError) {` → `if (false) {` in `index.ts:204`                                                                                   | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto»                                                                                                                                           |
+| M4  | **(d)** la costruzione del contesto spostata PRIMA del ramo `matchError`                                                                         | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fra la RPC e il ramo matchError deve esserci solo la chiamata» (la sagoma esatta)                                                                                                                                                                |
+| M5  | **(d')** il ramo svuotato: `if (matchError) {}` — niente 500, niente return                                                                      | `0 5` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «il ramo matchError non risponde 500»                                                                                                                                                                                                             |
+| M6  | **(acceptance 3, deve RESTARE VERDE)** fixture sopra soglia con `<=>`, `<->`, `<#>` nudi SOLO in commenti (riga e blocco)                        | `?? …in_commento.sql`    | **VERDE** (10/10) con la fixture       | — (il falso rosso è chiuso)                                                                                                                                                                                                                       |
+| M7  | **(acceptance 3, deve andare ROSSO)** la stessa fixture con `<=>` nudo in uno STATEMENT (e ancora nel commento)                                  | `?? …operatore_nudo.sql` | **ROSSO** (1 su 10) → 10/10            | «`20260906000001_fixture_operatore_nudo.sql:4 — <=> nudo: SELECT 1 - (kc.embedding <=> q) …`» — la riga dello statement, non quella del commento                                                                                                  |
+| M8  | **(passata)** il ramo `matchError` avvolto in un commento a blocco `/* … */`                                                                     | `2 2` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fail-loud assente …» — il ramo che sopravvive solo nel commento non è un ramo                                                                                                                                                                    |
+| M9  | **(passata)** `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC — `matchError` sempre nullo                                       | `1 1` sulla edge         | **ROSSO** (1 su 6) → 6/6               | «fra la RPC e il ramo matchError deve esserci solo la chiamata»                                                                                                                                                                                   |
 
-| #   | mutazione (una occorrenza)                                                                                                                            | numstat | esito                     | il rosso nomina…                                                                                                                                                                                                                                                                     |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| M1  | via il blocco del controllo dei numeri da `vetSummary` (8 righe) → (a) **diventa verde**                                                              | 0 8     | **ROSSO** (6 su 53 morti) | «(a) boccia la frase viva del 02/09 nominando il «3»» · «chooseSummary manda la frase viva del 02/09 sulla riga deterministica» · «l'ora è un token solo» · «un numero estraneo è nominato una volta sola» · «24 e 280 restano fuori» · «(c) … nominando il 5» (la ragione numerica) |
-| M2  | via la data dal contesto temporale (`Oggi è ${dayName} ${dateInWords(todayIso)}` → `Oggi è ${dayName}`)                                               | 1 1     | **ROSSO** (5 su 53 morti) | «(e) con todayIso 2026-09-02 il contesto temporale dice «mercoledì 2 settembre 2026»» · i dodici mesi · la todayIso non di calendario · «il blocco porta contesto temporale…» · **(b)**: senza la data il «2» di «2 settembre» non è più nel prompt                                  |
-| M3  | blocco-dati alterato in un punto solo: nel testo `${dataBlock.replace("Sedute concluse: 0", "Sedute concluse: 3")}` (il modello legge 3, il vaglio 0) | 1 1     | **ROSSO** (1 su 54 morto) | «il blocco-dati compare verbatim nel prompt costruito con gli stessi argomenti» — esattamente il test 2, e solo quello                                                                                                                                                               |
-| M4  | (dopo la passata) via la guardia delle migliaia: `THOUSANDS_SHAPE.test(token)` tolto da `canonicalNumber` → «1.000» torna a valere 1                  | 1 1     | **ROSSO** (1 su 54 morto) | ««1.000» è mille, non 1: tre cifre dopo il separatore restano letterali» — e solo quello                                                                                                                                                                                             |
-
-Le quattro rieseguite insieme sul codice finale (54 test): M1 **7 su 54** morti (si aggiunge il
-test delle migliaia, che dipende dal controllo), M2 5, M3 1, M4 1. Dopo ognuna: `ripristino
-byte-identico: True · git diff --exit-code: 0`; a fine runner `git status --short` = le tre `M` in
-stage, nient'altro.
-
-**(coda 2) M5–M10 — la prova rossa del task, due sulla edge, e le tre nate dalla passata** (stesso
-protocollo: tree in stage, `git add` PRIMA del runner così `git diff --exit-code` misura
-worktree-contro-index; runner `mutazioni/runner.cjs` in scratchpad, log `M1..M6.log` e
-`summary.json` lì — numerazione del runner M1–M6, qui M5–M10 per continuare la tabella; 61 test):
-
-| #   | mutazione (una occorrenza)                                                                                                                                        | numstat | esito               | il rosso nomina…                                                                                                                                                                                                                                                                                                                    |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M5  | `&&` → `\|\|` in `isEmptyWeek` (basta UNA delle due assenze) — **la prova del task**                                                                              | 1 1     | **ROSSO** (4 su 61) | **(b)** «2 prescritti, 0 concluse → false — prescritta ma non eseguita: i dati ci sono: expected true to be false» e **(c)** «fuori programma → false — la seduta è un dato: expected true to be false», più i due vicini (b') e (c'). (a) e (d) restano verdi, come devono. Prima di (b')(c') erano esattamente 2 su 59: (b) e (c) |
-| M6  | **la guardia TOLTA dalla edge**: `index.ts` riportato com'era a `290ce2a` (il `fetch` parte sempre, `git show HEAD:… > index.ts`)                                 | 53 68   | **ROSSO** (1 su 61) | «la edge chiama il modello solo nel ramo non-vuoto … — la edge non chiede isEmptyWeek(report): expected -1 to be greater than -1»                                                                                                                                                                                                   |
-| M7  | la settimana vuota prende la riga della bocciatura: `aiSummary = emptyWeekText();` → `aiSummary = fallbackSummaryText(report);`                                   | 1 1     | **ROSSO** (1 su 61) | lo stesso test: «expected 'if (isEmptyWeek(report)) {…' to contain 'aiSummary = emptyWeekText()'»                                                                                                                                                                                                                                   |
-| M8  | **il mutante della passata**: ramo `else` svuotato (`aiSummary = ""`), prompt + `fetch` + gestione spostati DOPO la graffa che chiude l'if/else (chiamata sempre) | 55 54   | **ROSSO** (1 su 61) | lo stesso test: «il fetch a OpenAI deve stare DENTRO il ramo non-vuoto: expected 10949 to be less than 10341» — prima della stretta (§6) questo mutante passava                                                                                                                                                                     |
-| M9  | `isEmptyWeek` legge il carico invece delle sedute: `snapshot.sessions_completed === 0` → `totalVolume === null`                                                   | 1 1     | **ROSSO** (1 su 61) | **(c')** «una seduta conclusa SENZA carico né sRPE è ancora una seduta → false — la seduta è un dato anche senza numero: expected true to be false» — e solo quello: (a)(b)(c) lo lasciavano vivo                                                                                                                                   |
-| M10 | `isEmptyWeek` legge i saltati invece dei prescritti: `adherence.prescribedCount === 0` → `missedCount === 0`                                                      | 1 1     | **ROSSO** (1 su 61) | **(b')** «la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false — prescritta e non ancora iniziata: c'è un programma: expected true to be false» — e solo quello                                                                                                                                |
-
-Dopo ognuna: `ripristino byte-identico: true`; il `git diff --exit-code` della corsa intermedia era
-1 SOLO perché questo file era ancora fuori dallo stage (` M docs/ULTIMO-RITORNO.md`, come i refuter
-hanno notato); la corsa finale a stage completo, riportata sotto, chiude a 0. Output del runner,
-testuale (corsa finale, tutto in stage):
+Output del runner, testuale (corsa finale):
 
 ```
-=== M1 — isEmptyWeek: «&&» → «||» (basta UNA delle due assenze)
-  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
-  vitest: 4 rossi su 61 (57 verdi)
-    ✗ … (b) lo stesso documento sulla 24→30/08 senza log: 2 prescritti, 0 concluse → false
-        AssertionError: prescritta ma non eseguita: i dati ci sono: expected true to be false
-    ✗ … (c) sulla 31/08→06/09 una seduta conclusa il 02/09 fuori programma → false
-        AssertionError: fuori programma: la seduta è un dato: expected true to be false
-    ✗ … (b') la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false
-        AssertionError: prescritta e non ancora iniziata: c'è un programma: expected true to be false
-    ✗ … (c') una seduta conclusa SENZA carico né sRPE è ancora una seduta → false
-        AssertionError: la seduta è un dato anche senza numero: expected true to be false
-=== M2 — la guardia TOLTA dalla edge: index.ts com'era a HEAD (il fetch parte sempre)
-  numstat: 53	68	supabase/functions/generate-batch-checkins/index.ts
-  vitest: 1 rossi su 61 (60 verdi)
-    ✗ … la edge chiama il modello solo nel ramo non-vuoto: la guardia, poi «else», poi il fetch, poi la chiusura
-        AssertionError: la edge non chiede isEmptyWeek(report): expected -1 to be greater than -1
-=== M3 — la settimana vuota prende la riga della bocciatura (due «N/A») invece della frase sola
-  numstat: 1	1	supabase/functions/generate-batch-checkins/index.ts
-  vitest: 1 rossi su 61 (60 verdi)
-    ✗ … la edge chiama il modello solo nel ramo non-vuoto …
-        AssertionError: expected 'if (isEmptyWeek(report)) {…' to contain 'aiSummary = emptyWeekText()'
-=== M4 — il ramo else svuotato e prompt+fetch+gestione spostati DOPO la chiusura dell'if/else (chiamata incondizionata) — il mutante della passata
-  numstat: 55	54	supabase/functions/generate-batch-checkins/index.ts
-  vitest: 1 rossi su 61 (60 verdi)
-    ✗ … la edge chiama il modello solo nel ramo non-vuoto …
-        AssertionError: il fetch a OpenAI deve stare DENTRO il ramo non-vuoto: expected 10949 to be less than 10341
-=== M5 — isEmptyWeek legge il carico invece delle sedute: sessions_completed === 0 → totalVolume === null
-  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
-  vitest: 1 rossi su 61 (60 verdi)
-    ✗ … (c') una seduta conclusa SENZA carico né sRPE è ancora una seduta → false
-        AssertionError: la seduta è un dato anche senza numero: expected true to be false
-=== M6 — isEmptyWeek legge i saltati invece dei prescritti: prescribedCount === 0 → missedCount === 0
-  numstat: 1	1	supabase/functions/_shared/program/checkinReading.ts
-  vitest: 1 rossi su 61 (60 verdi)
-    ✗ … (b') la 24→30/08 vista dal lunedì 24: 2 prescritti tutti avanti, 0 saltati, 0 concluse → false
-        AssertionError: prescritta e non ancora iniziata: c'è un programma: expected true to be false
-(dopo ognuna) ripristino byte-identico: true · git diff --exit-code: 0
+=== M1 — (a) i quattro statement operativi della migrazione commentati insieme (REVOKE, GRANT, DROP FUNCTION, DROP TABLE)
+  prima:  exit 0 · Tests  10 passed (10)
+  occorrenze di «REVOKE EXECUTE ON FUNCTION public.match_knowledge_chunks(extensions.ve»: 1
+  occorrenze di «GRANT EXECUTE ON FUNCTION public.match_knowledge_chunks(extensions.vec»: 1
+  occorrenze di «DROP FUNCTION public.match_documents(extensions.vector, uuid, double p»: 1
+  occorrenze di «DROP TABLE public.coach_knowledge_base;»: 1
+  numstat: 4	4	supabase/migrations/20260905083618_rag_una_libreria.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ la migrazione di questa fetta: i sei statement operativi presenti e in ordine, 3 operatori qualificati tutti nel corpo, search_path pinnato, anon mai ri-concesso — letti SENZA commenti
+      AssertionError: statement operativi ASSENTI dalla migrazione (commentati o cancellati):
+        REVOKE EXECUTE … FROM PUBLIC, anon
+        GRANT EXECUTE … TO authenticated, service_role
+        DROP FUNCTION match_documents
+        DROP TABLE coach_knowledge_base: expected [ …(4) ] to deeply equal []
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M2 — (b) il solo DROP TABLE commentato
+  prima:  exit 0 · Tests  10 passed (10)
+  occorrenze di «DROP TABLE public.coach_knowledge_base;»: 1
+  numstat: 1	1	supabase/migrations/20260905083618_rag_una_libreria.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ la migrazione di questa fetta: i sei statement operativi presenti e in ordine, 3 operatori qualificati tutti nel corpo, search_path pinnato, anon mai ri-concesso — letti SENZA commenti
+      AssertionError: statement operativi ASSENTI dalla migrazione (commentati o cancellati):
+        DROP TABLE coach_knowledge_base: expected [ 'DROP TABLE coach_knowledge_base' ] to deeply equal []
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M3 — (c) `if (matchError) {` → `if (false) {` in chat-with-coach/index.ts — la edge prosegue senza contesto
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto: expected -1 to be greater than 5616
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M4 — (d) la costruzione del contesto spostata PRIMA del ramo matchError
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «const contextChunks = formatContext((matches as KnowledgeMatch[] | nul»: 1
+  occorrenze di «if (matchError) {»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fra la RPC e il ramo matchError deve esserci solo la chiamata: expected 'rpc("match_knowledge_chunks", {\n    …' to match /^rpc\("match_knowledge_chunks",\s*\{[…/
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M5 — (d') il ramo matchError svuotato: `if (matchError) {}` — niente 500, niente return
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  numstat: 0	5	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: il ramo matchError non risponde 500: expected '\n    ' to contain 'status: 500'
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M6 — (acceptance 3, deve RESTARE VERDE) fixture sopra soglia con `<=>` nudo SOLO in un commento
+  prima:  exit 0 · Tests  10 passed (10)
+  fixture scritta: supabase/migrations/20260906000000_fixture_operatore_in_commento.sql (138 byte)
+  git status: ?? supabase/migrations/20260906000000_fixture_operatore_in_commento.sql
+  mutato: exit 0 · Tests  10 passed (10)
+  ripristino: fixture rimossa · esiste ancora: false
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: VERDE con la mutazione (come deve), VERDE ripristinato, tree pulito
+=== M7 — (acceptance 3, deve andare ROSSO) la stessa fixture con `<=>` nudo in uno STATEMENT
+  prima:  exit 0 · Tests  10 passed (10)
+  fixture scritta: supabase/migrations/20260906000001_fixture_operatore_nudo.sql (319 byte)
+  git status: ?? supabase/migrations/20260906000001_fixture_operatore_nudo.sql
+  mutato: exit 1 · Tests  1 failed | 9 passed (10)
+    ✗ nessuna migrazione con timestamp ≥ soglia contiene un operatore di distanza nudo (<=>, <->, <#>, <+>, <~>, <%>) né cosine_distance(…) e sorelle non qualificate — commenti esclusi (file e riga)
+      AssertionError: distanza pgvector NUDA in una migrazione sopra soglia — dentro una SECURITY DEFINER con search_path = public, pg_temp muore con 42883. Scrivila ESATTAMENTE `OPERATOR(extensions.<=>)` (minuscolo, senza spazi: l'unica grafia che il cancello riconosce) o `extensions.cosine_distance(…)`:
+        20260906000001_fixture_operatore_nudo.sql:4 — `<=>` nudo: SELECT 1 - (kc.embedding <=> q) FROM public.knowledge_chunks kc LIMIT 1;: expected [ Array(1) ] to deeply equal []
+  ripristino: fixture rimossa · esiste ancora: false
+  dopo:   exit 0 · Tests  10 passed (10)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M8 — (passata) il ramo matchError avvolto in un commento a blocco /* … */ — il fail-loud sopravvive solo nel commento
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «if (matchError) {»: 1
+  occorrenze di «}»: 1
+  numstat: 2	2	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fail-loud assente: dopo la RPC la edge non controlla `if (matchError)` — proseguirebbe senza contesto: expected -1 to be greater than 5616
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+=== M9 — (passata) `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC — matchError sempre nullo
+  prima:  exit 0 · Tests  6 passed (6)
+  occorrenze di «match_count: MATCH_COUNT,»: 1
+  numstat: 1	1	supabase/functions/chat-with-coach/index.ts
+  mutato: exit 1 · Tests  1 failed | 5 passed (6)
+    ✗ la lettura della libreria fallisce forte: dopo la RPC il ramo matchError con un 500 e un return incondizionato, e nessuna via al contesto che non passi di lì
+      AssertionError: fra la RPC e il ramo matchError deve esserci solo la chiamata: expected 'rpc("match_knowledge_chunks", {\n    …' to match /^rpc\("match_knowledge_chunks",\s*\{[…/
+  ripristino byte-identico: true
+  dopo:   exit 0 · Tests  6 passed (6)
+  git diff --exit-code: 0
+  ESITO: ROSSO quando mutato, VERDE ripristinato, tree pulito
+RUNNER2_EXIT=0
 ```
 
-**La guardia tolta dalla edge, dichiarata con le righe** (il task lo chiede perché la edge non ha
-test; qui lo vede anche il test strutturale, M6): senza il ramo, `index.ts:331-343` non esistono, il
-`fetch` di `:361` torna a `:346` fuori da ogni condizione e parte su ogni atleta, settimana vuota
-compresa — è `290ce2a`, il comportamento che il collaudo delle 15:03 ha misurato.
+**3. Il falso rosso è chiuso in due test** (oltre a M6/M7 sui file): «un `<=>` nudo dentro un
+commento NON è un operatore» → `[]` e «lo stesso `<=>` nudo in uno statement È un operatore nudo,
+con file e riga» → `fixture.sql:2` (`pgvectorOperatorQualificato.source.test.ts:199-216`).
 
-## 6. Passata indipendente (workflow: 3 auditor di progetto + 3 refuter per rilievo + 4 cacciatori)
+**4. Vietati** = 0 (sopra).
 
-**Workflow: 52 agenti, 0 errori, 15 minuti.** Tre auditor di progetto (`supabase-rls-auditor`,
-`code-reviewer`, `code-test-verifier`; `aura-theme-auditor` non richiesto: nessuna UI toccata) →
-23 rilievi grezzi (7 + 5 + 11), i primi 5 per auditor passati ciascuno a 3 refuter (lenti repro ·
-contratto · base) con mandato di CONFUTARE = 45 voti, 26 confutazioni; 4 cacciatori di numeri che
-sfuggono (lettere/ordinali · formati · coincidenze · settimana piena), con l'obbligo di eseguire
-ogni candidato via script Deno sul modulo del worktree.
+### 10.4 Passata indipendente (coda)
 
-**Verdetti.** rls: «VERDE condizionato — checklist §5 piena sulla edge (CORS/auth/role/ownership/
-secret server-side, nessun ID da payload), nuova firma coerente (una sola sorgente per costruzione),
-modulo deterministico verificato; restano due limiti del vaglio da dichiarare (numeri in lettere;
-«1.000» ≡ «1» via Number())» · reviewer: «VERDE condizionato — il codice è committabile (scope
-pulito, cancelli verdi verificati, nessun test indebolito, il vaglio si stringe soltanto); la
-condizione è il commit dei documenti che aggiorna ULTIMO-RITORNO» · tests: «VERDE — tutti i
-cancelli passano, copertura a-b-c-d-e completa, falsificabile, deterministica».
+**Workflow: 58 agenti (4 auditor + 54 refuter), 0 errori, 13 min 29 s, 431 chiamate-tool.**
+`code-reviewer` e `code-test-verifier` di progetto + due cacciatori (uno sul tokenizer, uno sul test
+strutturale, entrambi con mutanti eseguiti su copie in scratchpad, mai nel repo) → **18 rilievi** →
+3 refuter ciascuno (correttezza · riproduzione · scope) → **18 confermati, 0 refutati**: stavolta i
+refuter hanno confermato tutto, perché ogni rilievo veniva con un mutante riprodotto. Cosa ne ho
+fatto (tutto nei due file di test, nulla altrove):
 
-- 🔴 **CONFERMATO 3/3 e CHIUSO in questo stesso commit — «1.000» valeva 1.** `canonicalNumber`
-  passava ogni token per `Number()`: «1.000» (mille, in italiano) diventava «1», e «Circa 1.000
-  kcal al giorno.» PASSAVA sulla 24→30 (il 1 c'è: «1 giorno prescritto»), come «2.000 kcal» e
-  «6.000 passi» sulla settimana vuota (dal «2 settembre» e dal «06»); `chooseSummary` salvava la
-  frase inventata (`reason: null`). L'unico punto in cui la forma canonica ABBASSAVA la cautela
-  (contro §0.8) e faceva entrare un numero non dato (contro §0.11). Causa: l'equivalenza dichiarata
-  copriva «06» ≡ «6» e «8,5» ≡ «8.5» ≡ «8.50», non il separatore delle migliaia — effetto
-  collaterale non dichiarato di `Number()`. Chiuso con `THOUSANDS_SHAPE = /^\d+[.,]\d{3}$/`: un
-  token con tre cifre dopo il separatore resta LETTERALE, ammesso solo se il blocco lo scrive così
-  com'è; test dedicato (+1, ««1.000» è mille, non 1») e prova rossa M4 (§5). Costo dichiarato: il
-  dato vero «2500 kcal» riscritto dal modello «2.500 kcal» è bocciato (conservativo: la cautela
-  sale, costa la riga deterministica).
-- **Reggono come NOTE, non difetti, tutte dichiarate qui**: numeri in lettere fuori portata
-  (§7.A) · le date ISO degli estremi mettono nell'insieme anno, mese e giorni (§7.B) · il
-  controllo è di appartenenza, non di senso (§7) · `paceContext` è testo del chiamante e allarga
-  l'insieme (è `weekPaceContext`, deterministico: «Ci sono ancora N allenamenti» è un dato) · il
-  vaglio boccia numeri che il modello ha LETTO nel prompt ma fuori dal blocco («nelle ultime 24
-  ore» della nota, «24 agosto» della regola, cifre nel nome dell'atleta): conservativo per
-  disegno, il task voleva 24 e 280 fuori · «una sorgente sola» vale per i numeri; rapporti e
-  percentuali restano derivati dal `report` (`allowedRatios`, come nella fetta) · il
-  `console.warn` con le ragioni è preesistente e accettabile (§10.2: UUID e frammenti del
-  candidato, mai body né nome) · 428+ righe (§8.5) · il ritorno era alle misure vecchie al momento
-  della passata (questo file le aggiorna).
-- **Confutati 3/3 o preesistenti identici a `main`**: `error.message` nel 500 (censito il 28/08) ·
-  nessun rate limit sull'endpoint AI · gli 11 «rilievi» del test-verifier erano conferme di
-  misura (548/548, 13/13, tsc 0, acceptance a-e coperta), letti come tali dai refuter.
-- **Le quattro cacce** (Deno, fixture 1:1 del test): 44 · 65 · 54 · 59 candidati eseguiti. Le
-  classi trovate sono in §7, comprese quelle che non avevo misurato da solo: orario con i secondi,
-  `RATIO_SU` che ammette al massimo tre parole fra N e «su», «N di M», «sù» accentato, percentuali
-  in lettere, cifre Unicode «a portata» di `\p{Nd}`. Nessuna toccata.
+| #   | rilievo (auditor · voti)                                                                                                                                            | esito                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | il ramo `matchError` avvolto in `/* … */` lasciava il cancello (b) verde — stessa classe «commenti ≠ codice» (code-reviewer · 3/3; anche lente-tokenizer)           | **chiuso**: anche i commenti a blocco tolti prima di leggere; prova rossa M8                                                           |
+| 2   | `.then((r) => ({ data: r.data, error: null }))` in coda alla RPC → verde (lente-strutturale · 3/3)                                                                  | **chiuso**: sagoma esatta «fra la RPC e il ramo non c'è nulla»; prova rossa M9                                                         |
+| 3   | shadow `const matchError = null` fra RPC e ramo → verde (lente-strutturale · 3/3)                                                                                   | **chiuso**: stessa sagoma + l'errore destrutturato attaccato a `rpc(`                                                                  |
+| 4   | il ramo era provato come testo, non come l'errore di QUELLA RPC (code-reviewer · 3/3)                                                                               | **chiuso**: `const { data: matches, error: matchError } = await supabase.` immediatamente prima della RPC, e una RPC sola nel file     |
+| 5   | return del ramo annidato in un loop o in una arrow → verde (lente-strutturale · 3/3)                                                                                | **chiuso**: il `return` deve stare al livello del ramo (profondità 0 nel corpo) e nel corpo niente `while`/`for`/`do`/`=>`/`function`  |
+| 6   | RPC + ramo + contesto dentro un'IIFE: il 500 è un return della funzione annidata, scartato (lente-strutturale · 2/3)                                                | **chiuso**: la RPC sta nel corpo dell'handler (profondità 2 da `serve(async (req) => {`, nessuna arrow/`function` in mezzo)            |
+| 7   | graffe riequilibrate da commento inline o template literal: `while (false) {` attorno al ramo → verde (lente-strutturale · 3/3)                                     | **chiuso**: le due sagome «solo spazi» (RPC→ramo, chiusura→contesto) non lasciano posto a nulla; nel corpo niente backtick né commenti |
+| 8   | «nessuna via al contesto» guardava solo la PRIMA `formatContext(` dopo la RPC (code-reviewer · 3/3)                                                                 | **chiuso**: `formatContext(` una volta sola in tutto il file                                                                           |
+| 9   | una seconda `rpc("match_knowledge_chunks"` con errore ignorato → verde (lente-strutturale · 3/3)                                                                    | **chiuso**: una RPC sola nel file                                                                                                      |
+| 10  | `formatContext([])` (contesto sempre vuoto) → verde (lente-strutturale · 2/3)                                                                                       | **chiuso**: l'argomento è inchiodato — `formatContext((matches as KnowledgeMatch[] \| null) ?? [])`                                    |
+| 11  | `lbl: try … finally { break lbl }` scarta ogni return, 500 compreso (lente-strutturale · 2/3)                                                                       | **chiuso**: nel file nessun `finally` né `try` etichettato                                                                             |
+| 12  | dollar-quoting con tag ANNIDATO nel corpo (`RAISE NOTICE` con tag e apostrofo dispari) desincronizza il tokenizer e «portata» non lo vedeva (lente-tokenizer · 3/3) | **chiuso**: ogni tag dollar che non sia un confine di regione è segnalato da «portata» (misura: 0 sopra soglia, 0 nel repo)            |
+| 13  | operatori `<+>` (L1), `<~>` (Hamming), `<%>` (Jaccard) fuori dalla regex mentre `l1_distance` era coperta come funzione (lente-tokenizer · 2/3)                     | **chiuso**: i sei operatori di pgvector nella regex; test con `<+>` nudo → `fixture.sql:3`                                             |
+| 14  | un `\r` solo chiude il commento `--` in Postgres ma non nel tokenizer → codice cancellato (lente-tokenizer · 3/3)                                                   | **chiuso**: `--` chiusa da `\n` o `\r`; test dedicato                                                                                  |
+| 15  | «portata» cercava solo `E'` maiuscola: `e'…'` legale non segnalata (lente-tokenizer · 3/3)                                                                          | **chiuso**: `[eE]'`                                                                                                                    |
+| 16  | un `/*` mai chiuso azzera il file: naked-test verde, Postgres rifiuterebbe il file (lente-tokenizer · 2/3)                                                          | **chiuso**: `scanSql` segnala stringa/blocco aperti a fine file e «portata» li boccia; test dedicato                                   |
+| 17  | l'ACL era provata per presenza e ordine, non per stato finale: un `GRANT … TO anon` in coda passava (code-reviewer · 2/3)                                           | **chiuso**: nessun `GRANT` sulla funzione può nominare `anon`                                                                          |
+| 18  | (nota) il cancello (b) prima della coda toglieva solo i commenti `//` a riga intera (lente-tokenizer · 3/3)                                                         | = rilievo 1                                                                                                                            |
 
-**(coda 2) Workflow: 31 agenti, 0 errori, 18,5 minuti** — 3 auditor di progetto (`supabase-rls-auditor`
-· `code-reviewer` · `code-test-verifier`; niente UI toccata) → 9 rilievi (6 note + 2 bassi + 1 nota),
-gli 8 passati ai refuter × 3 lenti (repro · contratto · base) = 24 voti; 4 cacciatori (classificazione
-di `isEmptyWeek` · flusso della edge dopo la guardia · `ai_summary` nell'inbox · falsificabilità dei
-test nuovi), con l'obbligo di eseguire via script Deno sul modulo del worktree.
+Costo della passata: 4,6 M token dei subagenti. Nessun rilievo fuori dai due file di test; il
+`code-test-verifier` ha chiuso a exit 0 su vitest, tsc, prettier, manifesto e `supabase/` a 0.
 
-**Verdetti.** rls: «VERDE — il diff non apre superficie: guardia pura che legge due numeri sempre
-presenti, nessuna fetch nel ramo vuoto, log con solo UUID + testo fisso, chiave OpenAI mai loggata,
-upsert byte-identico a main» (le sue 6 note: 4 conferme, 2 preesistenti fuori diff — body OpenAI e
-oggetto errore nei `console.error` :396/:418 e `error.message` :439, identici a `main`; nessun rate
-limit sull'endpoint AI, e la coda RIDUCE le chiamate) · reviewer: «VERDE — committabile: guardia
-corretta (&&, campi letti dal report), fetch e prompt solo nel ramo non-vuoto, scope pulito, cancelli
-riprodotti; due rilievi bassi, non bloccanti» · tests: «VERDE — tsc 0, vitest 554/554 e 59/59, deno
-13/13, deno check pulito, prettier ok, vietati a zero; (a)(b)(c)(d) coperti con falsificabilità alta».
+### 10.5 Divergenze della coda
 
-- 🔴 **CONFERMATO 3/3 e CHIUSO in questo stesso commit — il legame test↔edge era posizionale.** Il
-  test strutturale verificava `indice(fetch) > indice(« } else {»)`: i tre refuter hanno costruito
-  il mutante (prompt + fetch + gestione spostati DOPO la graffa che chiude l'if/else, ramo `else`
-  svuotato: chiamata incondizionata, settimana vuota compresa), replicato le sette asserzioni e
-  ottenuto tutto verde — uno anche col vitest reale in un mirror. Chiuso nel test: (1) `fineIfElse`
-  conta le graffe dalla guardia e trova la `}` che chiude l'INTERO if/else (la `}` di «} else {»
-  riapre, non chiude): il `fetch` deve stare fra l'`else` e quella chiusura; (2) i commenti a riga
-  intera sono tolti prima di leggere (una guardia che vive solo in un commento non è una guardia);
-  (3) `openaiKey`, dalla guardia in poi, può comparire SOLO dentro il ramo non-vuoto — vale anche per
-  una chiamata che non si chiamasse `fetch`; (4) il ramo vuoto non contiene `await` né `openaiKey`.
-  Prova rossa M8 (§5): il mutante della passata, ora ucciso.
-- **Dal cacciatore della falsificabilità, due mutanti di `isEmptyWeek` che (a)(b)(c) non uccidevano
-  e che sono difetti veri — CHIUSI con (b') e (c')**: `sessions_completed === 0` →
-  `totalVolume === null` (una seduta conclusa SENZA carico né sRPE sarebbe «nessuna seduta») e
-  `prescribedCount === 0` → `missedCount === 0` (una settimana non ancora iniziata, prescritti tutti
-  avanti, sarebbe «nessun giorno prescritto»). Prove rosse M9 e M10 (§5). Il resto del suo rapporto:
-  le asserzioni intermedie di (a)(b)(c) restano (guardia-fixture, costo zero); in (d) la riga col
-  letterale esatto è il cancello e `not.toMatch(/\d/)` / `not.toContain("N/A")` la didascalia —
-  lasciate; l'unico test onesto della edge (iniettare `callModel` e contare con uno spy) richiede un
-  refactor oltre il «nient'altro»: chip.
-- **Confutati 3/3 (note, non difetti)**: «settimana vuota CON `nutrition_logs`: la prosa perde le
-  calorie» — dentro il contratto (vuota = i due contatori), `avg_daily_calories` resta nello
-  snapshot (`:328`), nessun componente lo rendeva già prima, il coach le vede in
-  `NutritionAdherenceCard`/`MetabolicChart`; dichiarata a Nicolò in §9 come nota di design ·
-  «`docs/ULTIMO-RITORNO.md` modificato ma fuori dallo stage» — sequenza (il codice sta in stage per
-  le prove rosse, il ritorno entra nello stesso commit), non difetto.
-- **Le quattro cacce.** _Classificazione_ (32 scene via Deno contro il vero `buildWeekReport`):
-  `isEmptyWeek` ≡ «prescritti 0 ∧ concluse 0» in tutte; **0 settimane classificate male fra quelle
-  che la edge può costruire**; 3 divergenze A MONTE, in `weekAdherence.ts` (vietato) e non
-  raggiungibili dalla edge — v. §7. _Flusso della edge_: 7 domande su 7 confermate (snapshot e
-  upsert identici; prompt solo nell'`else`; log con UUID e testo fisso; chiave richiesta anche a
-  settimane tutte vuote, com'era; un solo `fetch` e nessun percorso incrociato; l'errore di una vuota
-  finisce nel catch per-atleta; con `-w` la logica cambia di 16 righe + 1). _Inbox_: nessun lettore
-  parsa `ai_summary` (quattro usi, tutti testo piano); il tono nasce solo dallo snapshot → badge «Da
-  rivedere», card a «—», nessun verdetto fabbricato; la frase è consegnabile all'atleta. _Test_: v.
-  sopra.
+1. **Il cancello (a) è a 357 righe** (convenzione delle 300, legge #10): il tokenizer e i suoi
+   cinque test vivono nel file del cancello perché il manifesto della coda ammette SOLO i due file di
+   test. Un modulo `src/__tests__/sql/scanSql.ts` con test suo è la forma giusta: fetta di igiene,
+   chip.
+2. **Identificatori `"…"` nel tokenizer**, oltre alle stringhe del task (10.1a): senza, la misura sul
+   repo intero dava 5 «stringhe con `--`» fantasma, tutte aperte da un apostrofo dentro un nome di
+   policy tra virgolette.
+3. **Un `<=>` dentro una stringa letterale viene ANCORA segnalato** (le stringhe restano intatte,
+   nessuna è svuotata): falso positivo, lato sicuro — 0 casi nel repo (misura 10.1).
+4. **Il test «portata» boccia anche il dollar-quoting fuori da `AS`/`DO`, il tag annidato e i file
+   con stringa o blocco aperti**, non solo il tag: sono i casi in cui il tokenizer sbaglierebbe, e il
+   tag da solo non li distingue (20 corpi con tag nel repo, tutti `AS`).
+5. **eslint 65 → 64 durante la coda**: uno spazio a larghezza zero (U+200B) infilato in un JSDoc del
+   cancello (a) per scrivere «asterisco-slash» senza chiudere il commento — `no-irregular-whitespace`
+   è un errore, non un warning. Tolto e riformulato prima del commit; il riconteggio globale è a 64.
+6. **Il cancello (b) è un pin a sagoma esatta** del blocco RPC → ramo → contesto (10.2): dopo la
+   passata era l'unica forma che chiudesse tutti e 15 i mutanti validi; un refactor legittimo di
+   quelle righe (rinomina di `matches`, un helper, un `try` locale) deve aggiornare il test. Costo
+   dichiarato: preferito a un test che «passa per la ragione sbagliata».
+7. **Sei operatori, non tre**: la regex del cancello (a) copre `<=>`, `<->`, `<#>`, `<+>`, `<~>`,
+   `<%>` (10.4.13) — il task ne nominava tre.
+8. **M5, M8, M9 oltre alle quattro prove del task**: M5 è la seconda lettura del punto (d) («o il
+   ramo svuotato»), M8 e M9 sono i due maggiori della passata.
+9. **Il ritorno resta un file solo**: la fetta (§1–§9) non è riscritta, la coda si aggiunge come §10
+   e nella testata; i numeri di §4.5 (565 test, 9 `it` nei cancelli) sono quelli del PRIMO commit e
+   restano veri per quel commit.
 
-## 7. Ciò che sfugge ancora (trovato, dichiarato, NON toccato — «dillo e non toccarlo»)
+### 10.6 Resta a Nicolò — invariato
 
-Misurato di prima mano con uno script Deno (`scratchpad/sfugge.ts`) che importa il modulo del
-worktree e costruisce i due prompt della fixture, più i quattro cacciatori del workflow (§6). Il
-vaglio verifica la **presenza** di un numero nel prompt, non il suo **senso**: questo è il limite
-dichiarato di una regex sulle cifre, e nessuna delle righe qui sotto è stata toccata.
-
-**A. Fuori dalla portata di una regex sulle cifre (per costruzione):**
-
-- numeri **in lettere** («Tre sedute concluse», «Sedute concluse: zero») e **ordinali in lettere**
-  («un terzo giorno», «il primo settembre») → PASSANO. Le regole (1) e (5) del prompt spingono il
-  modello alle cifre per i numeri e alle lettere solo per il mese («2 settembre»): il giorno resta
-  in cifre. Un modello che scrivesse «tre settembre» passerebbe.
-- **numeri romani** («Il III giorno»), **frazioni Unicode** («½ carico»), **cifre non ASCII**
-  (fullwidth «３ sedute») → PASSANO (`\d` è solo `[0-9]`).
-- Gli **ordinali in cifre** invece sono fermati: «3° giorno» → `numero «3» assente dal prompt`.
-
-**B. A portata della regex ma ammessi per coincidenza** (il numero STA nel blocco, in un altro senso):
-
-- Le date ISO della settimana mettono nell'insieme, ogni settimana, l'anno, il mese e i due giorni
-  degli estremi: sulla settimana vuota 31/08→06/09 passano «RPE medio 9» (RPE reale: N/A; il 9 è
-  il mese «09»), «Hai concluso 6 sedute» (dal «06»), «8 giorni prescritti» (dal «08»), «31 sedute
-  in programma», «Riposo dal 2 al 6». Sulla 24→30 passano «RPE 8» (dal mese «08»), «24 sedute»,
-  «50 UA» (dal 50%), «Sedute: 9,02» (il carico), «Compliance 50,0%» (≡ 50), «1 su 2 onorati, 2
-  saltati» (rapporto ammesso; il 2 è nel prompt). Il costo di ammettere i giorni in cifre per la
-  regola (5) è questo, ed è per disegno; chiudere questa classe richiederebbe un vaglio semantico
-  (numero + unità), fuori dalla coda.
-
-**C. Ambiguità del token:**
-
-- **Separatore delle migliaia**: CHIUSO in questo commit (§6): «1.000», «2.000», «1,000» restano
-  letterali e sono bocciati se il blocco non li scrive così. Il rovescio, dichiarato: il dato vero
-  «2500 kcal» riscritto «2.500 kcal» è bocciato (conservativo).
-- **Orari scritti diversamente**: solo «15:03» è un token unico; «15.03», «15h03», «alle 15» sono
-  bocciati (conservativo, la cautela sale). Un orario **con i secondi** («15:03:09») si spezza in
-  «15:03» + «09»: il 9 passa per coincidenza sulla settimana di settembre (dal mese «09»), un
-  altro secondo no. Il prompt non scrive mai i secondi.
-- **Cifre nel nome dell'atleta** (`athleteName` non è nel blocco, come da task): un modello che
-  ricopiasse «Atleta 2» verrebbe bocciato se il 2 non è un dato. Conservativo.
-
-**D. Limiti PREESISTENTI dei controlli sui rapporti** (non della coda, identici a `main`, trovati
-dalle cacce e non toccati): `RATIO_SU` ammette al massimo tre parole fra N e «su» («4 sedute
-molto intense di forza su 2» sfugge al controllo dei rapporti; 4 e 2 sono nel prompt e il
-controllo dei numeri non li ferma) · «N di M» e «N ogni M» non sono rapporti per `RATIO_SU` ·
-«sù» accentato idem · percentuali in lettere («metà», «un terzo») fuori portata.
-
-**Un campione di ciò che il vaglio FERMA** (per non far sembrare il colabrodo più largo di quel che
-è): «Sedute concluse 0 su 0» (rapporto), «Aderenza 0%» (percentuale, con compliance assente), «2 su
-2 onorati», «Aderenza al 30%», «2 sedute oltre soglia su 4» (rapporto), «Il 9 di settembre» sulla
-24→30, «Sono le 15», «3° giorno», «1.000 kcal» sulla settimana vuota.
-
-**(coda 2) Ciò che i cacciatori hanno trovato A MONTE della guardia — dichiarato, NON toccato** (tutto
-in `weekAdherence.ts`, file vietato, e tutto preesistente: `isEmptyWeek` legge il report ed è
-coerente con esso in tutte le 32 scene; nessuna raggiungibile dalla edge, che costruisce sempre
-lunedì→domenica ISO e legge solo log `completed` con `completed_at`):
-
-- **Documento v2 con un giorno senza esercizi** → `readPrescription` rifiuta l'INTERO documento
-  (`weekAdherence.ts:102-104`, mirror byte-fedele della porta atleta) → 0 prescritti anche se altri
-  giorni cadevano nella finestra → con zero log la settimana è «vuota». Non raggiungibile:
-  `publish-program-block` valida prima dell'insert (un giorno senza esercizi è un errore); e prima
-  della coda gli stessi zeri andavano al modello.
-- **Finestra invertita** → `prescribedDatesInWindow` dà `[]` e `completedLogsInWindow` non trova
-  nulla: settimana CON prescrizione e CON seduta letta come vuota. Non raggiungibile
-  (`getItalianWeekBounds`).
-- **`toIso` non di calendario** («2026-09-31»): `prescribedDatesInWindow` rifiuta la finestra,
-  `completedLogsInWindow` la accetta (confronto di stringhe) — un'asimmetria di validazione fra le
-  due funzioni del modulo. Non raggiungibile per la stessa ragione. Chip.
-- **Un rilascio v1 non ha mai settimane vuote**: la semantica ereditata mappa il weekday sul giorno
-  _i_ in OGNI settimana, per sempre → un atleta col solo v1 vecchio di mesi è «prescritti ma zero
-  sedute» e va sempre al modello. Coerente col contratto; il risparmio della coda vale per v2 e per
-  chi non ha rilasci.
-- **Settimana vuota CON `nutrition_logs`**: le calorie non entrano in `isEmptyWeek` (il contratto
-  sono i due contatori); prima il modello POTEVA citarle, ora la frase non le nomina; il dato resta
-  nello snapshot (`avg_daily_calories`) e nelle viste nutrizionali del coach. Nota di design (§9).
-- **`reading` (`index.ts:311`) è calcolato anche per la settimana vuota e lì non usato**: puro,
-  gratuito; spostarlo nell'`else` allargherebbe il diff. Non toccato.
-- **La frase arriva all'atleta verbatim** se il coach approva senza scrivere note
-  (`useWeeklyCheckins.ts:135-150`: «Report Settimanale:\n\n» + `coach_notes || ai_summary`) — stesso
-  canale della vecchia riga di bocciatura, nessuna regressione; il lessico è da coach («prescritto»,
-  la riga di bocciatura dice «programmata»). E nel pannello la stessa assenza è detta due volte
-  (la «Lettura della settimana» sopra la bozza) — preesistente.
-
-## 8. Divergenze — dove il task diceva una cosa e la misura un'altra (vince la misura, dichiarata)
-
-1. **L'ora è un token solo** (`\d+(?:[.,:]\d+)?`, non la regex nuda `\d+(?:[.,]\d+)?` del task). Con
-   la regex nuda «ore 15:03» del contesto temporale regala «15» e «03» → «3»: la frase viva del
-   02/09, scritta proprio alle 15:03, sarebbe PASSATA al vaglio, e il test (a) sarebbe stato verde
-   solo perché la fixture usava un altro orario. Il candidato viene letto con la STESSA regex (come
-   chiesto): «ore 15:03» scritto intero passa, «alle 15» no. Test dedicato.
-2. **Confronto in forma canonica, non testuale**: il task dà per buono che «6» stia nel prompt, ma
-   il prompt scrive «2026-09-06»: «06» ≡ «6» (e «8,5» ≡ «8.5» ≡ «8.50»). Corollario onesto: il mese
-   «09» ammette un «9» e «08» un «8» in ogni settimana di settembre/agosto — v. §7.
-3. **La NOTA IMPORTANTE si sposta di un paragrafo** (sopra il contesto temporale, prima stava sotto):
-   porta «24 ore», che non è un dato, e il blocco-dati deve essere contiguo per comparire verbatim
-   nel testo. Testo della nota byte-identico; «Niente altro cambia nel testo del prompt» vale per il
-   resto (regole, istruzione finale, righe della lettura e dei dati invariate).
-4. **`CheckinPrompt` al posto della stringa**: `buildCheckinPrompt` non restituisce più una `string`.
-   Il frontend non la usa (zero righe di diff nell'inbox); la edge cambia due espressioni.
-5. **Il modulo sale a 428 righe** (convenzione delle 300, legge #10): la coda poteva toccare solo
-   `checkinReading.ts`, non aprire file nuovi. Da spezzare in una fetta dedicata (chip).
-6. **Un commit solo, quindi l'hash non è nel file** (§1).
-7. **Il `todayIso` della fixture della 24→30 è `2026-08-30`** (domenica, come il `dayName` del
-   contesto), non il `2026-08-28` della finestra del report: il contesto temporale del prompt di
-   test dice «domenica 30 agosto 2026», coerente con «La settimana di allenamento è conclusa».
-8. **`Co-Authored-By`**: il commit porta il trailer di progetto (`Claude <noreply@anthropic.com>`,
-   legge #9) E quello richiesto dall'harness della sessione (`Claude Fable 5.1`).
-9. **Tre cifre dopo il separatore = token letterale** (`THOUSANDS_SHAPE`, esito della passata,
-   §6). Non era nel task, ma è un difetto della coda e non «un altro numero che sfugge»: la mia
-   forma canonica faceva entrare «1.000» come 1, cioè un numero che il prompt non aveva dato, in
-   direzione opposta a §0.8. Le classi fuori portata della regex (lettere, ordinali, romani,
-   Unicode) restano invece dichiarate e NON toccate, come chiesto.
-10. **(coda 2) Un test in più, STRUTTURALE, che lega la edge** («la edge chiama il modello solo nel
-    ramo non-vuoto»): il task chiede la costante esportata «così il test la lega alla edge» e chiede
-    di dichiarare la guardia tolta «perché la edge non ha test». Il test legge il sorgente di
-    `index.ts` (commenti a riga intera tolti) e inchioda: guardia → `} else {` → URL di OpenAI →
-    graffa che chiude l'intero if/else (contata sulle graffe: `fineIfElse`); la frase e il log fra
-    guardia ed `else`, senza `await` né `openaiKey`; `openaiKey` dalla guardia in poi SOLO nel ramo
-    non-vuoto; un solo `fetch(` nel file. È testo, non esecuzione — ciò che ancora NON vede: un
-    client che non usi né `fetch` né `openaiKey` (una SDK con la chiave letta altrove), una
-    riassegnazione di `aiSummary` fra la chiusura e l'upsert, un `if/else` annidato nel ramo vuoto
-    prima del primo `} else {`; e si rompe a un rinomino legittimo della variabile, dell'URL o a un
-    ternario al posto dell'if/else — costo dichiarato, come per il test di purezza del modulo che già
-    legge il sorgente. L'unico test onesto — iniettare `callModel` nel passo «descrivi la settimana»
-    e contare con uno spy — è un refactor della edge oltre il «nient'altro»: chip (§9). È ciò che
-    uccide M6, M7 e M8.
-11. **(coda 2) `console.info` = un warning eslint in più (13 → 14)**: `no-console` ammette solo
-    `warn` ed `error` (`eslint.config.js`); il task chiede `console.info` con l'`athlete.id`, e una
-    settimana vuota non è un avviso. La regola è a `warn` per scelta scritta (`eslint.config.js:45-51`:
-    «FLAGS new console.log/info — as a warning, not a gate») e la CI conta solo gli errori (legge #10
-    «convenzione, non cancello»): dichiarato, non zittito con un `eslint-disable`.
-12. **(coda 2) Il prompt si costruisce DENTRO il ramo non-vuoto**, non prima della guardia: il task
-    dice «prima della chiamata a OpenAI», e la guardia sta prima del prompt E della chiamata. Un
-    prompt costruito e mai inviato sarebbe lavoro morto e un `dataBlock` senza vaglio; il costo è la
-    re-indentazione di ~40 righe nel diff (con `-w`: 16 1).
-13. **(coda 2) La fixture di (a) e (b) è `DOC_V2` (giorni 22–25/08)**, il documento della misura
-    viva, non un documento «con giorni solo il 24 e 25/08»: nella finestra 24→30 cadono solo quei
-    due, e il conteggio è lo stesso (2 prescritti); nella 31/08→06/09 non ne cade nessuno.
-14. **(coda 2) La firma prende `WeekReport` intero** (`isEmptyWeek(report: WeekReport)`), non un
-    `Pick`: la edge passa il report che ha, e i due campi letti stanno nel commento e nel test. Nessun
-    ricalcolo, come chiesto: né `prescribedDatesInWindow` né `completedLogsInWindow` sono chiamate.
-
-## 9. Resta a Nicolò (e a Cowork)
-
-1. **PR** dal link in testa (porta i DUE commit) e **merge**.
-2. **Deploy** di `generate-batch-checkins` (v35 → v36, una volta sola per le due code)
-   **controllando che la versione salga** (`list_edge_functions` → v36 e `updated_at` di oggi).
-   Nessuna migration, nessun FE da deployare oltre alla pubblicazione ordinaria di `main`.
-3. **Collaudo**: «Analizza» sulla settimana corrente. **(coda 2)** Atteso sulla riga 31/08→06/09,
-   se resta vuota (nessun giorno prescritto, nessuna seduta conclusa): `ai_summary` = «Nessun giorno
-   prescritto e nessuna seduta conclusa questa settimana.», NESSUNA richiesta a OpenAI per quell'atleta
-   e nei log della function la riga `[isEmptyWeek] atleta <uuid>: settimana vuota: nessuna chiamata
-al modello`; snapshot identico a prima (`sessions_completed 0`, `avg_rpe "N/A"`, senza
-   `compliance_pct`). Se invece l'atleta ha concluso una seduta nel frattempo (fuori programma), il
-   modello VIENE chiamato e vale l'atteso della prima coda: `ai_summary` senza numeri estranei al
-   prompt e con la data giusta se la cita («2 settembre»), o la riga deterministica con il
-   `console.warn` `[vetSummary] atleta …: riepilogo IA scartato — numero «…» assente dal prompt`.
-4. **Cowork, verifica live** dopo un «Analizza» post-deploy: `select week_start, ai_summary from
-weekly_checkins order by week_start desc` → sulla riga vuota la frase sola (nessuna cifra, nessun
-   «N/A»); sulle altre nessun numero fuori dal prompt (i log della function dicono se il candidato è
-   stato scartato e perché, e per quali atleti il modello non è stato chiamato).
-5. **Decisione «chiamare il modello su una settimana vuota?»: CHIUSA dalla coda 2** — no. Il caso
-   è deciso da `isEmptyWeek` (zero prescritti E zero sedute concluse); i due vicini (zero prescritti
-   con sedute fuori programma · prescritti senza sedute) vanno ancora al modello, perché lì i dati ci
-   sono. Il testo della settimana vuota è la costante `EMPTY_WEEK_TEXT`: cambiarlo è un edit di una
-   riga nel modulo puro, coperto dal test (d).
-6. **Chip aperte**: spezzare `checkinReading.ts` (ora 466 righe) · parametro di settimana per il batch ·
-   le due voci `bg-error-container/*` in `EXPECTED` di `verify-css-tokens.mjs` · `fallbackSummaryText`
-   senza le sedute oltre soglia · `error.message` preesistente della edge · `full_name` nel prompt ·
-   **(coda 2)** il warning `no-console` del `console.info` (se si vuole a zero: o la regola ammette
-   `info` nelle edge, o il log passa a `console.warn` — decisione sulla regola, non sul codice) ·
-   **(coda 2)** il passo «descrivi la settimana» della edge estratto in `_shared/program/` con
-   `callModel` iniettabile, così il «non chiama il modello» si prova con uno spy e il test
-   strutturale sul sorgente può sparire · **(coda 2)** l'asimmetria di validazione della finestra fra
-   `prescribedDatesInWindow` e `completedLogsInWindow` (§7) · **(coda 2, nota di design)** la
-   settimana vuota con sole calorie registrate: oggi la frase non le nomina, il dato resta nello
-   snapshot — se le calorie devono entrare nella decisione o nella frase, è una regola nuova, non un
-   difetto.
-7. **RETRO non scritta in `docs/auto-miglioramento.md`**: fuori dal perimetro dei file della coda.
-   La lezione di processo di oggi (le prove rosse su codice non committato: mettere in stage prima,
-   così `git diff --exit-code` misura worktree-contro-index) è salvata nella memoria di progetto
-   dell'agente; da promuovere nel Log alla prossima fetta che apre quel file.
+Le due righe di §9, nell'ordine e senza cambiamenti: prima `npx supabase@2.116.0 db push`, poi
+`npx supabase@2.116.0 functions deploy chat-with-coach --project-ref xgxtplqlewpqjzghvbke` (v28 →
+v29); `ask-copilot` non si ri-deploya. PR dal link in testa: porta i DUE commit. Chip nuova: il
+tokenizer in un modulo suo (10.5.1).
