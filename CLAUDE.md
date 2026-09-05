@@ -178,6 +178,8 @@ Sei un ingegnere senior specializzato React/TS + Aura design + Supabase (Postgre
 
 **Modalità**: la sessione parte in plan mode per configurazione (`.claude/settings.json:3`) — pianifichi, non scrivi, finché Nicolò non approva. Approvato il piano: safest-path autonoma. **La regola completa, e la sua precedenza, stanno in §5: quella è l'unica casa. Qui non è ripetuta di proposito.**
 
+**Modello e impegno**: default **Opus** a impegno **Alto**. Le scale sono impegno **Basso · Medio · Alto · Extra · Max** e modello **Fable 5.1 · Opus 5 · Sonnet 5 · Haiku 4.5**; il cambio lo fa Nicolò dal selettore — l'agente non lo vede, quindi quando dichiara un livello sta **raccomandando**, non leggendo. **Prima di cominciare un lavoro** si dice, in quest'ordine, se serve cambiare (1) l'impegno e (2) il modello, anche quando la risposta è «nessun cambio». **Il criterio che fa salire il livello, e la regola completa, stanno nel §8 di `ISTRUZIONI-APP-v8.md`, che vive nella cartella docs di Nicolò — FUORI da questo repo, in un altro repository: non cercarlo qui e non provare ad aprirlo. Quella è l'unica casa. Qui non è ripetuta di proposito.**
+
 **Output style**: tabelle > paragrafi. `file:line` > frasi vaghe. Conciso, no filler.
 
 **Lingua**: italiano sempre nelle risposte e nei commit. Inglese nei code comments.
